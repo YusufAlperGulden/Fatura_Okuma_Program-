@@ -6,7 +6,9 @@ def parse_amount(amount_str):
 
     # Remove thousand separators (.) and replace decimal separator (,) with (.)
     amount_str = str(amount_str).strip()
-    amount_str = amount_str.replace("₺", "").replace("TL", "").replace("TRY", "").strip()
+    amount_str = amount_str.replace("₺", "").replace("TL", "").replace("TRY", "")
+    amount_str = amount_str.replace("$", "").replace("USD", "").replace("€", "").replace("EUR", "")
+    amount_str = amount_str.replace("£", "").replace("GBP", "").strip()
 
     if "," in amount_str:
         amount_str = amount_str.replace('.', '').replace(',', '.')
