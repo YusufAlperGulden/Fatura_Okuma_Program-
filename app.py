@@ -176,7 +176,7 @@ if uploaded_file is not None:
 
             c1, c2, c3, c4, c5 = st.columns(5)
             
-            vkn = data.get("supplier_vkn") or data.get("buyer_vkn") or "-"
+            vkn = data.get("customer_tax_id", "-")
             
             with c1:
                 st.metric("TARİH", data.get("date", "-"))
@@ -185,9 +185,9 @@ if uploaded_file is not None:
             with c3:
                 st.metric("ARA TOPLAM", f"₺{data.get('subtotal', '-')}")
             with c4:
-                st.metric("KDV", f"₺{data.get('tax_total', '-')}")
+                st.metric("KDV", f"₺{data.get('tax_amount', '-')}")
             with c5:
-                st.metric("GENEL TOPLAM", f"₺{data.get('total', '-')}")
+                st.metric("GENEL TOPLAM", f"₺{data.get('total_amount', '-')}")
             
             # --- ITEMS SECTION ---
             st.markdown("<div class='section-header'>Fatura Kalemleri</div>", unsafe_allow_html=True)
