@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Invoice xmlns="urn:oasis:names:specification:ubl:schema:xsd:Invoice-2" xmlns:cac="urn:oasis:names:specification:ubl:schema:xsd:CommonAggregateComponents-2" xmlns:cbc="urn:oasis:names:specification:ubl:schema:xsd:CommonBasicComponents-2">
+  <cbc:ID>GIB2026000000001</cbc:ID>
+  <cbc:IssueDate>2026-07-08</cbc:IssueDate>
+  <cac:AccountingCustomerParty>
+    <cac:Party>
+      <cac:PartyIdentification>
+        <cbc:ID>12345678901</cbc:ID>
+      </cac:PartyIdentification>
+    </cac:Party>
+  </cac:AccountingCustomerParty>
+  <cac:InvoiceLine>
+    <cbc:ID>1</cbc:ID>
+    <cbc:InvoicedQuantity>2.0</cbc:InvoicedQuantity>
+    <cbc:LineExtensionAmount>100.00</cbc:LineExtensionAmount>
+    <cac:Item>
+      <cbc:Name>Yazılım Danışmanlığı</cbc:Name>
+    </cac:Item>
+    <cac:Price>
+      <cbc:PriceAmount>50.00</cbc:PriceAmount>
+    </cac:Price>
+  </cac:InvoiceLine>
+  <cac:InvoiceLine>
+    <cbc:ID>2</cbc:ID>
+    <cbc:InvoicedQuantity>1.0</cbc:InvoicedQuantity>
+    <cbc:LineExtensionAmount>20.00</cbc:LineExtensionAmount>
+    <cac:Item>
+      <cbc:Name>Sunucu Gideri</cbc:Name>
+    </cac:Item>
+    <cac:Price>
+      <cbc:PriceAmount>20.00</cbc:PriceAmount>
+    </cac:Price>
+  </cac:InvoiceLine>
+  <cac:LegalMonetaryTotal>
+    <cbc:LineExtensionAmount>120.00</cbc:LineExtensionAmount>
+    <cbc:TaxExclusiveAmount>24.00</cbc:TaxExclusiveAmount>
+    <cbc:PayableAmount>144.00</cbc:PayableAmount>
+  </cac:LegalMonetaryTotal>
+</Invoice>

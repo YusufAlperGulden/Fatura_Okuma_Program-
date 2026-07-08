@@ -1,0 +1,9 @@
+venv/
+__pycache__/
+.git/
+.env
+uploads/
+Uyumsoft_Aktarim_Taslagi.xlsx
+ornek.xml
+ornek.pdf
+*.log
