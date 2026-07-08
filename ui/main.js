@@ -1,4 +1,9 @@
 document.addEventListener('DOMContentLoaded', () => {
+    // Request notification permission for Uyumsoft alerts
+    if (window.Notification && Notification.permission !== 'granted' && Notification.permission !== 'denied') {
+        Notification.requestPermission();
+    }
+
     const dropZone = document.getElementById('drop-zone');
     const fileInput = document.getElementById('file-input');
     const loading = document.getElementById('loading');
@@ -232,6 +237,12 @@ document.addEventListener('DOMContentLoaded', () => {
                 statusBox.style.backgroundColor = '#059669';
                 statusBox.innerHTML = `✅ ${escapeHtml(result.message)} (HTTP ${escapeHtml(result.response_code)}) 
                 <br> <a href="http://portal-test.uyumsoft.com.tr/Taslak" target="_blank" style="display:inline-block; margin-top:10px; padding:5px 10px; background-color:white; color:#059669; text-decoration:none; border-radius:4px; font-weight:bold; font-size:14px;">Uyumsoft Portalına Git ↗</a>`;
+                
+                if (window.Notification && Notification.permission === 'granted') {
+                    new Notification("Uyumsoft Entegrasyonu", {
+                        body: "Fatura başarıyla Uyumsoft portalına aktarıldı!"
+                    });
+                }
             } else {
                 const details = formatDetails(result.details);
                 statusBox.style.backgroundColor = '#dc2626';
