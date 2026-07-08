@@ -11,7 +11,6 @@ import uuid
 from extractors.excel_extractor import parse_excel_invoice
 from extractors.pdf_extractor import parse_pdf_invoice
 from extractors.xml_extractor import parse_xml_invoice
-from extractors.ai_extractor import extract_invoice_with_ai
 from validators.invoice_validator import validate_invoice
 from integrators.uyumsoft_excel import export_to_uyumsoft_excel
 from integrators.uyumsoft_api import send_invoice_to_uyumsoft
@@ -91,6 +90,8 @@ async def upload_invoice(file: UploadFile = File(...)):
     # STAGE 2: FALLBACK TO AI
     if local_error and os.getenv("GEMINI_API_KEY"):
         try:
+            from extractors.ai_extractor import extract_invoice_with_ai
+
             with open(file_path, "rb") as f:
                 file_bytes = f.read()
             mime_type = "application/pdf"
