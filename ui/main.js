@@ -56,6 +56,14 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('uyumsoft-controls').classList.add('hidden');
         document.getElementById('api-status-box').classList.add('hidden');
         
+        // Clear old results data visually
+        document.getElementById('res-date').textContent = '-';
+        document.getElementById('res-vkn').textContent = '-';
+        document.getElementById('res-subtotal').textContent = '-';
+        document.getElementById('res-tax').textContent = '-';
+        document.getElementById('res-total').textContent = '-';
+        document.querySelector('#items-table tbody').innerHTML = '';
+        
         const formData = new FormData();
         formData.append('file', file);
         
@@ -137,12 +145,20 @@ document.addEventListener('DOMContentLoaded', () => {
         // Ensure data exists before accessing properties
         const data = result.data || {};
         
+        const getSymbol = (currency) => {
+            if (currency === 'USD') return '$';
+            if (currency === 'EUR') return '€';
+            if (currency === 'GBP') return '£';
+            return '₺';
+        };
+        const sym = getSymbol(data.currency);
+        
         // Update summary cards
         document.getElementById('res-date').textContent = data.date || '-';
         document.getElementById('res-vkn').textContent = data.customer_tax_id || '-';
-        document.getElementById('res-subtotal').textContent = data.subtotal ? `₺${data.subtotal}` : '-';
-        document.getElementById('res-tax').textContent = data.tax_amount ? `₺${data.tax_amount}` : '-';
-        document.getElementById('res-total').textContent = data.total_amount ? `₺${data.total_amount}` : '-';
+        document.getElementById('res-subtotal').textContent = data.subtotal ? `${sym}${data.subtotal}` : '-';
+        document.getElementById('res-tax').textContent = data.tax_amount ? `${sym}${data.tax_amount}` : '-';
+        document.getElementById('res-total').textContent = data.total_amount ? `${sym}${data.total_amount}` : '-';
         
         // Render items
         const tbody = document.querySelector('#items-table tbody');
@@ -160,8 +176,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     <td>${item.code || '-'}</td>
                     <td>${item.description || '-'}</td>
                     <td>${item.quantity || '-'}</td>
-                    <td>${item.unit_price ? `₺${item.unit_price}` : '-'}</td>
-                    <td>${item.total_price ? `₺${item.total_price}` : '-'}</td>
+                    <td>${item.unit_price ? `${sym}${item.unit_price}` : '-'}</td>
+                    <td>${item.total_price ? `${sym}${item.total_price}` : '-'}</td>
                 `;
                 tbody.appendChild(tr);
             });
