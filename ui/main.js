@@ -45,6 +45,9 @@ document.addEventListener('DOMContentLoaded', () => {
         return String(details);
     }
 
+    let currentAbortController = null;
+    let timeoutId = null;
+
     async function handleFile(file) {
         // Reset UI
         dropZone.classList.add('hidden');
@@ -55,6 +58,7 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('api-send-btn').classList.add('hidden');
         document.getElementById('uyumsoft-controls').classList.add('hidden');
         document.getElementById('api-status-box').classList.add('hidden');
+        document.getElementById('loading-text').textContent = 'Fatura işleniyor...';
         
         // Clear old results data visually
         document.getElementById('res-date').textContent = '-';
@@ -67,13 +71,34 @@ document.addEventListener('DOMContentLoaded', () => {
         const formData = new FormData();
         formData.append('file', file);
         
+        // Set up AbortController and 60-second timeout
+        if (currentAbortController) {
+            currentAbortController.abort();
+        }
+        currentAbortController = new AbortController();
+        const signal = currentAbortController.signal;
+        
+        timeoutId = setTimeout(() => {
+            if (currentAbortController) {
+                currentAbortController.abort('timeout');
+            }
+        }, 60000);
+        
+        document.getElementById('cancel-btn').onclick = () => {
+            if (currentAbortController) {
+                currentAbortController.abort('user_cancelled');
+            }
+        };
+        
         try {
             // Because we are serving from /ui, the API endpoint is at /upload
             const response = await fetch('/upload', {
                 method: 'POST',
-                body: formData
+                body: formData,
+                signal: signal
             });
             
+            clearTimeout(timeoutId);
             const result = await response.json();
             
             loading.classList.add('hidden');
@@ -120,9 +145,21 @@ document.addEventListener('DOMContentLoaded', () => {
             }
             
         } catch (error) {
+            clearTimeout(timeoutId);
             loading.classList.add('hidden');
             dropZone.classList.remove('hidden');
-            showError("Bağlantı hatası: " + error.message);
+            
+            if (error.name === 'AbortError') {
+                if (currentAbortController.signal.reason === 'timeout') {
+                    showError("İşlem çok uzun sürdü (Zaman Aşımı). Lütfen fatura görselinin boyutunu küçültüp veya farklı bir dosya ile tekrar deneyin.");
+                } else {
+                    showError("İşlem sizin tarafınızdan iptal edildi.");
+                }
+            } else {
+                showError("Bağlantı hatası: " + error.message);
+            }
+        } finally {
+            currentAbortController = null;
         }
     }
     
