@@ -56,6 +56,12 @@ def extract_text_from_image_via_ocr(file_path: str) -> str:
     try:
         from PIL import Image
         image = Image.open(file_path)
+        
+        # Sıkıştırma / Boyut Küçültme (Tesseract'ın çok yavaş çalışmasını önlemek için)
+        max_size = 1600
+        if max(image.size) > max_size:
+            image.thumbnail((max_size, max_size), Image.Resampling.LANCZOS)
+            
         text = pytesseract.image_to_string(image, lang='tur')
         return text
     except Exception as e:
