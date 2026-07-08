@@ -1,12 +1,18 @@
 import pdfplumber
 import re
 
-def parse_pdf_invoice(file_path: str) -> dict:
-    """
-    Parses a digital PDF invoice using pdfplumber and regex.
-    """
-    print(f"Parsing PDF invoice: {file_path}")
-    
+MONEY_RE = r"(?:₺\s*)?(\d{1,3}(?:\.\d{3})*,\d{2}|\d+,\d{2})(?:\s*(?:TL|TRY))?"
+
+
+def _first_match(patterns, text, flags=0):
+    for pattern in patterns:
+        match = re.search(pattern, text, flags)
+        if match:
+            return match.group(1).strip()
+    return None
+
+
+def parse_invoice_text(text: str) -> dict:
     data = {
         "invoice_no": None,
         "date": None,
@@ -16,6 +22,52 @@ def parse_pdf_invoice(file_path: str) -> dict:
         "tax_amount": None,
         "total_amount": None
     }
+
+    data["invoice_no"] = _first_match([
+        r"(?:Fatura|Belge|Invoice)\s*(?:No|Numarası|Numarasi|Number)?\s*[:#-]\s*([A-Z0-9-]+)",
+        r"\b([A-Z]{3}\d{13})\b",
+    ], text, re.IGNORECASE)
+
+    data["date"] = _first_match([r"\b(\d{1,2}\.\d{2}\.\d{4})\b"], text)
+
+    data["customer_tax_id"] = _first_match([
+        r"\b(?:TC|TCKN|VKN|VKN/TCKN|Vergi\s*No)\s*[:#-]?\s*(\d{10,11})\b",
+        r"\b(\d{10,11})\b",
+    ], text, re.IGNORECASE)
+
+    item_pattern = re.compile(
+        rf"(?m)^(?!\d{{1,2}}\.\d{{2}}\.)(\w[\w.-]*)\s+(.+?)\s+"
+        rf"(\d+(?:[.,]\d+)?)\s+{MONEY_RE}\s+{MONEY_RE}",
+        re.IGNORECASE,
+    )
+    for match in item_pattern.finditer(text):
+        item = {
+            "code": match.group(1),
+            "description": match.group(2).strip(),
+            "quantity": match.group(3).replace(".", ","),
+            "unit_price": match.group(4),
+            "total_price": match.group(5)
+        }
+        if item not in data["items"]:
+            data["items"].append(item)
+
+    data["subtotal"] = _first_match([rf"Ara\s*Toplam\s+{MONEY_RE}"], text, re.IGNORECASE)
+    data["tax_amount"] = _first_match([rf"\bKDV\b.*?{MONEY_RE}"], text, re.IGNORECASE)
+    data["total_amount"] = _first_match([
+        rf"Döviz\s*Toplam\s*:\s*{MONEY_RE}",
+        rf"FATURA\s+BEDELİ\s+{MONEY_RE}",
+        rf"Genel\s*Toplam\s+{MONEY_RE}",
+        rf"Ödenecek\s*Tutar\s+{MONEY_RE}",
+    ], text, re.IGNORECASE)
+
+    return data
+
+
+def parse_pdf_invoice(file_path: str) -> dict:
+    """
+    Parses a digital PDF invoice using pdfplumber and regex.
+    """
+    print(f"Parsing PDF invoice: {file_path}")
     
     try:
         with pdfplumber.open(file_path) as pdf:
@@ -24,44 +76,8 @@ def parse_pdf_invoice(file_path: str) -> dict:
                 extracted = page.extract_text()
                 if extracted:
                     text += extracted + "\n"
-            
-            # 1. Date (DD.MM.YYYY format)
-            date_match = re.search(r'\d{1,2}\.\d{2}\.\d{4}', text)
-            if date_match:
-                data['date'] = date_match.group(0)
-                
-            # 2. Customer Tax ID / TC
-            tc_match = re.search(r'TC\s+(\d{11})', text)
-            if tc_match:
-                data['customer_tax_id'] = tc_match.group(1)
-                
-            # 3. Items line
-            item_pattern = re.compile(r'(?m)^(?!\d{1,2}\.\d{2}\.)(\w[\w.-]*)\s+(.*?)\s+(\d+,\d{2})\s+₺(\d+,\d{2})\s+₺(\d+,\d{2})')
-            for match in item_pattern.finditer(text):
-                item = {
-                    "code": match.group(1),
-                    "description": match.group(2).strip(),
-                    "quantity": match.group(3),
-                    "unit_price": match.group(4),
-                    "total_price": match.group(5)
-                }
-                if item not in data['items']:
-                    data['items'].append(item)
-                    
-            # 4. Ara Toplam (Subtotal)
-            subtotal_match = re.search(r'Ara Toplam\s+₺?(\d+,\d{2})', text)
-            if subtotal_match:
-                data['subtotal'] = subtotal_match.group(1)
-                
-            # 5. KDV
-            tax_match = re.search(r'KDV.*?\s+₺?(\d+,\d{2})', text)
-            if tax_match:
-                data['tax_amount'] = tax_match.group(1)
-                
-            # 6. Total Amount
-            total_match = re.search(r'Döviz Toplam\s*:\s*₺?(\d+,\d{2})', text)
-            if total_match:
-                data['total_amount'] = total_match.group(1)
+
+            data = parse_invoice_text(text)
 
         # Fallback to OCR if no items were found (indicates a scanned PDF)
         if not data['items']:

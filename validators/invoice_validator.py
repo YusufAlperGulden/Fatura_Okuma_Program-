@@ -1,8 +1,20 @@
 def parse_amount(amount_str):
     if not amount_str:
         return 0.0
+    if isinstance(amount_str, (int, float)):
+        return float(amount_str)
+
     # Remove thousand separators (.) and replace decimal separator (,) with (.)
-    amount_str = str(amount_str).replace('.', '').replace(',', '.')
+    amount_str = str(amount_str).strip()
+    amount_str = amount_str.replace("₺", "").replace("TL", "").replace("TRY", "").strip()
+
+    if "," in amount_str:
+        amount_str = amount_str.replace('.', '').replace(',', '.')
+    elif "." in amount_str:
+        parts = amount_str.split(".")
+        if len(parts) > 1 and all(len(part) == 3 for part in parts[1:]):
+            amount_str = amount_str.replace(".", "")
+
     try:
         return float(amount_str)
     except ValueError:

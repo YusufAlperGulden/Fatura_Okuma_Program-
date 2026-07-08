@@ -1,7 +1,7 @@
 import pytesseract
 from pdf2image import convert_from_path
-import re
 import os
+from extractors.pdf_extractor import parse_invoice_text
 
 # Set these if Tesseract/Poppler are not in PATH.
 # Example for Windows:
@@ -49,37 +49,4 @@ def parse_pdf_invoice_ocr(file_path: str) -> dict:
     if not text.strip():
         return data
         
-    # Reuse the same regex logic from pdf_extractor
-    date_match = re.search(r'\d{1,2}\.\d{2}\.\d{4}', text)
-    if date_match:
-        data['date'] = date_match.group(0)
-        
-    tc_match = re.search(r'TC\s+(\d{11})', text)
-    if tc_match:
-        data['customer_tax_id'] = tc_match.group(1)
-        
-    item_pattern = re.compile(r'(?m)^(?!\d{1,2}\.\d{2}\.)(\w[\w.-]*)\s+(.*?)\s+(\d+,\d{2})\s+₺(\d+,\d{2})\s+₺(\d+,\d{2})')
-    for match in item_pattern.finditer(text):
-        item = {
-            "code": match.group(1),
-            "description": match.group(2).strip(),
-            "quantity": match.group(3),
-            "unit_price": match.group(4),
-            "total_price": match.group(5)
-        }
-        if item not in data['items']:
-            data['items'].append(item)
-            
-    subtotal_match = re.search(r'Ara Toplam\s+₺?(\d+,\d{2})', text)
-    if subtotal_match:
-        data['subtotal'] = subtotal_match.group(1)
-        
-    tax_match = re.search(r'KDV.*?\s+₺?(\d+,\d{2})', text)
-    if tax_match:
-        data['tax_amount'] = tax_match.group(1)
-        
-    total_match = re.search(r'Döviz Toplam\s*:\s*₺?(\d+,\d{2})', text)
-    if total_match:
-        data['total_amount'] = total_match.group(1)
-        
-    return data
+    return parse_invoice_text(text)

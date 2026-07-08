@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Fatura Veri Otomasyonu</title>
+    <link rel="stylesheet" href="style.css">
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+    <div class="app-container">
+        <header>
+            <h1 class="gradient-text">Fatura İşleme Sistemi</h1>
+            <p>Uyumsoft entegrasyonu için faturalarınızı (PDF/XML/Excel) yükleyin ve doğrulayın.</p>
+        </header>
+
+        <main>
+            <!-- Upload Section -->
+            <section class="upload-section glass-panel">
+                <div id="drop-zone" class="drop-zone">
+                    <div class="drop-content">
+                        <svg class="upload-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"></path>
+                        </svg>
+                        <p>Dosyaları sürükleyip bırakın veya <span class="browse-link">göz atın</span></p>
+                        <p class="file-hint">Desteklenen formatlar: PDF, XML, XLSX, CSV</p>
+                    </div>
+                    <input type="file" id="file-input" accept=".pdf,.xml,.xlsx,.xls,.csv" hidden>
+                </div>
+                
+                <div id="loading" class="loading hidden">
+                    <div class="spinner"></div>
+                    <p>Fatura işleniyor...</p>
+                </div>
+            </section>
+
+            <!-- Results Section (Hidden by default) -->
+            <section id="results-section" class="results-section hidden">
+                
+                <div class="results-header">
+                    <h2>Çıkarım Sonuçları</h2>
+                    <span id="validation-badge" class="badge">DURUM</span>
+                </div>
+
+                <!-- Summary Cards -->
+                <div class="summary-cards">
+                    <div class="card">
+                        <span class="card-label">TARİH</span>
+                        <h3 id="res-date">-</h3>
+                    </div>
+                    <div class="card">
+                        <span class="card-label">MÜŞTERİ VKN</span>
+                        <h3 id="res-vkn">-</h3>
+                    </div>
+                    <div class="card">
+                        <span class="card-label">ARA TOPLAM</span>
+                        <h3 id="res-subtotal">₺0,00</h3>
+                    </div>
+                    <div class="card">
+                        <span class="card-label">KDV</span>
+                        <h3 id="res-tax">₺0,00</h3>
+                    </div>
+                    <div class="card">
+                        <span class="card-label">GENEL TOPLAM</span>
+                        <h3 id="res-total">₺0,00</h3>
+                    </div>
+                </div>
+
+                <!-- Items Table -->
+                <div class="items-panel glass-panel">
+                    <h3>Fatura Kalemleri</h3>
+                    <div class="table-container">
+                        <table id="items-table">
+                            <thead>
+                                <tr>
+                                    <th>Ürün Kodu</th>
+                                    <th>Ürün Açıklaması</th>
+                                    <th>Miktar</th>
+                                    <th>Birim Fiyat</th>
+                                    <th>Satır Toplamı</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <!-- Rows injected via JS -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Action Buttons -->
+                <div class="actions-panel">
+                    <div id="uyumsoft-controls" class="uyumsoft-controls hidden">
+                        <label for="uyumsoft-action">Uyumsoft işlemi</label>
+                        <select id="uyumsoft-action">
+                            <option value="test_connection">Bağlantıyı Test Et</option>
+                            <option value="dry_run">Taslak Verisini Hazırla</option>
+                            <option value="draft">Taslak Oluştur</option>
+                            <option value="send">Gönder</option>
+                        </select>
+                    </div>
+                    <div style="display: flex; gap: 1rem; width: 100%; justify-content: center;">
+                        <button id="download-btn" class="primary-btn hidden" style="background-color: #3b82f6;">
+                            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" style="width: 20px; height: 20px;"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
+                            Master Excel İndir
+                        </button>
+                        <button id="api-send-btn" class="primary-btn hidden" style="background-color: #10b981;">
+                            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" style="width: 20px; height: 20px;"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"></path></svg>
+                            Uyumsoft İşlemini Çalıştır
+                        </button>
+                    </div>
+                    <div id="api-status-box" class="hidden" style="width: 100%; padding: 1rem; border-radius: 8px; margin-top: 1rem; text-align: center;"></div>
+                    <div id="error-box" class="error-box hidden"></div>
+                </div>
+
+            </section>
+        </main>
+    </div>
+    <script src="main.js"></script>
+</body>
+</html>

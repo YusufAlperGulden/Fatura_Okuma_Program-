@@ -10,6 +10,12 @@ def find_text_agnostic(root, tag_name):
             return elem.text
     return None
 
+def child_text_agnostic(root, tag_name):
+    for elem in list(root):
+        if elem.tag.endswith(f"}}{tag_name}") or elem.tag == tag_name:
+            return elem.text
+    return None
+
 def parse_xml_invoice(file_path: str) -> dict:
     """
     Parses a UBL-TR formatted e-Fatura/e-Arşiv XML file.
@@ -85,26 +91,28 @@ def parse_xml_invoice(file_path: str) -> dict:
                 break
                 
         if monetary_total is not None:
-            subt = find_text_agnostic(monetary_total, "LineExtensionAmount")
+            subt = child_text_agnostic(monetary_total, "LineExtensionAmount")
             data["subtotal"] = subt.replace('.', ',') if subt else None
-            
-            tax_amt = find_text_agnostic(monetary_total, "TaxExclusiveAmount") 
-            data["tax_amount"] = tax_amt.replace('.', ',') if tax_amt else None
-            
-            # In some UBL structures, tax amount might just be calculated or inside TaxTotal
-            tot = find_text_agnostic(monetary_total, "PayableAmount")
+
+            tot = (
+                child_text_agnostic(monetary_total, "PayableAmount")
+                or child_text_agnostic(monetary_total, "TaxInclusiveAmount")
+            )
             data["total_amount"] = tot.replace('.', ',') if tot else None
-            
-        # Fallback for tax amount if not in LegalMonetaryTotal
-        if not data["tax_amount"]:
-            tax_total = None
-            for elem in root.iter():
-                if elem.tag.endswith("}TaxTotal") or elem.tag == "TaxTotal":
-                    tax_total = elem
-                    break
-            if tax_total is not None:
-                tax_amt2 = find_text_agnostic(tax_total, "TaxAmount")
-                data["tax_amount"] = tax_amt2.replace('.', ',') if tax_amt2 else None
+
+        tax_total = None
+        for elem in root.iter():
+            if elem.tag.endswith("}TaxTotal") or elem.tag == "TaxTotal":
+                tax_total = elem
+                break
+        if tax_total is not None:
+            tax_amt = child_text_agnostic(tax_total, "TaxAmount") or find_text_agnostic(tax_total, "TaxAmount")
+            data["tax_amount"] = tax_amt.replace('.', ',') if tax_amt else data["tax_amount"]
+
+        if not data["tax_amount"] and data["subtotal"] and data["total_amount"]:
+            subtotal = float(data["subtotal"].replace(".", "").replace(",", "."))
+            total = float(data["total_amount"].replace(".", "").replace(",", "."))
+            data["tax_amount"] = f"{total - subtotal:.2f}".replace(".", ",")
 
         print("Successfully read XML file.")
         return data
