@@ -96,17 +96,14 @@ def parse_pdf_invoice(file_path: str) -> dict:
             if not text:
                 print("No selectable text found via pdfplumber. Falling back to OCR...")
                 from extractors.ocr_extractor import parse_pdf_invoice_ocr
-                data = parse_pdf_invoice_ocr(file_path)
-                data["_extraction_method"] = "ocr_pdf"
-                data["_pdf_text_found"] = False
-                return data
+                return parse_pdf_invoice_ocr(file_path)
 
             data = parse_invoice_text(text)
-            data["_extraction_method"] = "pdf_text"
-            data["_pdf_text_found"] = True
 
         if not data['items']:
-            print("PDF text was read, but line items were not matched. Keeping pdfplumber result.")
+            print("PDF text was read, but line items were not matched. Falling back to OCR...")
+            from extractors.ocr_extractor import parse_pdf_invoice_ocr
+            return parse_pdf_invoice_ocr(file_path)
 
         print("Successfully read PDF file.")
         return data
