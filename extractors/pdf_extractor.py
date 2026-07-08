@@ -52,7 +52,7 @@ def parse_invoice_text(text: str) -> dict:
 
     item_pattern = re.compile(
         rf"(?m)^(?!\d{{1,2}}\.\d{{2}}\.)(\w[\w.-]*)\s+(.+?)\s+"
-        rf"(\d+(?:[.,]\d+)?)\s+{MONEY_RE}\s+{MONEY_RE}",
+        rf"(\d+(?:[.,]\d+)?)\s+(?:(?:Adet|Kg|Lt|Paket|Pak|Kutu|Ay|Yıl|Ad\.|M2|M3)\s+)?{MONEY_RE}\s+(?:%?\s*\d+(?:[.,]\d+)?\s*(?:%\s*)?)?{MONEY_RE}",
         re.IGNORECASE,
     )
     for match in item_pattern.finditer(text):
@@ -96,14 +96,17 @@ def parse_pdf_invoice(file_path: str) -> dict:
             if not text:
                 print("No selectable text found via pdfplumber. Falling back to OCR...")
                 from extractors.ocr_extractor import parse_pdf_invoice_ocr
-                return parse_pdf_invoice_ocr(file_path)
+                data = parse_pdf_invoice_ocr(file_path)
+                data["_extraction_method"] = "ocr_pdf"
+                data["_pdf_text_found"] = False
+                return data
 
             data = parse_invoice_text(text)
+            data["_extraction_method"] = "pdf_text"
+            data["_pdf_text_found"] = True
 
         if not data['items']:
-            print("PDF text was read, but line items were not matched. Falling back to OCR...")
-            from extractors.ocr_extractor import parse_pdf_invoice_ocr
-            return parse_pdf_invoice_ocr(file_path)
+            print("PDF text was read, but line items were not matched. Keeping pdfplumber result.")
 
         print("Successfully read PDF file.")
         return data
