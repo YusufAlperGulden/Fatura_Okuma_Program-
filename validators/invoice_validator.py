@@ -71,4 +71,35 @@ def validate_invoice(data):
          errors.append(f"Total mismatch: {subtotal} + {tax_amount} != {total_amount}")
          
     is_valid = len(errors) == 0
+
+    # NORMALIZE FORMATTING FOR UI CONSISTENCY
+    # Ensure date is always DD.MM.YYYY
+    raw_date = data.get("date", "").strip()
+    if raw_date:
+        import datetime
+        for fmt in ("%d.%m.%Y", "%d/%m/%Y", "%Y-%m-%d"):
+            try:
+                parsed = datetime.datetime.strptime(raw_date, fmt)
+                data["date"] = parsed.strftime("%d.%m.%Y")
+                break
+            except ValueError:
+                pass
+                
+    # Function to format float to TR currency string (400.0 -> "400,00")
+    def format_tr_money(val: float) -> str:
+        return f"{val:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+
+    if is_valid or not is_valid: # Apply formatting even if invalid
+        if data.get("subtotal"): data["subtotal"] = format_tr_money(subtotal)
+        if data.get("tax_amount"): data["tax_amount"] = format_tr_money(tax_amount)
+        if data.get("total_amount"): data["total_amount"] = format_tr_money(total_amount)
+        
+        for item in data.get("items", []):
+            q = parse_amount(item.get("quantity"))
+            up = parse_amount(item.get("unit_price"))
+            tp = parse_amount(item.get("total_price"))
+            item["quantity"] = str(q).replace(".", ",") if str(q).endswith(".0") else str(q).replace(".", ",")
+            item["unit_price"] = format_tr_money(up)
+            item["total_price"] = format_tr_money(tp)
+
     return is_valid, errors
