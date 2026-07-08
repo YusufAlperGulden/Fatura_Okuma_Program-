@@ -72,7 +72,8 @@ async def upload_invoice(file: UploadFile = File(...)):
         elif ext == '.xml':
             data = parse_xml_invoice(file_path)
         elif ext in ['.jpg', '.jpeg', '.png', '.webp']:
-            data = {} # Images always require AI fallback
+            from extractors.ocr_extractor import parse_image_invoice_ocr
+            data = parse_image_invoice_ocr(file_path)
         else:
             os.remove(file_path)
             return ProcessResponse(filename=file.filename, is_valid=False, data=None, errors=[f"Unsupported format: {ext}"])
