@@ -20,8 +20,16 @@ def parse_invoice_text(text: str) -> dict:
         "items": [],
         "subtotal": None,
         "tax_amount": None,
-        "total_amount": None
+        "total_amount": None,
+        "currency": "TRY"
     }
+
+    if re.search(r'\$|USD|DOLAR', text, re.IGNORECASE):
+        data["currency"] = "USD"
+    elif re.search(r'€|EUR|EURO', text, re.IGNORECASE):
+        data["currency"] = "EUR"
+    elif re.search(r'£|GBP', text, re.IGNORECASE):
+        data["currency"] = "GBP"
 
     data["invoice_no"] = _first_match([
         r"(?:Fatura|Belge|Invoice)\s*(?:No|Numarası|Numarasi|Number)?\s*[:#-]\s*([A-Z0-9-]+)",
