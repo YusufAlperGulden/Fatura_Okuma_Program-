@@ -11,6 +11,7 @@ import uuid
 from extractors.excel_extractor import parse_excel_invoice
 from extractors.pdf_extractor import parse_pdf_invoice
 from extractors.xml_extractor import parse_xml_invoice
+from extractors.ai_extractor import extract_invoice_with_ai
 from validators.invoice_validator import validate_invoice
 from integrators.uyumsoft_excel import export_to_uyumsoft_excel
 from integrators.uyumsoft_api import send_invoice_to_uyumsoft
@@ -56,24 +57,65 @@ async def upload_invoice(file: UploadFile = File(...)):
     with open(temp_path, "wb") as buffer:
         shutil.copyfileobj(file.file, buffer)
         
-    # Process based on extension
     file_path = temp_path
-    if ext in ['.xlsx', '.xls', '.csv']:
-        data = parse_excel_invoice(file_path)
-    elif ext == '.pdf':
-        data = parse_pdf_invoice(file_path)
-    elif ext == '.xml':
-        data = parse_xml_invoice(file_path)
-    else:
-        os.remove(file_path)
-        return ProcessResponse(filename=file.filename, is_valid=False, data=None, errors=[f"Unsupported format: {ext}"])
-        
-    # Validate
-    is_valid, errors = validate_invoice(data)
+    data = {}
+    local_error = False
+    is_valid = False
+    errors = []
     
+    # STAGE 1: Process based on extension (LOCAL EXTRACTION)
+    try:
+        if ext in ['.xlsx', '.xls', '.csv']:
+            data = parse_excel_invoice(file_path)
+        elif ext == '.pdf':
+            data = parse_pdf_invoice(file_path)
+        elif ext == '.xml':
+            data = parse_xml_invoice(file_path)
+        elif ext in ['.jpg', '.jpeg', '.png', '.webp']:
+            data = {} # Images always require AI fallback
+        else:
+            os.remove(file_path)
+            return ProcessResponse(filename=file.filename, is_valid=False, data=None, errors=[f"Unsupported format: {ext}"])
+            
+        if not data or not data.get("items"):
+            local_error = True
+        else:
+            is_valid, errors = validate_invoice(data)
+            if not is_valid:
+                local_error = True
+    except Exception as e:
+        local_error = True
+        errors = [f"Local Extraction Error: {str(e)}"]
+
+    # STAGE 2: FALLBACK TO AI
+    if local_error and os.getenv("GEMINI_API_KEY"):
+        try:
+            with open(file_path, "rb") as f:
+                file_bytes = f.read()
+            mime_type = "application/pdf"
+            if ext in ['.jpg', '.jpeg']: mime_type = "image/jpeg"
+            elif ext == '.png': mime_type = "image/png"
+            elif ext == '.webp': mime_type = "image/webp"
+            
+            data = extract_invoice_with_ai(file_bytes, mime_type)
+            is_valid, errors = validate_invoice(data)
+        except Exception as e:
+            errors.append(f"AI Extraction Error: {str(e)}")
+            is_valid = False
+    elif local_error and not data and ext in ['.jpg', '.jpeg', '.png']:
+        errors = ["Resim formatı yüklendi ancak GEMINI_API_KEY ortam değişkeni ayarlanmadığı için Yapay Zeka devreye giremedi."]
+    elif local_error and not data:
+        errors = ["Fatura okunamadı ve GEMINI_API_KEY ayarlanmadığı için Yapay Zeka (Fallback) devreye giremedi."]
+
     # If valid, export to Uyumsoft Master Excel
     if is_valid:
         export_to_uyumsoft_excel([data], "Uyumsoft_Aktarim_Taslagi.xlsx")
+        
+    # Clean up file asynchronously or let OS handle temp folder
+    try:
+        os.remove(file_path)
+    except:
+        pass
         
     return ProcessResponse(
         filename=file.filename,
