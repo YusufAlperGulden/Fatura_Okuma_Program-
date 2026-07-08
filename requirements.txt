@@ -7,3 +7,5 @@ python-multipart==0.0.9
 pytesseract==0.3.10
 pdf2image==1.17.0
 Pillow==10.2.0
+pillow
+google-generativeai
