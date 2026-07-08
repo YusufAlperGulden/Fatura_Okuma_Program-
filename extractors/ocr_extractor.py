@@ -61,8 +61,15 @@ def extract_text_from_image_via_ocr(file_path: str) -> str:
         max_size = 1600
         if max(image.size) > max_size:
             image.thumbnail((max_size, max_size), Image.Resampling.LANCZOS)
+            if image.mode in ("RGBA", "P"):
+                image = image.convert("RGB")
+            # Overwrite the original file to save RAM and upload time for Gemini fallback
+            image.save(file_path, format="JPEG", quality=75, optimize=True)
+            print(f"Image resized and saved back to {file_path}")
             
         text = pytesseract.image_to_string(image, lang='tur')
+        image.close() # Explicitly free RAM to prevent Render 512MB OOM crash
+        
         return text
     except Exception as e:
         print(f"Image OCR failed: {e}")
