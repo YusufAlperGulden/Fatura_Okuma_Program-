@@ -50,3 +50,34 @@ def parse_pdf_invoice_ocr(file_path: str) -> dict:
         return data
         
     return parse_invoice_text(text)
+
+def extract_text_from_image_via_ocr(file_path: str) -> str:
+    print(f"Applying OCR on image {file_path}...")
+    try:
+        from PIL import Image
+        image = Image.open(file_path)
+        text = pytesseract.image_to_string(image, lang='tur')
+        return text
+    except Exception as e:
+        print(f"Image OCR failed: {e}")
+        return ""
+
+def parse_image_invoice_ocr(file_path: str) -> dict:
+    """
+    Parses an image invoice using OCR and regex.
+    """
+    data = {
+        "invoice_no": None,
+        "date": None,
+        "customer_tax_id": None,
+        "items": [],
+        "subtotal": None,
+        "tax_amount": None,
+        "total_amount": None
+    }
+    
+    text = extract_text_from_image_via_ocr(file_path)
+    if not text.strip():
+        return data
+        
+    return parse_invoice_text(text)
