@@ -243,6 +243,22 @@ document.addEventListener('DOMContentLoaded', () => {
                         body: "Fatura başarıyla Uyumsoft portalına aktarıldı!"
                     });
                 }
+                
+                // In-app Toast Notification as a guaranteed fallback
+                if (window.Toastify) {
+                    Toastify({
+                        text: "Fatura başarıyla Uyumsoft'a aktarıldı!",
+                        duration: 5000,
+                        gravity: "top", 
+                        position: "right", 
+                        style: {
+                            background: "linear-gradient(to right, #059669, #10b981)",
+                            borderRadius: "8px",
+                            fontWeight: "bold",
+                            boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.1)"
+                        }
+                    }).showToast();
+                }
             } else {
                 const details = formatDetails(result.details);
                 statusBox.style.backgroundColor = '#dc2626';
