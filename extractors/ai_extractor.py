@@ -37,7 +37,7 @@ def extract_invoice_with_ai(file_bytes: bytes, mime_type: str = "application/pdf
 
     # Use gemini-1.5-pro for complex document extraction
     model = genai.GenerativeModel(
-        model_name="gemini-1.5-pro-latest",
+        model_name="gemini-1.5-pro",
         generation_config={
             "response_mime_type": "application/json",
             "response_schema": InvoiceData,
