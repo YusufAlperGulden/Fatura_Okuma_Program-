@@ -125,7 +125,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     checklist.innerHTML += `<li class="success"><svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg> Fatura okundu</li>`;
                     checklist.innerHTML += `<li class="success"><svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg> Toplamlar doğrulandı</li>`;
                     
-                    checklist.innerHTML += `<li class="pending">Uyumsoft işlemi için aşağıdaki butonu kullanın.</li>`;
+                    checklist.innerHTML += `<li class="pending">Uyumsoft islemi otomatik baslatildi.</li>`;
+                    runUyumsoftAction();
                 } else {
                     checklist.innerHTML += `<li class="success"><svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg> Fatura okundu</li>`;
                     checklist.innerHTML += `<li class="error"><svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg> Fatura okundu ancak aktarım durduruldu.</li>`;
@@ -210,8 +211,8 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
     
-    // Admin Manual Send logic
-    document.getElementById('api-send-btn').addEventListener('click', async () => {
+    // Uyumsoft send logic: used automatically after validation and manually by the button.
+    async function runUyumsoftAction() {
         if (!currentInvoiceData) return;
         
         const statusBox = document.getElementById('api-status-box');
@@ -268,7 +269,9 @@ document.addEventListener('DOMContentLoaded', () => {
             statusBox.style.backgroundColor = '#dc2626';
             statusBox.innerHTML = `❌ Bağlantı Hatası: ${error.message}`;
         }
-    });
+    }
+
+    document.getElementById('api-send-btn').addEventListener('click', runUyumsoftAction);
 
     // Download logic
     document.getElementById('download-btn').addEventListener('click', () => {
