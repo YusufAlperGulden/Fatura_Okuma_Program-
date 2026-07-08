@@ -14,16 +14,19 @@ def extract_text_via_ocr(file_path: str) -> str:
     try:
         # Convert PDF to list of images
         if POPPLER_PATH and os.path.exists(POPPLER_PATH):
-            pages = convert_from_path(file_path, poppler_path=POPPLER_PATH)
+            pages = convert_from_path(file_path, dpi=150, poppler_path=POPPLER_PATH, thread_count=1)
         else:
-            pages = convert_from_path(file_path)
+            pages = convert_from_path(file_path, dpi=150, thread_count=1)
             
         full_text = ""
         for page in pages:
+            if max(page.size) > 1600:
+                page.thumbnail((1600, 1600))
             # Extract text using Turkish language pack
             # Ensure 'tur' language pack is installed in Tesseract
             text = pytesseract.image_to_string(page, lang='tur')
             full_text += text + "\n"
+            page.close()
             
         return full_text
     except Exception as e:
@@ -63,9 +66,7 @@ def extract_text_from_image_via_ocr(file_path: str) -> str:
             image.thumbnail((max_size, max_size), Image.Resampling.LANCZOS)
             if image.mode in ("RGBA", "P"):
                 image = image.convert("RGB")
-            # Overwrite the original file to save RAM and upload time for Gemini fallback
-            image.save(file_path, format="JPEG", quality=75, optimize=True)
-            print(f"Image resized and saved back to {file_path}")
+            print("Image resized in memory for OCR.")
             
         text = pytesseract.image_to_string(image, lang='tur')
         image.close() # Explicitly free RAM to prevent Render 512MB OOM crash
