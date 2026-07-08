@@ -45,7 +45,9 @@ def _money(value: Any) -> Decimal:
 
     text = str(value).strip()
     text = text.replace("TRY", "").replace("TL", "").replace(" ", "")
-    text = text.replace("\u20ba", "")
+    text = text.replace("₺", "")
+    text = text.replace("$", "").replace("USD", "").replace("€", "").replace("EUR", "")
+    text = text.replace("£", "").replace("GBP", "")
 
     if "," in text and "." in text:
         if text.rfind(",") > text.rfind("."):
