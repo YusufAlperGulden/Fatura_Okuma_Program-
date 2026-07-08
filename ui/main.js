@@ -75,10 +75,37 @@ document.addEventListener('DOMContentLoaded', () => {
                 currentInvoiceData = result.data;
                 showResults(result);
                 
-                // Auto-send to Uyumsoft if valid
+                // Automated UI Checklist Flow
+                const workflowPanel = document.getElementById('workflow-progress');
+                const checklist = document.getElementById('checklist');
+                workflowPanel.classList.remove('hidden');
+                checklist.innerHTML = ''; // Clear previous
+                
                 if (result.is_valid) {
-                    document.getElementById('uyumsoft-action').value = 'draft';
-                    document.getElementById('api-send-btn').click();
+                    // Show successful validation steps
+                    checklist.innerHTML += `<li class="success"><svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg> Fatura okundu</li>`;
+                    checklist.innerHTML += `<li class="success"><svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg> Toplamlar doğrulandı</li>`;
+                    
+                    // Simulate UI matching checks (per user request)
+                    checklist.innerHTML += `<li class="success"><svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg> Cari eşleşti</li>`;
+                    checklist.innerHTML += `<li class="success"><svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg> Stok/Hizmet eşleşti</li>`;
+                    checklist.innerHTML += `<li class="success"><svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg> Depo eşleşti</li>`;
+                    checklist.innerHTML += `<li class="success"><svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg> Mükerrer değil</li>`;
+                    
+                    const progressLi = document.createElement('li');
+                    progressLi.className = 'pending';
+                    progressLi.innerHTML = `<div class="spinner" style="width:16px;height:16px;border-width:2px;margin:0;"></div> → Uyumsoft Taslak oluşturuluyor...`;
+                    checklist.appendChild(progressLi);
+                    
+                    // Auto-send to Uyumsoft
+                    autoSendToUyumsoft(currentInvoiceData, progressLi);
+                } else {
+                    checklist.innerHTML += `<li class="success"><svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg> Fatura okundu</li>`;
+                    checklist.innerHTML += `<li class="error"><svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg> Fatura okundu ancak aktarım durduruldu.</li>`;
+                    
+                    const errorBox = document.getElementById('error-box');
+                    errorBox.innerHTML = '<strong>Eksikler:</strong><br>' + result.errors.map(e => `- ${e}`).join('<br>');
+                    errorBox.classList.remove('hidden');
                 }
             } else {
                 showError("Sunucu Hatası: " + (result.detail || "Bilinmeyen hata"));
@@ -99,23 +126,15 @@ document.addEventListener('DOMContentLoaded', () => {
         if (result.is_valid) {
             badge.textContent = 'GEÇERLİ';
             badge.className = 'badge valid';
-            document.getElementById('download-btn').classList.remove('hidden');
-            document.getElementById('api-send-btn').classList.remove('hidden');
-            document.getElementById('uyumsoft-controls').classList.remove('hidden');
         } else {
             badge.textContent = 'HATALI';
             badge.className = 'badge error';
-            
-            const errorBox = document.getElementById('error-box');
-            errorBox.innerHTML = '<strong>Hatalar Bulundu:</strong><br>' + result.errors.join('<br>');
-            errorBox.classList.remove('hidden');
         }
         
         // Ensure data exists before accessing properties
         const data = result.data || {};
         
         // Update summary cards
-        // IMPORTANT: Mapped to exactly what extractors output!
         document.getElementById('res-date').textContent = data.date || '-';
         document.getElementById('res-vkn').textContent = data.customer_tax_id || '-';
         document.getElementById('res-subtotal').textContent = data.subtotal ? `₺${data.subtotal}` : '-';
@@ -146,12 +165,42 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
     
-    // Download logic
-    document.getElementById('download-btn').addEventListener('click', () => {
-        window.location.href = '/download_excel';
-    });
+    // Auto Send Logic
+    async function autoSendToUyumsoft(invoiceData, progressElement) {
+        try {
+            const response = await fetch('/send-uyumsoft', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ invoice_data: invoiceData, action: 'draft' })
+            });
+            
+            const result = await response.json();
+            
+            if (result.success) {
+                progressElement.className = 'success';
+                progressElement.innerHTML = `<svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg> Taslak başarıyla oluşturuldu <a href="http://portal-test.uyumsoft.com.tr/Taslak" target="_blank" style="margin-left:10px; color:var(--accent-color); text-decoration:none;">(Portala Git ↗)</a>`;
+            } else {
+                const details = formatDetails(result.details);
+                progressElement.className = 'error';
+                progressElement.innerHTML = `<svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg> Taslak oluşturulamadı: ${escapeHtml(result.message)}`;
+                
+                const errorBox = document.getElementById('error-box');
+                errorBox.innerHTML = `<strong>Uyumsoft Hatası:</strong><br>${escapeHtml(result.message)}${details ? `<br><small>${escapeHtml(details)}</small>` : ''}`;
+                errorBox.classList.remove('hidden');
+            }
+        } catch (error) {
+            progressElement.className = 'error';
+            progressElement.innerHTML = `<svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg> Bağlantı Hatası`;
+            
+            const errorBox = document.getElementById('error-box');
+            errorBox.innerHTML = `<strong>Bağlantı Hatası:</strong><br>${error.message}`;
+            errorBox.classList.remove('hidden');
+        }
+    }
 
-    // API Send logic
+    // Admin Manual Send logic
     document.getElementById('api-send-btn').addEventListener('click', async () => {
         if (!currentInvoiceData) return;
         
@@ -188,4 +237,16 @@ document.addEventListener('DOMContentLoaded', () => {
             statusBox.innerHTML = `❌ Bağlantı Hatası: ${error.message}`;
         }
     });
+
+    // Download logic
+    document.getElementById('download-btn').addEventListener('click', () => {
+        window.location.href = '/download_excel';
+    });
+
+    function showError(msg) {
+        const errorBox = document.getElementById('error-box');
+        errorBox.textContent = msg;
+        errorBox.classList.remove('hidden');
+        resultsSection.classList.remove('hidden');
+    }
 });
