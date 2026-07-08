@@ -45,8 +45,16 @@ document.addEventListener('DOMContentLoaded', () => {
         return String(details);
     }
 
+    async function readJsonResponse(response) {
+        const text = await response.text();
+        try {
+            return JSON.parse(text);
+        } catch (error) {
+            throw new Error(`Sunucu JSON yerine hata sayfası döndürdü (HTTP ${response.status}). Sayfayı yenileyip tekrar deneyin.`);
+        }
+    }
+
     let currentAbortController = null;
-    let timeoutId = null;
 
     async function handleFile(file) {
         // Reset UI
@@ -92,7 +100,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 signal: signal
             });
             
-            const result = await response.json();
+            const result = await readJsonResponse(response);
             
             loading.classList.add('hidden');
             dropZone.classList.remove('hidden');
@@ -112,19 +120,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     checklist.innerHTML += `<li class="success"><svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg> Fatura okundu</li>`;
                     checklist.innerHTML += `<li class="success"><svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg> Toplamlar doğrulandı</li>`;
                     
-                    // Simulate UI matching checks (per user request)
-                    checklist.innerHTML += `<li class="success"><svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg> Cari eşleşti</li>`;
-                    checklist.innerHTML += `<li class="success"><svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg> Stok/Hizmet eşleşti</li>`;
-                    checklist.innerHTML += `<li class="success"><svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg> Depo eşleşti</li>`;
-                    checklist.innerHTML += `<li class="success"><svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg> Mükerrer değil</li>`;
-                    
-                    const progressLi = document.createElement('li');
-                    progressLi.className = 'pending';
-                    progressLi.innerHTML = `<div class="spinner" style="width:16px;height:16px;border-width:2px;margin:0;"></div> → Uyumsoft Taslak oluşturuluyor...`;
-                    checklist.appendChild(progressLi);
-                    
-                    // Auto-send to Uyumsoft
-                    autoSendToUyumsoft(currentInvoiceData, progressLi);
+                    checklist.innerHTML += `<li class="pending">Uyumsoft işlemi için aşağıdaki butonu kullanın.</li>`;
                 } else {
                     checklist.innerHTML += `<li class="success"><svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg> Fatura okundu</li>`;
                     checklist.innerHTML += `<li class="error"><svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg> Fatura okundu ancak aktarım durduruldu.</li>`;
@@ -209,49 +205,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
     
-    // Auto Send Logic
-    async function autoSendToUyumsoft(invoiceData, progressElement) {
-        const statusBox = document.getElementById('api-status-box');
-        statusBox.classList.remove('hidden');
-        statusBox.style.backgroundColor = '#3b82f6';
-        statusBox.style.color = '#fff';
-        statusBox.innerHTML = `<div class="spinner" style="width:20px;height:20px;border-width:2px;display:inline-block;vertical-align:middle;margin-right:10px;"></div> Otomatik Taslak oluşturuluyor...`;
-        
-        try {
-            const response = await fetch('/send-uyumsoft', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({ invoice_data: invoiceData, action: 'draft' })
-            });
-            
-            const result = await response.json();
-            
-            if (result.success) {
-                progressElement.className = 'success';
-                progressElement.innerHTML = `<svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg> Taslak başarıyla oluşturuldu`;
-                
-                statusBox.style.backgroundColor = '#059669';
-                statusBox.innerHTML = `✅ Otomatik Aktarım: ${escapeHtml(result.message)} (HTTP ${escapeHtml(result.response_code)}) 
-                <br> <a href="http://portal-test.uyumsoft.com.tr/Taslak" target="_blank" style="display:inline-block; margin-top:10px; padding:5px 10px; background-color:white; color:#059669; text-decoration:none; border-radius:4px; font-weight:bold; font-size:14px;">Uyumsoft Portalına Git ↗</a>`;
-            } else {
-                const details = formatDetails(result.details);
-                progressElement.className = 'error';
-                progressElement.innerHTML = `<svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg> Taslak oluşturulamadı`;
-                
-                statusBox.style.backgroundColor = '#dc2626';
-                statusBox.innerHTML = `❌ Hata: ${escapeHtml(result.message)}${details ? ` <br> <small>${escapeHtml(details)}</small>` : ''}`;
-            }
-        } catch (error) {
-            progressElement.className = 'error';
-            progressElement.innerHTML = `<svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg> Bağlantı Hatası`;
-            
-            statusBox.style.backgroundColor = '#dc2626';
-            statusBox.innerHTML = `❌ Bağlantı Hatası: ${error.message}`;
-        }
-    }
-
     // Admin Manual Send logic
     document.getElementById('api-send-btn').addEventListener('click', async () => {
         if (!currentInvoiceData) return;
@@ -273,7 +226,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 body: JSON.stringify({ invoice_data: currentInvoiceData, action })
             });
             
-            const result = await response.json();
+            const result = await readJsonResponse(response);
             
             if (result.success) {
                 statusBox.style.backgroundColor = '#059669';
