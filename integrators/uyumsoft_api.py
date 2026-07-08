@@ -303,7 +303,11 @@ class UyumsoftSoapClient:
         return build_soap_envelope(self.username, self.password, operation_body)
 
     def _parse_result(self, operation: str, status_code: int, raw_xml: str) -> UyumsoftResult:
-        root = ET.fromstring(raw_xml)
+        try:
+            root = ET.fromstring(raw_xml)
+        except ET.ParseError as e:
+            return UyumsoftResult(False, f"SOAP parse error: {str(e)}", status_code, operation, [], raw_xml)
+            
         fault = next((node for node in root.iter() if _local_name(node.tag) == "Fault"), None)
         if fault is not None:
             fault_text = " ".join(text.strip() for text in fault.itertext() if text and text.strip())
@@ -429,6 +433,13 @@ def send_invoice_to_uyumsoft(invoice_data: dict[str, Any], action: str | None = 
             "message": "Uyumsoft SOAP request failed.",
             "details": str(exc),
             "response_code": 502,
+        }
+    except Exception as exc:
+        return {
+            "success": False,
+            "message": "Internal Uyumsoft Integration Error.",
+            "details": f"{type(exc).__name__}: {str(exc)}",
+            "response_code": 500,
         }
 
     return {
