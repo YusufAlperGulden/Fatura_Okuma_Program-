@@ -46,6 +46,32 @@ class SendUyumsoftRequest(BaseModel):
     invoice_data: dict
     action: str | None = None
 
+
+def _is_image_extension(ext: str) -> bool:
+    return ext in [".jpg", ".jpeg", ".png", ".webp"]
+
+
+def _is_gemini_quota_error(error: Exception) -> bool:
+    text = str(error).lower()
+    return "429" in text or "quota" in text or "rate-limit" in text or "rate limit" in text
+
+
+def _should_try_ai_fallback(ext: str, data: dict, is_valid: bool) -> bool:
+    if is_valid or not os.getenv("GEMINI_API_KEY"):
+        return False
+
+    if _is_image_extension(ext):
+        return True
+
+    if ext == ".pdf":
+        # Normal digital PDFs must stay on the local PDF reader path by default.
+        if data.get("_pdf_text_found") is True:
+            return os.getenv("GEMINI_FOR_DIGITAL_PDF", "").lower() in {"1", "true", "yes"}
+        return True
+
+    return False
+
+
 @app.post("/upload", response_model=ProcessResponse)
 async def upload_invoice(file: UploadFile = File(...)):
     # Save the file temporarily
@@ -70,14 +96,14 @@ async def upload_invoice(file: UploadFile = File(...)):
             data = parse_pdf_invoice(file_path)
         elif ext == '.xml':
             data = parse_xml_invoice(file_path)
-        elif ext in ['.jpg', '.jpeg', '.png', '.webp']:
+        elif _is_image_extension(ext):
             from extractors.ocr_extractor import parse_image_invoice_ocr
             data = parse_image_invoice_ocr(file_path)
         else:
             os.remove(file_path)
             return ProcessResponse(filename=file.filename, is_valid=False, data=None, errors=[f"Unsupported format: {ext}"])
             
-        if not data or not data.get("items"):
+        if not data:
             local_error = True
         else:
             is_valid, errors = validate_invoice(data)
@@ -88,7 +114,10 @@ async def upload_invoice(file: UploadFile = File(...)):
         errors = [f"Local Extraction Error: {str(e)}"]
 
     # STAGE 2: FALLBACK TO AI
-    if local_error and os.getenv("GEMINI_API_KEY"):
+    if local_error and _should_try_ai_fallback(ext, data, is_valid):
+        local_data = dict(data or {})
+        local_is_valid = is_valid
+        local_errors = list(errors)
         try:
             from extractors.ai_extractor import extract_invoice_with_ai
 
@@ -100,11 +129,19 @@ async def upload_invoice(file: UploadFile = File(...)):
             elif ext == '.webp': mime_type = "image/webp"
             
             data = extract_invoice_with_ai(file_bytes, mime_type)
+            data["_extraction_method"] = "gemini"
             is_valid, errors = validate_invoice(data)
         except Exception as e:
-            errors.append(f"AI Extraction Error: {str(e)}")
-            is_valid = False
-    elif local_error and not data and ext in ['.jpg', '.jpeg', '.png']:
+            data = local_data
+            is_valid = local_is_valid
+            errors = local_errors
+            if _is_gemini_quota_error(e):
+                errors.append("Gemini limiti doldu; yerel okuyucu sonucu korundu.")
+            else:
+                errors.append(f"AI Extraction Error: {str(e)}")
+    elif local_error and data.get("_pdf_text_found") is True:
+        errors.append("Normal PDF okuyucu kullanildi; Gemini otomatik devreye alinmadi.")
+    elif local_error and not data and _is_image_extension(ext):
         errors = ["Resim formatı yüklendi ancak GEMINI_API_KEY ortam değişkeni ayarlanmadığı için Yapay Zeka devreye giremedi."]
     elif local_error and not data:
         errors = ["Fatura okunamadı ve GEMINI_API_KEY ayarlanmadığı için Yapay Zeka (Fallback) devreye giremedi."]
