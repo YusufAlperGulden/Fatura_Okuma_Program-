@@ -126,6 +126,9 @@ document.addEventListener('DOMContentLoaded', () => {
         if (result.is_valid) {
             badge.textContent = 'GEÇERLİ';
             badge.className = 'badge valid';
+            document.getElementById('download-btn').classList.remove('hidden');
+            document.getElementById('api-send-btn').classList.remove('hidden');
+            document.getElementById('uyumsoft-controls').classList.remove('hidden');
         } else {
             badge.textContent = 'HATALI';
             badge.className = 'badge error';
@@ -167,6 +170,12 @@ document.addEventListener('DOMContentLoaded', () => {
     
     // Auto Send Logic
     async function autoSendToUyumsoft(invoiceData, progressElement) {
+        const statusBox = document.getElementById('api-status-box');
+        statusBox.classList.remove('hidden');
+        statusBox.style.backgroundColor = '#3b82f6';
+        statusBox.style.color = '#fff';
+        statusBox.innerHTML = `<div class="spinner" style="width:20px;height:20px;border-width:2px;display:inline-block;vertical-align:middle;margin-right:10px;"></div> Otomatik Taslak oluşturuluyor...`;
+        
         try {
             const response = await fetch('/send-uyumsoft', {
                 method: 'POST',
@@ -180,23 +189,25 @@ document.addEventListener('DOMContentLoaded', () => {
             
             if (result.success) {
                 progressElement.className = 'success';
-                progressElement.innerHTML = `<svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg> Taslak başarıyla oluşturuldu <a href="http://portal-test.uyumsoft.com.tr/Taslak" target="_blank" style="margin-left:10px; color:var(--accent-color); text-decoration:none;">(Portala Git ↗)</a>`;
+                progressElement.innerHTML = `<svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg> Taslak başarıyla oluşturuldu`;
+                
+                statusBox.style.backgroundColor = '#059669';
+                statusBox.innerHTML = `✅ Otomatik Aktarım: ${escapeHtml(result.message)} (HTTP ${escapeHtml(result.response_code)}) 
+                <br> <a href="http://portal-test.uyumsoft.com.tr/Taslak" target="_blank" style="display:inline-block; margin-top:10px; padding:5px 10px; background-color:white; color:#059669; text-decoration:none; border-radius:4px; font-weight:bold; font-size:14px;">Uyumsoft Portalına Git ↗</a>`;
             } else {
                 const details = formatDetails(result.details);
                 progressElement.className = 'error';
-                progressElement.innerHTML = `<svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg> Taslak oluşturulamadı: ${escapeHtml(result.message)}`;
+                progressElement.innerHTML = `<svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg> Taslak oluşturulamadı`;
                 
-                const errorBox = document.getElementById('error-box');
-                errorBox.innerHTML = `<strong>Uyumsoft Hatası:</strong><br>${escapeHtml(result.message)}${details ? `<br><small>${escapeHtml(details)}</small>` : ''}`;
-                errorBox.classList.remove('hidden');
+                statusBox.style.backgroundColor = '#dc2626';
+                statusBox.innerHTML = `❌ Hata: ${escapeHtml(result.message)}${details ? ` <br> <small>${escapeHtml(details)}</small>` : ''}`;
             }
         } catch (error) {
             progressElement.className = 'error';
             progressElement.innerHTML = `<svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg> Bağlantı Hatası`;
             
-            const errorBox = document.getElementById('error-box');
-            errorBox.innerHTML = `<strong>Bağlantı Hatası:</strong><br>${error.message}`;
-            errorBox.classList.remove('hidden');
+            statusBox.style.backgroundColor = '#dc2626';
+            statusBox.innerHTML = `❌ Bağlantı Hatası: ${error.message}`;
         }
     }
 
