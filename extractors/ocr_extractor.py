@@ -51,8 +51,11 @@ def parse_pdf_invoice_ocr(file_path: str) -> dict:
     text = extract_text_via_ocr(file_path)
     if not text.strip():
         return data
-        
-    return parse_invoice_text(text)
+
+    data = parse_invoice_text(text)
+    data["_extraction_method"] = "ocr_pdf"
+    data["_pdf_text_found"] = False
+    return data
 
 def extract_text_from_image_via_ocr(file_path: str) -> str:
     print(f"Applying OCR on image {file_path}...")
@@ -93,5 +96,7 @@ def parse_image_invoice_ocr(file_path: str) -> dict:
     text = extract_text_from_image_via_ocr(file_path)
     if not text.strip():
         return data
-        
-    return parse_invoice_text(text)
+
+    data = parse_invoice_text(text)
+    data["_extraction_method"] = "ocr_image"
+    return data
