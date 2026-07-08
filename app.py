@@ -56,6 +56,13 @@ if uploaded_file is not None:
                 st.metric("Fatura No", data.get("invoice_number", "-"))
                 st.metric("Tarih", data.get("date", "-"))
                 
+                # Show additional details that were in the old UI
+                vkn = data.get("supplier_vkn") or data.get("buyer_vkn") or "-"
+                st.write(f"**Müşteri / Satıcı VKN:** {vkn}")
+                st.write(f"**Ara Toplam:** {data.get('subtotal', '-')} TL")
+                st.write(f"**KDV Toplamı:** {data.get('tax_total', '-')} TL")
+                st.write(f"**Genel Toplam:** {data.get('total', '-')} TL")
+                
                 if is_valid:
                     st.success("✅ Tüm hesaplamalar tutarlı.")
                 else:
@@ -68,10 +75,20 @@ if uploaded_file is not None:
                 items = data.get("items", [])
                 if items:
                     df = pd.DataFrame(items)
-                    # Format float columns for better display
-                    for col in ["quantity", "unit_price", "tax_rate", "line_total"]:
-                        if col in df.columns:
-                            df[col] = pd.to_numeric(df[col], errors='coerce')
+                    
+                    # Sütun isimlerini Türkçeye çevir ve düzenle
+                    rename_map = {
+                        "code": "Ürün Kodu",
+                        "description": "Ürün Açıklaması",
+                        "quantity": "Miktar",
+                        "unit_price": "Birim Fiyat",
+                        "tax_rate": "KDV Oranı",
+                        "total_price": "Satır Toplamı",
+                        "line_total": "Satır Toplamı"
+                    }
+                    df = df.rename(columns=rename_map)
+                    
+                    # Display the dataframe without coercing Turkish numbers to NaN
                     st.dataframe(df, use_container_width=True)
                 else:
                     st.info("Herhangi bir kalem bulunamadı.")
