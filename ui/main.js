@@ -71,18 +71,12 @@ document.addEventListener('DOMContentLoaded', () => {
         const formData = new FormData();
         formData.append('file', file);
         
-        // Set up AbortController and 60-second timeout
+        // Set up AbortController
         if (currentAbortController) {
             currentAbortController.abort();
         }
         currentAbortController = new AbortController();
         const signal = currentAbortController.signal;
-        
-        timeoutId = setTimeout(() => {
-            if (currentAbortController) {
-                currentAbortController.abort('timeout');
-            }
-        }, 60000);
         
         document.getElementById('cancel-btn').onclick = () => {
             if (currentAbortController) {
@@ -98,7 +92,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 signal: signal
             });
             
-            clearTimeout(timeoutId);
             const result = await response.json();
             
             loading.classList.add('hidden');
@@ -145,16 +138,11 @@ document.addEventListener('DOMContentLoaded', () => {
             }
             
         } catch (error) {
-            clearTimeout(timeoutId);
             loading.classList.add('hidden');
             dropZone.classList.remove('hidden');
             
             if (error.name === 'AbortError') {
-                if (currentAbortController.signal.reason === 'timeout') {
-                    showError("İşlem çok uzun sürdü (Zaman Aşımı). Lütfen fatura görselinin boyutunu küçültüp veya farklı bir dosya ile tekrar deneyin.");
-                } else {
-                    showError("İşlem sizin tarafınızdan iptal edildi.");
-                }
+                showError("İşlem sizin tarafınızdan iptal edildi.");
             } else {
                 showError("Bağlantı hatası: " + error.message);
             }
