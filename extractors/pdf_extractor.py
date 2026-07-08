@@ -1,7 +1,7 @@
 import pdfplumber
 import re
 
-MONEY_RE = r"(?:₺\s*)?(\d{1,3}(?:\.\d{3})*,\d{2}|\d+,\d{2})(?:\s*(?:TL|TRY))?"
+MONEY_RE = r"(?:[₺$€£]\s*)?(\d{1,3}(?:\.\d{3})*,\d{2}|\d+,\d{2})(?:\s*(?:TL|TRY|USD|EUR|GBP|DOLAR|EURO))?"
 
 
 def _first_match(patterns, text, flags=0):
