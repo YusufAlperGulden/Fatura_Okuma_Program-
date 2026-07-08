@@ -24,12 +24,19 @@ def parse_invoice_text(text: str) -> dict:
         "currency": "TRY"
     }
 
-    if re.search(r'\$|USD|DOLAR', text, re.IGNORECASE):
+    usd_matches = len(re.findall(r'\$\s*\d|\d+(?:[.,]\d+)?\s*(?:USD|DOLAR)', text, re.IGNORECASE))
+    eur_matches = len(re.findall(r'€\s*\d|\d+(?:[.,]\d+)?\s*(?:EUR|EURO)', text, re.IGNORECASE))
+    gbp_matches = len(re.findall(r'£\s*\d|\d+(?:[.,]\d+)?\s*GBP', text, re.IGNORECASE))
+    try_matches = len(re.findall(r'₺\s*\d|\d+(?:[.,]\d+)?\s*(?:TL|TRY)', text, re.IGNORECASE))
+
+    if usd_matches > try_matches and usd_matches > eur_matches and usd_matches > gbp_matches:
         data["currency"] = "USD"
-    elif re.search(r'€|EUR|EURO', text, re.IGNORECASE):
+    elif eur_matches > try_matches and eur_matches > usd_matches and eur_matches > gbp_matches:
         data["currency"] = "EUR"
-    elif re.search(r'£|GBP', text, re.IGNORECASE):
+    elif gbp_matches > try_matches and gbp_matches > usd_matches and gbp_matches > eur_matches:
         data["currency"] = "GBP"
+    else:
+        data["currency"] = "TRY"
 
     data["invoice_no"] = _first_match([
         r"(?:Fatura|Belge|Invoice)\s*(?:No|Numarası|Numarasi|Number)?\s*[:#-]\s*([A-Z0-9-]+)",
@@ -85,13 +92,16 @@ def parse_pdf_invoice(file_path: str) -> dict:
                 if extracted:
                     text += extracted + "\n"
 
+            text = text.strip()
+            if not text:
+                print("No selectable text found via pdfplumber. Falling back to OCR...")
+                from extractors.ocr_extractor import parse_pdf_invoice_ocr
+                return parse_pdf_invoice_ocr(file_path)
+
             data = parse_invoice_text(text)
 
-        # Fallback to OCR if no items were found (indicates a scanned PDF)
         if not data['items']:
-            print("No text found via pdfplumber. Falling back to OCR...")
-            from extractors.ocr_extractor import parse_pdf_invoice_ocr
-            return parse_pdf_invoice_ocr(file_path)
+            print("PDF text was read, but line items were not matched. Skipping OCR for digital PDF.")
 
         print("Successfully read PDF file.")
         return data
