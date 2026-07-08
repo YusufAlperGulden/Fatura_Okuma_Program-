@@ -56,20 +56,35 @@ def _is_gemini_quota_error(error: Exception) -> bool:
     return "429" in text or "quota" in text or "rate-limit" in text or "rate limit" in text
 
 
-def _should_try_ai_fallback(ext: str, data: dict, is_valid: bool) -> bool:
-    if is_valid or not os.getenv("GEMINI_API_KEY"):
-        return False
+def _validate_candidate(data: dict | None) -> tuple[bool, list[str]]:
+    if not data:
+        return False, ["Fatura verisi okunamadi."]
+    return validate_invoice(data)
 
-    if _is_image_extension(ext):
-        return True
 
-    if ext == ".pdf":
-        # Normal digital PDFs must stay on the local PDF reader path by default.
-        if data.get("_pdf_text_found") is True:
-            return os.getenv("GEMINI_FOR_DIGITAL_PDF", "").lower() in {"1", "true", "yes"}
-        return True
+def _mime_type_for_extension(ext: str) -> str:
+    if ext in [".jpg", ".jpeg"]:
+        return "image/jpeg"
+    if ext == ".png":
+        return "image/png"
+    if ext == ".webp":
+        return "image/webp"
+    return "application/pdf"
 
-    return False
+
+def _try_gemini_extraction(file_path: str, ext: str) -> tuple[dict, bool, list[str]]:
+    if not os.getenv("GEMINI_API_KEY"):
+        return {}, False, ["GEMINI_API_KEY ayarlanmadigi icin Gemini devreye giremedi."]
+
+    from extractors.ai_extractor import extract_invoice_with_ai
+
+    with open(file_path, "rb") as f:
+        file_bytes = f.read()
+
+    data = extract_invoice_with_ai(file_bytes, _mime_type_for_extension(ext))
+    data["_extraction_method"] = "gemini"
+    is_valid, errors = validate_invoice(data)
+    return data, is_valid, errors
 
 
 @app.post("/upload", response_model=ProcessResponse)
@@ -103,24 +118,19 @@ async def upload_invoice(file: UploadFile = File(...)):
             os.remove(file_path)
             return ProcessResponse(filename=file.filename, is_valid=False, data=None, errors=[f"Unsupported format: {ext}"])
             
-        if not data:
+        if not data or not data.get("items"):
             local_error = True
-        else:
-            is_valid, errors = validate_invoice(data)
-            if not is_valid:
-                local_error = True
+            
     except Exception as e:
         local_error = True
-        errors = [f"Local Extraction Error: {str(e)}"]
+
+    errors = []
+    is_valid = False
 
     # STAGE 2: FALLBACK TO AI
-    if local_error and _should_try_ai_fallback(ext, data, is_valid):
-        local_data = dict(data or {})
-        local_is_valid = is_valid
-        local_errors = list(errors)
+    if local_error and os.getenv("GEMINI_API_KEY") and (ext == ".pdf" or _is_image_extension(ext)):
         try:
             from extractors.ai_extractor import extract_invoice_with_ai
-
             with open(file_path, "rb") as f:
                 file_bytes = f.read()
             mime_type = "application/pdf"
@@ -130,21 +140,19 @@ async def upload_invoice(file: UploadFile = File(...)):
             
             data = extract_invoice_with_ai(file_bytes, mime_type)
             data["_extraction_method"] = "gemini"
-            is_valid, errors = validate_invoice(data)
         except Exception as e:
-            data = local_data
-            is_valid = local_is_valid
-            errors = local_errors
-            if _is_gemini_quota_error(e):
-                errors.append("Gemini limiti doldu; yerel okuyucu sonucu korundu.")
-            else:
-                errors.append(f"AI Extraction Error: {str(e)}")
-    elif local_error and data.get("_pdf_text_found") is True:
-        errors.append("Normal PDF okuyucu kullanildi; Gemini otomatik devreye alinmadi.")
+            errors.append(f"AI Extraction Error: {str(e)}")
+            
+    elif local_error and (ext == ".pdf" or _is_image_extension(ext)) and not os.getenv("GEMINI_API_KEY"):
+        errors.append("Gemini API anahtari olmadigi icin son yedek okuma adimi calistirilamadi.")
     elif local_error and not data and _is_image_extension(ext):
-        errors = ["Resim formatı yüklendi ancak GEMINI_API_KEY ortam değişkeni ayarlanmadığı için Yapay Zeka devreye giremedi."]
+        errors.append("Resim formatı yüklendi ancak GEMINI_API_KEY ortam değişkeni ayarlanmadığı için Yapay Zeka devreye giremedi.")
     elif local_error and not data:
-        errors = ["Fatura okunamadı ve GEMINI_API_KEY ayarlanmadığı için Yapay Zeka (Fallback) devreye giremedi."]
+        errors.append("Fatura okunamadı ve GEMINI_API_KEY ayarlanmadığı için Yapay Zeka (Fallback) devreye giremedi.")
+        
+    if data:
+        is_valid, validation_errors = validate_invoice(data)
+        errors.extend(validation_errors)
 
     # If valid, export to Uyumsoft Master Excel
     if is_valid:
