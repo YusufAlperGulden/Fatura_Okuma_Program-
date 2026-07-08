@@ -105,6 +105,29 @@ def extract_invoice_with_ai(file_bytes: bytes, mime_type: str = "application/pdf
 
     genai.configure(api_key=api_key)
 
+    # IMAGE COMPRESSION OPTIMIZATION
+    if mime_type in ["image/jpeg", "image/png", "image/webp"]:
+        try:
+            from PIL import Image
+            image = Image.open(io.BytesIO(file_bytes))
+            # Convert to RGB if PNG with alpha channel to avoid JPEG errors
+            if image.mode in ("RGBA", "P"):
+                image = image.convert("RGB")
+            
+            # Reduce size if too large (e.g. over 2000px on the longest edge)
+            max_size = 1600
+            if max(image.size) > max_size:
+                image.thumbnail((max_size, max_size), Image.Resampling.LANCZOS)
+            
+            # Save compressed as JPEG
+            output_buffer = io.BytesIO()
+            image.save(output_buffer, format="JPEG", quality=75, optimize=True)
+            file_bytes = output_buffer.getvalue()
+            mime_type = "image/jpeg"
+            print(f"Compressed image for Gemini. New size: {len(file_bytes)} bytes.")
+        except Exception as e:
+            print(f"Image compression skipped due to error: {e}")
+
     prompt = (
         "Sen uzman bir muhasebe asistanısın. Ekli fatura belgesini (PDF veya Görüntü) dikkatlice analiz et "
         "ve içerisindeki tüm bilgileri istenilen JSON şemasına uygun olarak eksiksiz bir şekilde çıkar. "
