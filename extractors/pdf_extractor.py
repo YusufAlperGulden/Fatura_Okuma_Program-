@@ -101,7 +101,9 @@ def parse_pdf_invoice(file_path: str) -> dict:
             data = parse_invoice_text(text)
 
         if not data['items']:
-            print("PDF text was read, but line items were not matched. Skipping OCR for digital PDF.")
+            print("PDF text was read, but line items were not matched. Falling back to OCR...")
+            from extractors.ocr_extractor import parse_pdf_invoice_ocr
+            return parse_pdf_invoice_ocr(file_path)
 
         print("Successfully read PDF file.")
         return data
