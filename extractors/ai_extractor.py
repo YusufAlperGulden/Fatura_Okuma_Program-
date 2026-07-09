@@ -141,6 +141,9 @@ def extract_invoice_with_ai(file_bytes: bytes, mime_type: str = "application/pdf
 Sen uzman bir muhasebe asistanisin. Ekli fatura belgesini dikkatlice analiz et
 ve sadece gecerli JSON dondur. Markdown, aciklama, kod blogu veya ek metin yazma.
 
+DİKKAT: Faturadaki TÜM KALEMLERİ (satırları) eksiksiz olarak 'items' dizisine ekle. Sadece ilk satırı okuyup bırakma!
+DİKKAT: Eğer faturada İskonto (Discount) varsa "discount_amount" alanına yazmayı unutma!
+
 Beklenen JSON alani:
 {
   "invoice_no": "string veya null",
