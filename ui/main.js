@@ -8,6 +8,11 @@ document.addEventListener('DOMContentLoaded', () => {
     const fileInput = document.getElementById('file-input');
     const loading = document.getElementById('loading');
     const resultsSection = document.getElementById('results-section');
+    const UYUMSOFT_PORTAL_URL = 'http://portal-test.uyumsoft.com.tr/Taslak';
+
+    function openUyumsoftPortal() {
+        window.open(UYUMSOFT_PORTAL_URL, '_blank', 'noopener');
+    }
     
     // Upload handlers
     dropZone.addEventListener('click', () => fileInput.click());
@@ -62,24 +67,24 @@ document.addEventListener('DOMContentLoaded', () => {
     let currentAbortController = null;
 
     async function handleFile(file) {
+        if (window.location.protocol === 'file:') {
+            showError("Bu sayfa dosya olarak açılmış. Lütfen uygulamayı http://127.0.0.1:7860/ui/ adresinden açın.");
+            return;
+        }
+
         // Reset UI
         dropZone.classList.add('hidden');
         loading.classList.remove('hidden');
         resultsSection.classList.add('hidden');
         document.getElementById('error-box').classList.add('hidden');
-        document.getElementById('download-btn').classList.add('hidden');
-        document.getElementById('api-send-btn').classList.add('hidden');
-        document.getElementById('mikro-package-btn').classList.add('hidden');
-        document.getElementById('uyumsoft-controls').classList.add('hidden');
+        document.getElementById('portal-btn').classList.add('hidden');
         document.getElementById('api-status-box').classList.add('hidden');
-        document.getElementById('mikro-status-box').classList.add('hidden');
         document.getElementById('loading-text').textContent = 'Fatura işleniyor...';
         
         // Clear old results data visually
         document.getElementById('res-date').textContent = '-';
         document.getElementById('res-vkn').textContent = '-';
         document.getElementById('res-customer-name').textContent = '-';
-        document.getElementById('customer-name-card').classList.add('hidden');
         document.getElementById('res-subtotal').textContent = '-';
         document.getElementById('res-tax').textContent = '-';
         document.getElementById('res-total').textContent = '-';
@@ -168,10 +173,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (result.is_valid) {
             badge.textContent = 'GEÇERLİ';
             badge.className = 'badge valid';
-            document.getElementById('download-btn').classList.remove('hidden');
-            document.getElementById('api-send-btn').classList.remove('hidden');
-            document.getElementById('mikro-package-btn').classList.remove('hidden');
-            document.getElementById('uyumsoft-controls').classList.remove('hidden');
+            document.getElementById('portal-btn').classList.remove('hidden');
         } else {
             badge.textContent = 'HATALI';
             badge.className = 'badge error';
@@ -192,13 +194,10 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('res-date').textContent = data.date || '-';
         document.getElementById('res-vkn').textContent = data.customer_tax_id || '-';
         const customerName = data.customer_title || data.customer_name || data.customer || '';
-        const customerNameCard = document.getElementById('customer-name-card');
         if (customerName) {
             document.getElementById('res-customer-name').textContent = customerName;
-            customerNameCard.classList.remove('hidden');
         } else {
             document.getElementById('res-customer-name').textContent = '-';
-            customerNameCard.classList.add('hidden');
         }
         document.getElementById('res-subtotal').textContent = data.subtotal ? `${sym}${data.subtotal}` : '-';
         
@@ -237,13 +236,13 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
     
-    // Uyumsoft send logic: used automatically after validation and manually by the button.
+    // Uyumsoft send logic: used automatically after validation.
     async function runUyumsoftAction() {
         if (!currentInvoiceData) return;
         
         const statusBox = document.getElementById('api-status-box');
-        const action = document.getElementById('uyumsoft-action').value;
-        const actionLabel = document.getElementById('uyumsoft-action').selectedOptions[0].textContent;
+        const action = 'draft';
+        const actionLabel = 'Taslak Oluştur';
         statusBox.classList.remove('hidden');
         statusBox.style.backgroundColor = '#3b82f6';
         statusBox.style.color = '#fff';
@@ -262,26 +261,32 @@ document.addEventListener('DOMContentLoaded', () => {
             
             if (result.success) {
                 statusBox.style.backgroundColor = '#059669';
-                statusBox.innerHTML = `✅ ${escapeHtml(result.message)} (HTTP ${escapeHtml(result.response_code)}) 
-                <br> <a href="http://portal-test.uyumsoft.com.tr/Taslak" target="_blank" style="display:inline-block; margin-top:10px; padding:5px 10px; background-color:white; color:#059669; text-decoration:none; border-radius:4px; font-weight:bold; font-size:14px;">Uyumsoft Portalına Git ↗</a>`;
+                statusBox.innerHTML = `✅ ${escapeHtml(result.message)} (HTTP ${escapeHtml(result.response_code)})`;
                 
                 if (window.Notification && Notification.permission === 'granted') {
-                    new Notification("Uyumsoft Entegrasyonu", {
-                        body: "Fatura başarıyla Uyumsoft portalına aktarıldı!"
+                    const notification = new Notification("Uyumsoft Entegrasyonu", {
+                        body: "Fatura başarıyla Uyumsoft'a aktarıldı. Portalı açmak için tıklayın."
                     });
+                    notification.onclick = () => {
+                        window.focus();
+                        openUyumsoftPortal();
+                        notification.close();
+                    };
                 }
                 
                 // In-app Toast Notification as a guaranteed fallback
                 if (window.Toastify) {
                     Toastify({
-                        text: "Fatura başarıyla Uyumsoft'a aktarıldı!",
+                        text: "Fatura başarıyla Uyumsoft'a aktarıldı! Portalı açmak için tıklayın.",
                         duration: 5000,
                         gravity: "top", 
                         position: "right", 
+                        onClick: openUyumsoftPortal,
                         style: {
                             background: "linear-gradient(to right, #059669, #10b981)",
                             borderRadius: "8px",
                             fontWeight: "bold",
+                            cursor: "pointer",
                             boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.1)"
                         }
                     }).showToast();
@@ -297,52 +302,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    document.getElementById('api-send-btn').addEventListener('click', runUyumsoftAction);
-
-    async function runMikroV16Package() {
-        if (!currentInvoiceData) return;
-
-        const statusBox = document.getElementById('mikro-status-box');
-        statusBox.classList.remove('hidden');
-        statusBox.style.backgroundColor = '#f59e0b';
-        statusBox.style.color = '#111827';
-        statusBox.innerHTML = `<div class="spinner" style="width:20px;height:20px;border-width:2px;display:inline-block;vertical-align:middle;margin-right:10px;"></div> MikroV16 paketi hazirlaniyor...`;
-
-        try {
-            const response = await fetch('/send-mikro-v16', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({ invoice_data: currentInvoiceData, action: 'export_package' })
-            });
-
-            const result = await readJsonResponse(response);
-
-            if (result.success) {
-                statusBox.style.backgroundColor = '#059669';
-                statusBox.style.color = '#fff';
-                const fileCount = Array.isArray(result.files) ? result.files.length : 0;
-                statusBox.innerHTML = `MikroV16 paketi olusturuldu.<br><small>${escapeHtml(result.package_dir)} (${fileCount} dosya)</small>`;
-            } else {
-                const details = formatDetails(result.details);
-                statusBox.style.backgroundColor = '#dc2626';
-                statusBox.style.color = '#fff';
-                statusBox.innerHTML = `Hata: ${escapeHtml(result.message)}${details ? ` <br> <small>${escapeHtml(details)}</small>` : ''}`;
-            }
-        } catch (error) {
-            statusBox.style.backgroundColor = '#dc2626';
-            statusBox.style.color = '#fff';
-            statusBox.innerHTML = `Baglanti Hatasi: ${escapeHtml(error.message)}`;
-        }
-    }
-
-    document.getElementById('mikro-package-btn').addEventListener('click', runMikroV16Package);
-
-    // Download logic
-    document.getElementById('download-btn').addEventListener('click', () => {
-        window.location.href = '/download_excel';
-    });
+    document.getElementById('portal-btn').addEventListener('click', openUyumsoftPortal);
 
     function showError(msg) {
         const errorBox = document.getElementById('error-box');
