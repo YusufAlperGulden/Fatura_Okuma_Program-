@@ -98,6 +98,19 @@ def validate_invoice(data):
     def format_tr_money(val: Decimal) -> str:
         return f"{float(val):,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
 
+    def format_quantity(value):
+        try:
+            d = Decimal(str(to_decimal(value)))
+        except (InvalidOperation, ValueError, TypeError):
+            return str(value or "")
+
+        text = format(d.normalize(), "f")
+
+        if "." in text:
+            text = text.rstrip("0").rstrip(".")
+
+        return text.replace(".", ",")
+
     if is_valid or not is_valid:
         if data.get("subtotal"): data["subtotal"] = format_tr_money(subtotal)
         if data.get("discount_amount"): data["discount_amount"] = format_tr_money(discount_amount)
@@ -108,7 +121,7 @@ def validate_invoice(data):
             q = to_decimal(item.get("quantity"))
             up = to_decimal(item.get("unit_price"))
             tp = to_decimal(item.get("total_price"))
-            item["quantity"] = f"{q.normalize():f}".replace(".", ",")
+            item["quantity"] = format_quantity(q)
             item["unit_price"] = format_tr_money(up)
             item["total_price"] = format_tr_money(tp)
 
