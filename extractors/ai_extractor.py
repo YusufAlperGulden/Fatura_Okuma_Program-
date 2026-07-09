@@ -27,7 +27,8 @@ class InvoiceData(BaseModel):
     date: str = Field(description="Fatura Tarihi (Format: YYYY-MM-DD).")
     customer_tax_id: str = Field(description="Alıcının VKN (Vergi Kimlik Numarası) veya TCKN numarası (10 veya 11 haneli).")
     customer_name: str = Field(description="Alıcının Unvanı / Adı Soyadı.")
-    subtotal: float = Field(description="Mal Hizmet Toplam Tutarı (Ara Toplam / KDV Hariç Toplam).")
+    subtotal: float = Field(description="Mal Hizmet Toplam Tutarı (Ara Toplam / İskonto Hariç Toplam).")
+    discount_amount: float = Field(description="Toplam İskonto / İndirim Tutarı. Yoksa 0 yazın.", default=0.0)
     tax_amount: float = Field(description="Hesaplanan KDV Tutarı Toplamı.")
     total_amount: float = Field(description="Ödenecek Toplam Tutar (Genel Toplam / KDV Dahil Toplam).")
     currency: str = Field(description="Para Birimi (Örn: TRY, USD, EUR). TRY varsayılandır.")
@@ -150,6 +151,7 @@ def extract_invoice_with_ai(file_bytes: bytes, mime_type: str = "application/pdf
         
         # Convert floats back to strings to maintain compatibility with the rest of the application
         if "subtotal" in data: data["subtotal"] = str(data["subtotal"])
+        if "discount_amount" in data: data["discount_amount"] = str(data["discount_amount"])
         if "tax_amount" in data: data["tax_amount"] = str(data["tax_amount"])
         if "total_amount" in data: data["total_amount"] = str(data["total_amount"])
         
