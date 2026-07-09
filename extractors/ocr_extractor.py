@@ -20,8 +20,7 @@ def extract_text_via_ocr(file_path: str) -> str:
             
         full_text = ""
         for page in pages:
-            if max(page.size) > 1600:
-                page.thumbnail((1600, 1600))
+            # Sıkıştırma kaldırıldı, çünkü OCR için çözünürlük çok önemli (fatura kalemleri bulanıklaşıyordu)
             # Extract text using Turkish language pack
             # Ensure 'tur' language pack is installed in Tesseract
             text = pytesseract.image_to_string(page, lang='tur')
