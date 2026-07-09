@@ -14,9 +14,9 @@ def extract_text_via_ocr(file_path: str) -> str:
     try:
         # Convert PDF to list of images
         if POPPLER_PATH and os.path.exists(POPPLER_PATH):
-            pages = convert_from_path(file_path, dpi=150, poppler_path=POPPLER_PATH, thread_count=1)
+            pages = convert_from_path(file_path, dpi=300, poppler_path=POPPLER_PATH, thread_count=1)
         else:
-            pages = convert_from_path(file_path, dpi=150, thread_count=1)
+            pages = convert_from_path(file_path, dpi=300, thread_count=1)
             
         full_text = ""
         for page in pages:
