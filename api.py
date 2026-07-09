@@ -13,7 +13,7 @@ from extractors.pdf_extractor import parse_pdf_invoice
 from extractors.xml_extractor import parse_xml_invoice
 from validators.invoice_validator import validate_invoice
 from integrators.uyumsoft_excel import export_to_uyumsoft_excel
-from integrators.uyumsoft_api import send_invoice_to_uyumsoft
+from integrators.uyumsoft_api import enrich_invoice_customer_from_uyumsoft, send_invoice_to_uyumsoft
 
 app = FastAPI(title="Invoice Pipeline API")
 
@@ -189,6 +189,8 @@ async def upload_invoice(file: UploadFile = File(...)):
         if data:
             is_valid, validation_errors = validate_invoice(data)
             errors.extend(validation_errors)
+            if is_valid:
+                data = enrich_invoice_customer_from_uyumsoft(data)
         elif local_errors:
             errors.extend(local_errors)
 
@@ -242,6 +244,7 @@ async def send_uyumsoft_api(request: SendUyumsoftRequest):
             "response_code": 400,
         }
 
+    request.invoice_data = enrich_invoice_customer_from_uyumsoft(request.invoice_data)
     result = send_invoice_to_uyumsoft(request.invoice_data, action=request.action)
     return result
 
