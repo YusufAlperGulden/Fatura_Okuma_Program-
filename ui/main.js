@@ -89,6 +89,9 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('res-method').textContent = '-';
         document.getElementById('res-subtotal').textContent = '-';
         document.getElementById('res-tax').textContent = '-';
+        if (document.getElementById('res-tax-breakdown')) {
+            document.getElementById('res-tax-breakdown').innerHTML = '';
+        }
         document.getElementById('res-total').textContent = '-';
         document.querySelector('#items-table tbody').innerHTML = '';
         
@@ -218,6 +221,74 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         
         document.getElementById('res-tax').textContent = data.tax_amount ? `${sym}${data.tax_amount}` : '-';
+        
+        // Calculate tax breakdown
+        const breakdownDiv = document.getElementById('res-tax-breakdown');
+        if (breakdownDiv) {
+            breakdownDiv.innerHTML = '';
+            if (data.items && data.items.length > 0 && data.tax_amount) {
+                const parseMoney = (val) => {
+                    if (!val) return 0;
+                    let str = String(val).replace(/[^0-9.,-]/g, '');
+                    if (str.includes(',') && str.includes('.')) {
+                        if (str.lastIndexOf(',') > str.lastIndexOf('.')) {
+                            str = str.replace(/\./g, '').replace(',', '.');
+                        } else {
+                            str = str.replace(/,/g, '');
+                        }
+                    } else if (str.includes(',')) {
+                        const parts = str.split(',');
+                        if (parts.length === 2 && parts[1].length !== 3) {
+                            str = str.replace(',', '.');
+                        } else if (parts.length > 1 && parts.slice(1).every(p => p.length === 3)) {
+                            str = str.replace(/,/g, '');
+                        } else {
+                            str = str.replace(',', '.');
+                        }
+                    } else if (str.includes('.')) {
+                        const parts = str.split('.');
+                        if (parts.length > 1 && parts.slice(1).every(p => p.length === 3)) {
+                            str = str.replace(/\./g, '');
+                        }
+                    }
+                    return parseFloat(str) || 0;
+                };
+
+                const gSub = parseMoney(data.subtotal);
+                const gTax = parseMoney(data.tax_amount);
+                const globalRate = (gTax && gSub) ? (gTax / gSub * 100) : 0;
+                
+                const breakdown = {};
+                let calcSub = 0;
+                data.items.forEach(item => {
+                    let rate = item.tax_rate !== undefined && item.tax_rate !== null && String(item.tax_rate).trim() !== "" 
+                        ? parseMoney(item.tax_rate) 
+                        : Math.round(globalRate);
+                    let total = parseMoney(item.total_price);
+                    if (total === 0 && item.unit_price && item.quantity) {
+                        total = parseMoney(item.unit_price) * parseMoney(item.quantity);
+                    }
+                    calcSub += total;
+                    if (!breakdown[rate]) breakdown[rate] = { taxable: 0 };
+                    breakdown[rate].taxable += total;
+                });
+                
+                const discountAmt = parseMoney(data.discount_amount);
+                let breakdownHtml = '';
+                for (let rate in breakdown) {
+                    let taxable = breakdown[rate].taxable;
+                    if (discountAmt > 0 && calcSub > 0) {
+                        taxable -= discountAmt * (taxable / calcSub);
+                    }
+                    const tax = taxable * parseFloat(rate) / 100;
+                    if (tax > 0 || parseFloat(rate) === 0) {
+                        breakdownHtml += `<div>%${rate} = ${sym}${tax.toLocaleString('tr-TR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</div>`;
+                    }
+                }
+                breakdownDiv.innerHTML = breakdownHtml;
+            }
+        }
+
         document.getElementById('res-total').textContent = data.total_amount ? `${sym}${data.total_amount}` : '-';
         
         // Render items
