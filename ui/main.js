@@ -88,9 +88,8 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('res-customer-name').textContent = '-';
         document.getElementById('res-method').textContent = '-';
         document.getElementById('res-subtotal').textContent = '-';
-        document.getElementById('res-tax').textContent = '-';
         if (document.getElementById('res-tax-breakdown')) {
-            document.getElementById('res-tax-breakdown').innerHTML = '';
+            document.getElementById('res-tax-breakdown').innerHTML = '-';
         }
         document.getElementById('res-total').textContent = '-';
         document.querySelector('#items-table tbody').innerHTML = '';
@@ -220,8 +219,6 @@ document.addEventListener('DOMContentLoaded', () => {
             discountCard.classList.add('hidden');
         }
         
-        document.getElementById('res-tax').textContent = data.tax_amount ? `${sym}${data.tax_amount}` : '-';
-        
         // Calculate tax breakdown
         const breakdownDiv = document.getElementById('res-tax-breakdown');
         if (breakdownDiv) {
@@ -282,10 +279,18 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
                     const tax = taxable * parseFloat(rate) / 100;
                     if (tax > 0 || parseFloat(rate) === 0) {
-                        breakdownHtml += `<div>%${rate} = ${sym}${tax.toLocaleString('tr-TR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</div>`;
+                        const formattedTax = tax.toLocaleString('tr-TR', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+                        breakdownHtml += `
+                            <div style="margin-bottom: 8px;">
+                                <div style="color: #c0392b;">%${rate} = ${formattedTax}</div>
+                                <div style="color: #2980b9;">Top = ${formattedTax}</div>
+                            </div>
+                        `;
                     }
                 }
                 breakdownDiv.innerHTML = breakdownHtml;
+            } else {
+                breakdownDiv.innerHTML = data.tax_amount ? `${sym}${data.tax_amount}` : '-';
             }
         }
 
