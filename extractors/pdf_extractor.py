@@ -1,8 +1,7 @@
 import pdfplumber
 import re
 
-MONEY_RE = r"(?:[₺$€£][ \t]*)?(\d{1,3}(?:\.\d{3})*,\d{2}|\d+,\d{2})(?:[ \t]*(?:TL|TRY|USD|EUR|GBP|DOLAR|EURO))?"
-
+MONEY_RE = r"(?:[₺$€£][ \t]*)?(\d{1,3}(?:[.,]\d{3})*[.,]\d{2}|\d+[.,]\d{2})(?:[ \t]*(?:TL|TRY|USD|EUR|GBP|DOLAR|EURO|[₺$€£]))?"
 
 def _first_match(patterns, text, flags=0):
     for pattern in patterns:
@@ -10,7 +9,6 @@ def _first_match(patterns, text, flags=0):
         if match:
             return match.group(1).strip()
     return None
-
 
 def parse_invoice_text(text: str) -> dict:
     data = {
@@ -92,7 +90,7 @@ def parse_invoice_text(text: str) -> dict:
     
     item_pattern = re.compile(
         rf"(?m)^[ \t]*(?:[A-Z][ \t]+)?(?!\d{{1,2}}\.\d{{2}}\.)([-\w][\w.-]*)[ \t]+(.+?)[ \t]+"
-        rf"(\d+(?:[.,]\d+)?)[ \t]+(?:(?:Adet|Kg|Lt|Paket|Pak|Kutu|Ay|Yıl|Ad\.|M2|M3|Saat|Hizmet|Gün)[ \t]+)?{MONEY_RE}[ \t]+(?:%?[ \t]*(\d+(?:[.,]\d+)?)[ \t]*(?:%[ \t]*)?)?{MONEY_RE}",
+        rf"(\d+(?:[.,]\d+)?)[ \t]*(?:(?:Adet|Kg|Lt|Paket|Pak|Kutu|Ay|Yıl|Ad\.|M2|M3|Saat|Hizmet|Gün)[ \t]*)?{MONEY_RE}[ \t]*(?:%?[ \t]*(\d+(?:[.,]\d+)?)[ \t]*(?:%[ \t]*)?)?{MONEY_RE}",
         re.IGNORECASE,
     )
     for match in item_pattern.finditer(text):
@@ -131,7 +129,7 @@ def parse_pdf_invoice(file_path: str) -> dict:
         with pdfplumber.open(file_path) as pdf:
             text = ""
             for page in pdf.pages:
-                extracted = page.extract_text()
+                extracted = page.extract_text(layout=True)
                 if extracted:
                     text += extracted + "\n"
 
