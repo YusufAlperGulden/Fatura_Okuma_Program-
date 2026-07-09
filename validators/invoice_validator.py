@@ -108,7 +108,7 @@ def validate_invoice(data):
             q = to_decimal(item.get("quantity"))
             up = to_decimal(item.get("unit_price"))
             tp = to_decimal(item.get("total_price"))
-            item["quantity"] = str(q.normalize()).replace(".", ",")
+            item["quantity"] = f"{q.normalize():f}".replace(".", ",")
             item["unit_price"] = format_tr_money(up)
             item["total_price"] = format_tr_money(tp)
 
