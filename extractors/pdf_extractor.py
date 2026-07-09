@@ -50,8 +50,11 @@ def parse_invoice_text(text: str) -> dict:
         r"\b(\d{10,11})\b",
     ], text, re.IGNORECASE)
 
+    # Clean common vertical watermarks that might mix into lines
+    text = re.sub(r"(?i)\b(?:ÖRNEKTİR|RESMİ FATURA DEĞİLDİR|ARA FATURASI)\b", "", text)
+    
     item_pattern = re.compile(
-        rf"(?m)^(?!\d{{1,2}}\.\d{{2}}\.)(\w[\w.-]*)[ \t]+(.+?)[ \t]+"
+        rf"(?m)^[ \t]*(?:[A-Z][ \t]+)?(?!\d{{1,2}}\.\d{{2}}\.)([-\w][\w.-]*)[ \t]+(.+?)[ \t]+"
         rf"(\d+(?:[.,]\d+)?)[ \t]+(?:(?:Adet|Kg|Lt|Paket|Pak|Kutu|Ay|Yıl|Ad\.|M2|M3)[ \t]+)?{MONEY_RE}[ \t]+(?:%?[ \t]*\d+(?:[.,]\d+)?[ \t]*(?:%[ \t]*)?)?{MONEY_RE}",
         re.IGNORECASE,
     )
