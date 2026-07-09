@@ -85,6 +85,7 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('res-date').textContent = '-';
         document.getElementById('res-vkn').textContent = '-';
         document.getElementById('res-customer-name').textContent = '-';
+        document.getElementById('res-method').textContent = '-';
         document.getElementById('res-subtotal').textContent = '-';
         document.getElementById('res-tax').textContent = '-';
         document.getElementById('res-total').textContent = '-';
@@ -199,6 +200,7 @@ document.addEventListener('DOMContentLoaded', () => {
         } else {
             document.getElementById('res-customer-name').textContent = '-';
         }
+        document.getElementById('res-method').textContent = data._extraction_method || '-';
         document.getElementById('res-subtotal').textContent = data.subtotal ? `${sym}${data.subtotal}` : '-';
         
         const discountCard = document.getElementById('discount-card');

@@ -112,13 +112,17 @@ async def upload_invoice(file: UploadFile = File(...)):
         try:
             if ext in ['.xlsx', '.xls', '.csv']:
                 data = parse_excel_invoice(file_path)
+                if data: data["_extraction_method"] = "Yerel Okuyucu (Excel)"
             elif ext == '.pdf':
                 data = parse_pdf_invoice(file_path)
+                if data: data["_extraction_method"] = "Yerel Okuyucu (PDF)"
             elif ext == '.xml':
                 data = parse_xml_invoice(file_path)
+                if data: data["_extraction_method"] = "Yerel Okuyucu (XML)"
             elif _is_image_extension(ext):
                 from extractors.ocr_extractor import parse_image_invoice_ocr
                 data = parse_image_invoice_ocr(file_path)
+                if data: data["_extraction_method"] = "Yerel Okuyucu (OCR)"
             else:
                 os.remove(file_path)
                 return ProcessResponse(filename=file.filename, is_valid=False, data=None, errors=[f"Unsupported format: {ext}"])
@@ -151,7 +155,7 @@ async def upload_invoice(file: UploadFile = File(...)):
                 ocr_valid, ocr_errors = _validate_candidate(ocr_data)
                 if ocr_valid:
                     data = ocr_data
-                    data["_extraction_method"] = "ocr"
+                    data["_extraction_method"] = "Yerel Okuyucu (Tesseract OCR)"
                     local_error = False
                 elif ocr_data and len(ocr_data.get("items", [])) > len(data.get("items", [])):
                     data = ocr_data
@@ -171,7 +175,7 @@ async def upload_invoice(file: UploadFile = File(...)):
                 elif ext == '.webp': mime_type = "image/webp"
                 
                 data = extract_invoice_with_ai(file_bytes, mime_type)
-                data["_extraction_method"] = "gemini"
+                data["_extraction_method"] = "Google Gemini Yapay Zeka"
             except Exception as e:
                 if _is_gemini_quota_error(e):
                     errors.append("Gemini limiti doldu; yerel okuyucu sonucu korundu.")
