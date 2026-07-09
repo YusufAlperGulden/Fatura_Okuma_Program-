@@ -29,7 +29,7 @@ class InvoiceData(BaseModel):
     customer_name: str = Field(description="Alıcının Unvanı / Adı Soyadı.")
     subtotal: float = Field(description="Mal Hizmet Toplam Tutarı (Ara Toplam / İskonto Hariç Toplam).")
     discount_amount: float = Field(description="Toplam İskonto / İndirim Tutarı. Yoksa 0 yazın.", default=0.0)
-    tax_amount: float = Field(description="Hesaplanan KDV Tutarı Toplamı.")
+    tax_amount: float = Field(description="Hesaplanan KDV Tutarı Toplamı. (Eğer faturada birden fazla KDV oranı ve tutarı satırı varsa, hepsinin toplamını yazın.)")
     total_amount: float = Field(description="Ödenecek Toplam Tutar (Genel Toplam / KDV Dahil Toplam).")
     currency: str = Field(description="Para Birimi (Örn: TRY, USD, EUR). TRY varsayılandır.")
     items: List[InvoiceItem] = Field(description="Faturadaki ürün/hizmet kalemlerinin listesi.")
