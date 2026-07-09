@@ -1,7 +1,7 @@
 import pdfplumber
 import re
 
-MONEY_RE = r"(?:[₺$€£]\s*)?(\d{1,3}(?:\.\d{3})*,\d{2}|\d+,\d{2})(?:\s*(?:TL|TRY|USD|EUR|GBP|DOLAR|EURO))?"
+MONEY_RE = r"(?:[₺$€£][ \t]*)?(\d{1,3}(?:\.\d{3})*,\d{2}|\d+,\d{2})(?:[ \t]*(?:TL|TRY|USD|EUR|GBP|DOLAR|EURO))?"
 
 
 def _first_match(patterns, text, flags=0):
@@ -24,10 +24,10 @@ def parse_invoice_text(text: str) -> dict:
         "currency": "TRY"
     }
 
-    usd_matches = len(re.findall(r'\$\s*\d|\d+(?:[.,]\d+)?\s*(?:USD|DOLAR)', text, re.IGNORECASE))
-    eur_matches = len(re.findall(r'€\s*\d|\d+(?:[.,]\d+)?\s*(?:EUR|EURO)', text, re.IGNORECASE))
-    gbp_matches = len(re.findall(r'£\s*\d|\d+(?:[.,]\d+)?\s*GBP', text, re.IGNORECASE))
-    try_matches = len(re.findall(r'₺\s*\d|\d+(?:[.,]\d+)?\s*(?:TL|TRY)', text, re.IGNORECASE))
+    usd_matches = len(re.findall(r'\$[ \t]*\d|\d+(?:[.,]\d+)?[ \t]*(?:USD|DOLAR)', text, re.IGNORECASE))
+    eur_matches = len(re.findall(r'€[ \t]*\d|\d+(?:[.,]\d+)?[ \t]*(?:EUR|EURO)', text, re.IGNORECASE))
+    gbp_matches = len(re.findall(r'£[ \t]*\d|\d+(?:[.,]\d+)?[ \t]*GBP', text, re.IGNORECASE))
+    try_matches = len(re.findall(r'₺[ \t]*\d|\d+(?:[.,]\d+)?[ \t]*(?:TL|TRY)', text, re.IGNORECASE))
 
     if usd_matches > try_matches and usd_matches > eur_matches and usd_matches > gbp_matches:
         data["currency"] = "USD"
@@ -39,20 +39,20 @@ def parse_invoice_text(text: str) -> dict:
         data["currency"] = "TRY"
 
     data["invoice_no"] = _first_match([
-        r"(?:Fatura|Belge|Invoice)\s*(?:No|Numarası|Numarasi|Number)?\s*[:#-]\s*([A-Z0-9-]+)",
+        r"(?:Fatura|Belge|Invoice)[ \t]*(?:No|Numarası|Numarasi|Number)?[ \t]*[:#-][ \t]*([A-Z0-9-]+)",
         r"\b([A-Z]{3}\d{13})\b",
     ], text, re.IGNORECASE)
 
     data["date"] = _first_match([r"\b(\d{1,2}\.\d{2}\.\d{4})\b"], text)
 
     data["customer_tax_id"] = _first_match([
-        r"\b(?:TC|TCKN|VKN|VKN/TCKN|Vergi\s*No)\s*[:#-]?\s*(\d{10,11})\b",
+        r"\b(?:TC|TCKN|VKN|VKN/TCKN|Vergi[ \t]*No)[ \t]*[:#-]?[ \t]*(\d{10,11})\b",
         r"\b(\d{10,11})\b",
     ], text, re.IGNORECASE)
 
     item_pattern = re.compile(
-        rf"(?m)^(?!\d{{1,2}}\.\d{{2}}\.)(\w[\w.-]*)\s+(.+?)\s+"
-        rf"(\d+(?:[.,]\d+)?)\s+(?:(?:Adet|Kg|Lt|Paket|Pak|Kutu|Ay|Yıl|Ad\.|M2|M3)\s+)?{MONEY_RE}\s+(?:%?\s*\d+(?:[.,]\d+)?\s*(?:%\s*)?)?{MONEY_RE}",
+        rf"(?m)^(?!\d{{1,2}}\.\d{{2}}\.)(\w[\w.-]*)[ \t]+(.+?)[ \t]+"
+        rf"(\d+(?:[.,]\d+)?)[ \t]+(?:(?:Adet|Kg|Lt|Paket|Pak|Kutu|Ay|Yıl|Ad\.|M2|M3)[ \t]+)?{MONEY_RE}[ \t]+(?:%?[ \t]*\d+(?:[.,]\d+)?[ \t]*(?:%[ \t]*)?)?{MONEY_RE}",
         re.IGNORECASE,
     )
     for match in item_pattern.finditer(text):
