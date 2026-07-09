@@ -142,11 +142,11 @@ def extract_items_from_tables(pdf):
                 tax_rate = clean_table_cell(row[5])
                 total_price = clean_table_cell(row[6])
 
-                if not re.match(r"^\d{4}\.\d{3}$", code):
-                    continue
-
                 quantity_match = re.search(r"\d+(?:[.,]\d+)?", quantity)
                 tax_match = re.search(r"\d+(?:[.,]\d+)?", tax_rate)
+
+                if not quantity_match or not _parse_money_number(total_price):
+                    continue
 
                 items.append({
                     "code": code,
