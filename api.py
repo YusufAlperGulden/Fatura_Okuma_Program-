@@ -1,7 +1,7 @@
 import os
 from fastapi import FastAPI, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, RedirectResponse
+from fastapi.responses import RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 import shutil
@@ -12,7 +12,6 @@ from extractors.excel_extractor import parse_excel_invoice
 from extractors.pdf_extractor import parse_pdf_invoice
 from extractors.xml_extractor import parse_xml_invoice
 from validators.invoice_validator import validate_invoice
-from integrators.uyumsoft_excel import export_to_uyumsoft_excel
 from integrators.uyumsoft_api import enrich_invoice_customer_from_uyumsoft, send_invoice_to_uyumsoft
 
 app = FastAPI(title="Invoice Pipeline API")
@@ -196,10 +195,7 @@ async def upload_invoice(file: UploadFile = File(...)):
 
         raw_text = data.pop("_raw_text", None) if isinstance(data, dict) else None
 
-        # If valid, export to Uyumsoft Master Excel
-        if is_valid:
-            export_to_uyumsoft_excel([data], "Uyumsoft_Aktarim_Taslagi.xlsx")
-        else:
+        if not is_valid:
             if raw_text and os.getenv("DEBUG_PDF_TEXT", "").lower() in {"1", "true", "yes"}:
                 errors.append(f"DEBUG RAW TEXT:\n{raw_text}")
             
@@ -247,10 +243,3 @@ async def send_uyumsoft_api(request: SendUyumsoftRequest):
     request.invoice_data = enrich_invoice_customer_from_uyumsoft(request.invoice_data)
     result = send_invoice_to_uyumsoft(request.invoice_data, action=request.action)
     return result
-
-@app.get("/download_excel")
-async def download_excel():
-    excel_path = "Uyumsoft_Aktarim_Taslagi.xlsx"
-    if os.path.exists(excel_path):
-         return FileResponse(path=excel_path, filename="Uyumsoft_Aktarim_Taslagi.xlsx")
-    return {"error": "Excel file not generated yet."}
