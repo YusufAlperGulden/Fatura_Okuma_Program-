@@ -118,6 +118,11 @@ async def upload_invoice(file: UploadFile = File(...)):
             
         if not data or not data.get("items"):
             local_error = True
+        else:
+            # Eger extraction verisi geldiyse, matematigi dogru mu diye kontrol et!
+            is_valid_local, local_errors = validate_invoice(data)
+            if not is_valid_local:
+                local_error = True
             
     except Exception as e:
         local_error = True
