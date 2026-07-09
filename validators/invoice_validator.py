@@ -81,16 +81,18 @@ def validate_invoice(data):
                 errors.append(f"Matematik Hatası veya Hatalı Okuma: {item.get('description')} (Miktar: {quantity}, Fiyat: {unit_price}, Toplam: {total_price})")
 
     subtotal = parse_amount(data.get("subtotal"))
+    discount_amount = parse_amount(data.get("discount_amount"))
     tax_amount = parse_amount(data.get("tax_amount"))
     total_amount = parse_amount(data.get("total_amount"))
     
-    # Check subtotal against item totals
-    if abs(calculated_subtotal - subtotal) > 0.05:
-         errors.append(f"Subtotal mismatch: Items sum ({calculated_subtotal}) != Subtotal ({subtotal})")
+    # Check if extracted subtotal matches sum of items
+    # Sometimes 'subtotal' on invoice is the pre-discount sum, sometimes it's the post-discount taxable amount.
+    if abs(calculated_subtotal - subtotal) > 0.05 and abs((calculated_subtotal - discount_amount) - subtotal) > 0.05:
+         errors.append(f"Subtotal mismatch: Items sum ({calculated_subtotal}) does not match Subtotal ({subtotal}) with or without discount.")
          
-    # Check total == subtotal + tax
-    if abs((subtotal + tax_amount) - total_amount) > 0.05:
-         errors.append(f"Total mismatch: {subtotal} + {tax_amount} != {total_amount}")
+    # Validate Total
+    if abs((calculated_subtotal - discount_amount + tax_amount) - total_amount) > 0.05:
+         errors.append(f"Total mismatch: Items ({calculated_subtotal}) - Discount ({discount_amount}) + Tax ({tax_amount}) != Total ({total_amount})")
          
     is_valid = len(errors) == 0
 
@@ -113,6 +115,7 @@ def validate_invoice(data):
 
     if is_valid or not is_valid: # Apply formatting even if invalid
         if data.get("subtotal"): data["subtotal"] = format_tr_money(subtotal)
+        if data.get("discount_amount"): data["discount_amount"] = format_tr_money(discount_amount)
         if data.get("tax_amount"): data["tax_amount"] = format_tr_money(tax_amount)
         if data.get("total_amount"): data["total_amount"] = format_tr_money(total_amount)
         
