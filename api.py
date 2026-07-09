@@ -99,6 +99,7 @@ async def upload_invoice(file: UploadFile = File(...)):
     file_path = temp_path
     data = {}
     local_error = False
+    local_errors = []
     
     # STAGE 1: Process based on extension (LOCAL EXTRACTION)
     try:
@@ -117,6 +118,7 @@ async def upload_invoice(file: UploadFile = File(...)):
             
         if not data or not data.get("items"):
             local_error = True
+            local_errors = ["Yerel okuyucu fatura kalemlerini bulamadi."]
         else:
             # Eger extraction verisi geldiyse, matematigi dogru mu diye kontrol et!
             is_valid_local, local_errors = validate_invoice(data)
@@ -127,9 +129,27 @@ async def upload_invoice(file: UploadFile = File(...)):
             
     except Exception as e:
         local_error = True
+        local_errors = [f"Yerel okuyucu hatasi: {str(e)}"]
 
     errors = []
     is_valid = False
+
+    # STAGE 1B: Try Tesseract OCR before Gemini if PDF text extraction failed validation.
+    if local_error and ext == ".pdf":
+        try:
+            from extractors.ocr_extractor import parse_pdf_invoice_ocr
+
+            ocr_data = parse_pdf_invoice_ocr(file_path)
+            ocr_valid, ocr_errors = _validate_candidate(ocr_data)
+            if ocr_valid:
+                data = ocr_data
+                data["_extraction_method"] = "ocr"
+                local_error = False
+            elif ocr_data and len(ocr_data.get("items", [])) > len(data.get("items", [])):
+                data = ocr_data
+                local_errors = ocr_errors
+        except Exception as e:
+            local_errors.append(f"Tesseract OCR hatasi: {str(e)}")
 
     # STAGE 2: FALLBACK TO AI (Only if local extraction failed)
     if local_error and os.getenv("GEMINI_API_KEY") and (ext == ".pdf" or _is_image_extension(ext)):
