@@ -1,9 +1,9 @@
-import os
 import io
 import json
+import os
+
 import google.generativeai as genai
-from pydantic import BaseModel, Field
-from typing import List, Optional
+
 
 DEFAULT_GEMINI_MODEL = "gemini-2.5-flash"
 FALLBACK_GEMINI_MODELS = (
@@ -13,26 +13,6 @@ FALLBACK_GEMINI_MODELS = (
     "gemini-1.5-flash",
 )
 
-# Define the expected JSON structure using Pydantic
-class InvoiceItem(BaseModel):
-    code: Optional[str] = Field(description="Ürün Kodu veya Stok Kodu (Örn: USD-001). Yoksa boş bırak.")
-    description: str = Field(description="Müşteriye satılan ürün veya hizmetin tam adı / açıklaması.")
-    quantity: float = Field(description="Miktar / Adet.")
-    unit_price: float = Field(description="Birim Fiyat (KDV Hariç).")
-    total_price: float = Field(description="Satır Toplam Fiyat (Miktar * Birim Fiyat).")
-    tax_rate: float = Field(description="KDV Oranı (Örn: 20 veya 18 veya 10).")
-
-class InvoiceData(BaseModel):
-    invoice_no: Optional[str] = Field(description="Fatura Numarası (Genellikle 16 haneli harf ve rakamdan oluşur, örn: GIB2023000000012).")
-    date: str = Field(description="Fatura Tarihi (Format: YYYY-MM-DD).")
-    customer_tax_id: str = Field(description="Alıcının VKN (Vergi Kimlik Numarası) veya TCKN numarası (10 veya 11 haneli).")
-    customer_name: str = Field(description="Alıcının Unvanı / Adı Soyadı.")
-    subtotal: float = Field(description="Mal Hizmet Toplam Tutarı (Ara Toplam / İskonto Hariç Toplam).")
-    discount_amount: float = Field(description="Toplam İskonto / İndirim Tutarı. Yoksa 0 yazın.", default=0.0)
-    tax_amount: float = Field(description="Hesaplanan KDV Tutarı Toplamı. (Eğer faturada birden fazla KDV oranı ve tutarı satırı varsa, hepsinin toplamını yazın.)")
-    total_amount: float = Field(description="Ödenecek Toplam Tutar (Genel Toplam / KDV Dahil Toplam).")
-    currency: str = Field(description="Para Birimi (Örn: TRY, USD, EUR). TRY varsayılandır.")
-    items: List[InvoiceItem] = Field(description="Faturadaki ürün/hizmet kalemlerinin listesi.")
 
 def _is_model_selection_error(error: Exception) -> bool:
     text = str(error).lower()
@@ -77,7 +57,6 @@ def _generate_content_with_available_model(input_data: list) -> str:
             model_name=model_name,
             generation_config={
                 "response_mime_type": "application/json",
-                "response_schema": InvoiceData,
                 "temperature": 0.0,
             },
         )
@@ -96,10 +75,41 @@ def _generate_content_with_available_model(input_data: list) -> str:
     ) from last_model_error
 
 
+def _load_json_response(raw_text: str) -> dict:
+    text = raw_text.strip()
+    if text.startswith("```"):
+        text = text.strip("`").strip()
+        if text.lower().startswith("json"):
+            text = text[4:].strip()
+
+    try:
+        return json.loads(text)
+    except json.JSONDecodeError:
+        start = text.find("{")
+        end = text.rfind("}")
+        if start != -1 and end != -1 and end > start:
+            return json.loads(text[start : end + 1])
+        raise
+
+
+def _stringify_amount_fields(data: dict) -> dict:
+    for key in ("subtotal", "discount_amount", "tax_amount", "total_amount"):
+        if key in data and data[key] is not None:
+            data[key] = str(data[key])
+
+    for item in data.get("items", []):
+        for key in ("quantity", "unit_price", "total_price", "tax_rate"):
+            if key in item and item[key] is not None:
+                item[key] = str(item[key])
+
+    return data
+
+
 def extract_invoice_with_ai(file_bytes: bytes, mime_type: str = "application/pdf") -> dict:
     """
-    Extracts invoice data using Google Gemini.
-    Returns the parsed dict matching the InvoiceData schema.
+    Extract invoice data using Gemini. The response schema is described in the
+    prompt instead of generation_config because Render/Gemini package versions
+    can reject Pydantic schema fields such as "default".
     """
     api_key = os.getenv("GEMINI_API_KEY")
     if not api_key:
@@ -107,60 +117,65 @@ def extract_invoice_with_ai(file_bytes: bytes, mime_type: str = "application/pdf
 
     genai.configure(api_key=api_key)
 
-    # IMAGE COMPRESSION OPTIMIZATION
     if mime_type in ["image/jpeg", "image/png", "image/webp"]:
         try:
             from PIL import Image
+
             image = Image.open(io.BytesIO(file_bytes))
-            # Convert to RGB if PNG with alpha channel to avoid JPEG errors
             if image.mode in ("RGBA", "P"):
                 image = image.convert("RGB")
-            
-            # Reduce size if too large (e.g. over 2000px on the longest edge)
+
             max_size = 1600
             if max(image.size) > max_size:
                 image.thumbnail((max_size, max_size), Image.Resampling.LANCZOS)
-            
-            # Save compressed as JPEG
+
             output_buffer = io.BytesIO()
             image.save(output_buffer, format="JPEG", quality=75, optimize=True)
             file_bytes = output_buffer.getvalue()
             mime_type = "image/jpeg"
             print(f"Compressed image for Gemini. New size: {len(file_bytes)} bytes.")
-        except Exception as e:
-            print(f"Image compression skipped due to error: {e}")
+        except Exception as exc:
+            print(f"Image compression skipped due to error: {exc}")
 
-    prompt = (
-        "Sen uzman bir muhasebe asistanısın. Ekli fatura belgesini (PDF veya Görüntü) dikkatlice analiz et "
-        "ve içerisindeki tüm bilgileri istenilen JSON şemasına uygun olarak eksiksiz bir şekilde çıkar. "
-        "Matematiksel tutarlılığa (Miktar * Birim Fiyat = Satır Toplamı, Ara Toplam + KDV = Genel Toplam) çok dikkat et. "
-        "Kuruşlu değerleri float olarak ver (Örn: 100.50). "
-        "Eğer Müşteri VKN veya TCKN bulunmuyorsa, '11111111111' gibi geçici bir değer koyma, belgedekini bulmaya çalış."
-    )
+    prompt = """
+Sen uzman bir muhasebe asistanisin. Ekli fatura belgesini dikkatlice analiz et
+ve sadece gecerli JSON dondur. Markdown, aciklama, kod blogu veya ek metin yazma.
 
-    # Prepare the input data
+Beklenen JSON alani:
+{
+  "invoice_no": "string veya null",
+  "date": "YYYY-MM-DD veya DD.MM.YYYY",
+  "customer_tax_id": "10 veya 11 haneli VKN/TCKN; belgede yoksa bos string",
+  "customer_name": "string",
+  "subtotal": 0.0,
+  "discount_amount": 0.0,
+  "tax_amount": 0.0,
+  "total_amount": 0.0,
+  "currency": "TRY veya USD veya EUR veya GBP",
+  "items": [
+    {
+      "code": "urun/stok kodu veya bos string",
+      "description": "urun veya hizmet adi",
+      "quantity": 0.0,
+      "unit_price": 0.0,
+      "total_price": 0.0,
+      "tax_rate": 20.0
+    }
+  ]
+}
+
+Tum satir kalemlerini eksiksiz oku. Miktar * birim fiyat = satir toplami ve
+subtotal - discount_amount + tax_amount = total_amount tutarliligini kontrol et.
+Ondalikli degerleri JSON number olarak ver.
+""".strip()
+
     input_data = [
         {"mime_type": mime_type, "data": file_bytes},
-        prompt
+        prompt,
     ]
 
-    # Parse the JSON string back into a Python dictionary
     raw_json = _generate_content_with_available_model(input_data)
     try:
-        data = json.loads(raw_json)
-        
-        # Convert floats back to strings to maintain compatibility with the rest of the application
-        if "subtotal" in data: data["subtotal"] = str(data["subtotal"])
-        if "discount_amount" in data: data["discount_amount"] = str(data["discount_amount"])
-        if "tax_amount" in data: data["tax_amount"] = str(data["tax_amount"])
-        if "total_amount" in data: data["total_amount"] = str(data["total_amount"])
-        
-        for item in data.get("items", []):
-            if "quantity" in item: item["quantity"] = str(item["quantity"])
-            if "unit_price" in item: item["unit_price"] = str(item["unit_price"])
-            if "total_price" in item: item["total_price"] = str(item["total_price"])
-            if "tax_rate" in item: item["tax_rate"] = str(item["tax_rate"])
-
-        return data
-    except json.JSONDecodeError as e:
-        raise RuntimeError(f"Failed to parse Gemini JSON output: {e}\nRaw output: {raw_json}")
+        return _stringify_amount_fields(_load_json_response(raw_json))
+    except json.JSONDecodeError as exc:
+        raise RuntimeError(f"Failed to parse Gemini JSON output: {exc}\nRaw output: {raw_json}")
