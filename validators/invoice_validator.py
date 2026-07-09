@@ -1,57 +1,48 @@
-def parse_amount(amount_str):
-    if not amount_str:
-        return 0.0
-    if isinstance(amount_str, (int, float)):
-        return float(amount_str)
+import datetime
+from decimal import Decimal, InvalidOperation
 
-    # Remove currency symbols and text
-    amount_str = str(amount_str).strip().upper()
+def to_decimal(value):
+    if not value:
+        return Decimal("0.00")
+    if isinstance(value, Decimal):
+        return value
+    if isinstance(value, (int, float)):
+        return Decimal(str(value)).quantize(Decimal("0.01"))
+
+    amount_str = str(value).strip().upper()
     for currency in ["₺", "TL", "TRY", "$", "USD", "DOLAR", "€", "EUR", "EURO", "£", "GBP", "%"]:
         amount_str = amount_str.replace(currency, "")
     amount_str = amount_str.strip()
 
     if not amount_str:
-        return 0.0
+        return Decimal("0.00")
 
-    # Handle decimal and thousand separators intelligently
     if "," in amount_str and "." in amount_str:
-        # Example: 1.250,00 (TR) -> last separator is ,
-        # Example: 1,250.00 (US) -> last separator is .
         if amount_str.rfind(",") > amount_str.rfind("."):
             amount_str = amount_str.replace(".", "").replace(",", ".")
         else:
             amount_str = amount_str.replace(",", "")
     elif "," in amount_str:
-        # Check if comma is used as thousand separator without decimal (e.g., 1,250) or as decimal (1250,00)
         parts = amount_str.split(",")
         if len(parts) == 2 and len(parts[1]) != 3:
-            # It's a decimal separator like 1250,50
             amount_str = amount_str.replace(",", ".")
         elif len(parts) > 1 and all(len(p) == 3 for p in parts[1:]):
-            # It's a thousand separator like 1,250
             amount_str = amount_str.replace(",", "")
         else:
-            # Default to decimal replacement if ambiguous
             amount_str = amount_str.replace(",", ".")
     elif "." in amount_str:
-        # Check if dot is used as thousand separator without decimal (e.g., 1.250) or as decimal (1250.00)
         parts = amount_str.split(".")
         if len(parts) > 1 and all(len(p) == 3 for p in parts[1:]):
             amount_str = amount_str.replace(".", "")
 
     try:
-        return float(amount_str)
-    except ValueError:
-        return 0.0
+        return Decimal(amount_str).quantize(Decimal("0.01"))
+    except (InvalidOperation, ValueError, TypeError):
+        return Decimal("0.00")
 
 def validate_invoice(data):
-    """
-    Validates the mathematical correctness of an extracted invoice.
-    Returns (is_valid, list_of_errors)
-    """
     errors = []
     
-    # Check mandatory fields
     if not data.get("date"):
         errors.append("Missing date.")
     if not data.get("customer_tax_id"):
@@ -59,54 +50,43 @@ def validate_invoice(data):
     if not data.get("items"):
         errors.append("No items found.")
         
-    # Mathematical validation
-    calculated_subtotal = 0.0
+    calculated_subtotal = Decimal("0.00")
     
     for item in data.get("items", []):
-        quantity = parse_amount(item.get("quantity"))
-        unit_price = parse_amount(item.get("unit_price"))
-        total_price = parse_amount(item.get("total_price"))
+        quantity = to_decimal(item.get("quantity"))
+        unit_price = to_decimal(item.get("unit_price"))
+        total_price = to_decimal(item.get("total_price"))
         
         calculated_subtotal += total_price
         
-        # Check item math (Quantity * Unit Price == Total Price)
-        # Using a small epsilon for floating point errors
-        if abs((quantity * unit_price) - total_price) > 0.05:
-            # Auto-correction heuristic: PDF extraction often reads Product Codes as Unit Price due to column misalignment.
-            # If quantity and total_price are > 0, we can safely derive the true unit_price.
-            if quantity > 0 and total_price > 0:
-                corrected_unit_price = round(total_price / quantity, 6)
-                item["unit_price"] = str(corrected_unit_price) # Auto-fix the data
+        if abs((quantity * unit_price) - total_price) > Decimal("0.05"):
+            if quantity > Decimal("0") and total_price > Decimal("0"):
+                corrected_unit_price = (total_price / quantity).quantize(Decimal("0.000001"))
+                item["unit_price"] = str(corrected_unit_price)
             else:
                 errors.append(f"Matematik Hatası veya Hatalı Okuma: {item.get('description')} (Miktar: {quantity}, Fiyat: {unit_price}, Toplam: {total_price})")
 
-    subtotal = parse_amount(data.get("subtotal"))
-    discount_amount = parse_amount(data.get("discount_amount"))
-    tax_amount = parse_amount(data.get("tax_amount"))
-    total_amount = parse_amount(data.get("total_amount"))
+    subtotal = to_decimal(data.get("subtotal"))
+    discount_amount = to_decimal(data.get("discount_amount"))
+    tax_amount = to_decimal(data.get("tax_amount"))
+    total_amount = to_decimal(data.get("total_amount"))
 
-    if discount_amount <= 0.05 and calculated_subtotal > 0 and tax_amount >= 0 and total_amount > 0:
-        inferred_discount = round(calculated_subtotal + tax_amount - total_amount, 2)
-        if inferred_discount > 0.05 and abs((calculated_subtotal - inferred_discount + tax_amount) - total_amount) <= 0.05:
+    if discount_amount <= Decimal("0.05") and calculated_subtotal > Decimal("0") and tax_amount >= Decimal("0") and total_amount > Decimal("0"):
+        inferred_discount = calculated_subtotal + tax_amount - total_amount
+        if inferred_discount > Decimal("0.05") and abs((calculated_subtotal - inferred_discount + tax_amount) - total_amount) <= Decimal("0.05"):
             discount_amount = inferred_discount
-            data["discount_amount"] = discount_amount
+            data["discount_amount"] = str(discount_amount)
     
-    # Check if extracted subtotal matches sum of items
-    # Sometimes 'subtotal' on invoice is the pre-discount sum, sometimes it's the post-discount taxable amount.
-    if abs(calculated_subtotal - subtotal) > 0.05 and abs((calculated_subtotal - discount_amount) - subtotal) > 0.05:
+    if abs(calculated_subtotal - subtotal) > Decimal("0.05") and abs((calculated_subtotal - discount_amount) - subtotal) > Decimal("0.05"):
          errors.append(f"Subtotal mismatch: Items sum ({calculated_subtotal}) does not match Subtotal ({subtotal}) with or without discount.")
          
-    # Validate Total
-    if abs((calculated_subtotal - discount_amount + tax_amount) - total_amount) > 0.05:
+    if abs((calculated_subtotal - discount_amount + tax_amount) - total_amount) > Decimal("0.05"):
          errors.append(f"Total mismatch: Items ({calculated_subtotal}) - Discount ({discount_amount}) + Tax ({tax_amount}) != Total ({total_amount})")
          
     is_valid = len(errors) == 0
 
-    # NORMALIZE FORMATTING FOR UI CONSISTENCY
-    # Ensure date is always DD.MM.YYYY
     raw_date = data.get("date", "").strip()
     if raw_date:
-        import datetime
         for fmt in ("%d.%m.%Y", "%d/%m/%Y", "%Y-%m-%d"):
             try:
                 parsed = datetime.datetime.strptime(raw_date, fmt)
@@ -115,21 +95,20 @@ def validate_invoice(data):
             except ValueError:
                 pass
                 
-    # Function to format float to TR currency string (400.0 -> "400,00")
-    def format_tr_money(val: float) -> str:
-        return f"{val:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+    def format_tr_money(val: Decimal) -> str:
+        return f"{float(val):,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
 
-    if is_valid or not is_valid: # Apply formatting even if invalid
+    if is_valid or not is_valid:
         if data.get("subtotal"): data["subtotal"] = format_tr_money(subtotal)
         if data.get("discount_amount"): data["discount_amount"] = format_tr_money(discount_amount)
         if data.get("tax_amount"): data["tax_amount"] = format_tr_money(tax_amount)
         if data.get("total_amount"): data["total_amount"] = format_tr_money(total_amount)
         
         for item in data.get("items", []):
-            q = parse_amount(item.get("quantity"))
-            up = parse_amount(item.get("unit_price"))
-            tp = parse_amount(item.get("total_price"))
-            item["quantity"] = str(q).replace(".", ",") if str(q).endswith(".0") else str(q).replace(".", ",")
+            q = to_decimal(item.get("quantity"))
+            up = to_decimal(item.get("unit_price"))
+            tp = to_decimal(item.get("total_price"))
+            item["quantity"] = str(q).replace(".", ",") if str(q).to_integral_value() == q else str(q).replace(".", ",")
             item["unit_price"] = format_tr_money(up)
             item["total_price"] = format_tr_money(tp)
 
