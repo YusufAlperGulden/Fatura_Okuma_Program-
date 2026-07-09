@@ -116,7 +116,7 @@
                             <option value="send">Gönder</option>
                         </select>
                     </div>
-                    <div style="display: flex; gap: 1rem; width: 100%; justify-content: center;">
+                    <div style="display: flex; flex-wrap: wrap; gap: 1rem; width: 100%; justify-content: center;">
                         <button id="download-btn" class="primary-btn hidden" style="background-color: #3b82f6;">
                             <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" style="width: 20px; height: 20px;"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
                             Master Excel İndir
@@ -125,8 +125,13 @@
                             <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" style="width: 20px; height: 20px;"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"></path></svg>
                             Uyumsoft İşlemini Çalıştır
                         </button>
+                        <button id="mikro-package-btn" class="primary-btn hidden" style="background-color: #f59e0b;">
+                            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" style="width: 20px; height: 20px;"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414A1 1 0 0119 9.414V19a2 2 0 01-2 2z"></path></svg>
+                            MikroV16 Paketi Olustur
+                        </button>
                     </div>
                     <div id="api-status-box" class="hidden" style="width: 100%; padding: 1rem; border-radius: 8px; margin-top: 1rem; text-align: left;"></div>
+                    <div id="mikro-status-box" class="hidden" style="width: 100%; padding: 1rem; border-radius: 8px; margin-top: 1rem; text-align: left;"></div>
                     <div id="error-box" class="error-box hidden"></div>
                 </div>
 
