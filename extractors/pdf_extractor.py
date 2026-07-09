@@ -19,6 +19,7 @@ def parse_invoice_text(text: str) -> dict:
         "customer_tax_id": None,
         "items": [],
         "subtotal": None,
+        "discount_amount": 0.0,
         "tax_amount": None,
         "total_amount": None,
         "currency": "TRY"
@@ -70,6 +71,7 @@ def parse_invoice_text(text: str) -> dict:
             data["items"].append(item)
 
     data["subtotal"] = _first_match([rf"Ara\s*Toplam\s+{MONEY_RE}"], text, re.IGNORECASE)
+    data["discount_amount"] = _first_match([rf"(?:İskonto|İndirim|Discount).*?{MONEY_RE}"], text, re.IGNORECASE) or 0.0
     data["tax_amount"] = _first_match([rf"\bKDV\b.*?{MONEY_RE}"], text, re.IGNORECASE)
     data["total_amount"] = _first_match([
         rf"Döviz\s*Toplam\s*:\s*{MONEY_RE}",
