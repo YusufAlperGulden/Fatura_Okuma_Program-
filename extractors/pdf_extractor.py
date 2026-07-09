@@ -92,7 +92,7 @@ def parse_invoice_text(text: str) -> dict:
     
     item_pattern = re.compile(
         rf"(?m)^[ \t]*(?:[A-Z][ \t]+)?(?!\d{{1,2}}\.\d{{2}}\.)([-\w][\w.-]*)[ \t]+(.+?)[ \t]+"
-        rf"(\d+(?:[.,]\d+)?)[ \t]+(?:(?:Adet|Kg|Lt|Paket|Pak|Kutu|Ay|Yıl|Ad\.|M2|M3)[ \t]+)?{MONEY_RE}[ \t]+(?:%?[ \t]*(\d+(?:[.,]\d+)?)[ \t]*(?:%[ \t]*)?)?{MONEY_RE}",
+        rf"(\d+(?:[.,]\d+)?)[ \t]+(?:(?:Adet|Kg|Lt|Paket|Pak|Kutu|Ay|Yıl|Ad\.|M2|M3|Saat|Hizmet|Gün)[ \t]+)?{MONEY_RE}[ \t]+(?:%?[ \t]*(\d+(?:[.,]\d+)?)[ \t]*(?:%[ \t]*)?)?{MONEY_RE}",
         re.IGNORECASE,
     )
     for match in item_pattern.finditer(text):
@@ -111,7 +111,8 @@ def parse_invoice_text(text: str) -> dict:
     data["discount_amount"] = _first_match([rf"(?:İskonto|İndirim|Discount).*?{MONEY_RE}"], text, re.IGNORECASE) or 0.0
     data["tax_amount"] = _all_matches_sum([rf"\bKDV\b.*?{MONEY_RE}"], text, re.IGNORECASE)
     data["total_amount"] = _first_match([
-        rf"Döviz\s*Toplam\s*:\s*{MONEY_RE}",
+        rf"Yekün.*?{MONEY_RE}",
+        rf"Döviz\s*Toplam\s*:?\s*{MONEY_RE}",
         rf"FATURA\s+BEDELİ\s+{MONEY_RE}",
         rf"Genel\s*Toplam\s+{MONEY_RE}",
         rf"Ödenecek\s*Tutar\s+{MONEY_RE}",
