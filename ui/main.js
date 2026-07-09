@@ -69,8 +69,10 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('error-box').classList.add('hidden');
         document.getElementById('download-btn').classList.add('hidden');
         document.getElementById('api-send-btn').classList.add('hidden');
+        document.getElementById('mikro-package-btn').classList.add('hidden');
         document.getElementById('uyumsoft-controls').classList.add('hidden');
         document.getElementById('api-status-box').classList.add('hidden');
+        document.getElementById('mikro-status-box').classList.add('hidden');
         document.getElementById('loading-text').textContent = 'Fatura işleniyor...';
         
         // Clear old results data visually
@@ -163,6 +165,7 @@ document.addEventListener('DOMContentLoaded', () => {
             badge.className = 'badge valid';
             document.getElementById('download-btn').classList.remove('hidden');
             document.getElementById('api-send-btn').classList.remove('hidden');
+            document.getElementById('mikro-package-btn').classList.remove('hidden');
             document.getElementById('uyumsoft-controls').classList.remove('hidden');
         } else {
             badge.textContent = 'HATALI';
@@ -272,6 +275,46 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     document.getElementById('api-send-btn').addEventListener('click', runUyumsoftAction);
+
+    async function runMikroV16Package() {
+        if (!currentInvoiceData) return;
+
+        const statusBox = document.getElementById('mikro-status-box');
+        statusBox.classList.remove('hidden');
+        statusBox.style.backgroundColor = '#f59e0b';
+        statusBox.style.color = '#111827';
+        statusBox.innerHTML = `<div class="spinner" style="width:20px;height:20px;border-width:2px;display:inline-block;vertical-align:middle;margin-right:10px;"></div> MikroV16 paketi hazirlaniyor...`;
+
+        try {
+            const response = await fetch('/send-mikro-v16', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ invoice_data: currentInvoiceData, action: 'export_package' })
+            });
+
+            const result = await readJsonResponse(response);
+
+            if (result.success) {
+                statusBox.style.backgroundColor = '#059669';
+                statusBox.style.color = '#fff';
+                const fileCount = Array.isArray(result.files) ? result.files.length : 0;
+                statusBox.innerHTML = `MikroV16 paketi olusturuldu.<br><small>${escapeHtml(result.package_dir)} (${fileCount} dosya)</small>`;
+            } else {
+                const details = formatDetails(result.details);
+                statusBox.style.backgroundColor = '#dc2626';
+                statusBox.style.color = '#fff';
+                statusBox.innerHTML = `Hata: ${escapeHtml(result.message)}${details ? ` <br> <small>${escapeHtml(details)}</small>` : ''}`;
+            }
+        } catch (error) {
+            statusBox.style.backgroundColor = '#dc2626';
+            statusBox.style.color = '#fff';
+            statusBox.innerHTML = `Baglanti Hatasi: ${escapeHtml(error.message)}`;
+        }
+    }
+
+    document.getElementById('mikro-package-btn').addEventListener('click', runMikroV16Package);
 
     // Download logic
     document.getElementById('download-btn').addEventListener('click', () => {
