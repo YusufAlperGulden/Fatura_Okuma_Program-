@@ -140,6 +140,7 @@ def parse_pdf_invoice(file_path: str) -> dict:
                 return parse_pdf_invoice_ocr(file_path)
 
             data = parse_invoice_text(text)
+            data["_raw_text"] = text
 
         if not data['items']:
             print("PDF text was read, but line items were not matched. Falling back to OCR...")
