@@ -168,7 +168,7 @@ def _find_items(text):
         rf"(?P<quantity>\d+(?:[.,]\d+)?)[ \t]+"
         rf"(?:(?P<unit>{UNIT_RE})[ \t]+)?"
         rf"(?P<unit_price>{MONEY_TOKEN_RE})[ \t]+"
-        rf"(?:%?[ \t]*(?P<tax_rate>\d+(?:[.,]\d+)?)[ \t]+)?"
+        rf"(?:%?[ \t]*(?P<tax_rate>\d+(?:[.,]\d+)?)[ \t]*%?[ \t]+)?"
         rf"(?P<total_price>{MONEY_TOKEN_RE})(?:[ \t]+.*)?$",
         re.IGNORECASE,
     )
