@@ -316,6 +316,16 @@ class UyumsoftSoapClient:
     def test_connection(self) -> UyumsoftResult:
         return self._call("TestConnection", '<TestConnection xmlns="http://tempuri.org/" />')
 
+    def filter_e_invoice_users(self, vkn_tckn: str, page_size: int = 10) -> UyumsoftResult:
+        return self._call("FilterEInvoiceUsers", build_filter_e_invoice_users_body(vkn_tckn, page_size))
+
+    def get_user_aliases(self, vkn_tckn: str) -> UyumsoftResult:
+        safe_vkn = escape("".join(filter(str.isdigit, str(vkn_tckn or ""))))
+        return self._call(
+            "GetUserAliasses",
+            f'<GetUserAliasses xmlns="http://tempuri.org/"><vknTckn>{safe_vkn}</vknTckn></GetUserAliasses>',
+        )
+
     def validate_invoice_data(self, invoice: dict[str, Any]) -> UyumsoftResult:
         return self._call("ValidateInvoice", build_validate_invoice_body(invoice))
 
@@ -388,6 +398,117 @@ class UyumsoftSoapClient:
             values.append(value)
 
         return UyumsoftResult(success, message, status_code, operation, values, raw_xml)
+
+
+def build_filter_e_invoice_users_body(vkn_tckn: str, page_size: int = 10) -> str:
+    safe_filter = escape("".join(filter(str.isdigit, str(vkn_tckn or ""))))
+    safe_page_size = max(1, min(int(page_size or 10), 50))
+    nil_dt = ' xsi:nil="true"'
+    return f"""
+<FilterEInvoiceUsers xmlns="http://tempuri.org/" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+  <context PageIndex="0" PageSize="{safe_page_size}">
+    <Filter>{safe_filter}</Filter>
+    <SystemCreateDateBegin{nil_dt} />
+    <SystemCreateDateEnd{nil_dt} />
+    <FirstCreateDateBegin{nil_dt} />
+    <FirstCreateDateEnd{nil_dt} />
+    <UpdateDateBegin{nil_dt} />
+    <UpdateDateEnd{nil_dt} />
+  </context>
+</FilterEInvoiceUsers>"""
+
+
+def _extract_system_user_values(result: UyumsoftResult) -> list[dict[str, Any]]:
+    users: list[dict[str, Any]] = []
+    try:
+        root = ET.fromstring(result.raw_xml)
+    except ET.ParseError:
+        return users
+
+    for node in root.iter():
+        if _local_name(node.tag) not in {"Items", "Definition"}:
+            continue
+        attrs = dict(node.attrib)
+        if attrs.get("Title") or attrs.get("Identifier"):
+            users.append(attrs)
+    return users
+
+
+def _best_uyumsoft_user_match(result: UyumsoftResult, vkn_tckn: str) -> dict[str, Any] | None:
+    target = "".join(filter(str.isdigit, str(vkn_tckn or "")))
+    if len(target) not in (10, 11):
+        return None
+
+    for user in _extract_system_user_values(result):
+        identifier = "".join(filter(str.isdigit, str(user.get("Identifier") or "")))
+        if identifier == target and user.get("Title"):
+            return user
+
+    for user in _extract_system_user_values(result):
+        if user.get("Title"):
+            return user
+    return None
+
+
+def enrich_invoice_customer_from_uyumsoft(invoice_data: dict[str, Any]) -> dict[str, Any]:
+    """Fill customer name/title from Uyumsoft taxpayer list when VKN/TCKN is available.
+
+    This is best-effort by design. A lookup failure must not stop PDF extraction,
+    validation, or invoice transfer.
+    """
+    if not isinstance(invoice_data, dict):
+        return invoice_data
+
+    if invoice_data.get("_uyumsoft_customer_lookup") == "matched" and (
+        invoice_data.get("customer_title") or invoice_data.get("customer_name")
+    ):
+        return invoice_data
+
+    if os.getenv("UYUMSOFT_CUSTOMER_LOOKUP", "1").lower() in {"0", "false", "no", "off"}:
+        return invoice_data
+
+    target_vkn = "".join(filter(str.isdigit, str(invoice_data.get("customer_tax_id") or "")))
+    if len(target_vkn) not in (10, 11):
+        return invoice_data
+
+    environment = os.getenv("UYUMSOFT_ENV", "test").lower()
+    username = os.getenv("UYUMSOFT_USERNAME") or ("Uyumsoft" if environment == "test" else "")
+    password = os.getenv("UYUMSOFT_PASSWORD") or ("Uyumsoft" if environment == "test" else "")
+    if not username or not password:
+        return invoice_data
+
+    client = UyumsoftSoapClient(
+        username,
+        password,
+        environment=environment,
+        timeout=int(os.getenv("UYUMSOFT_LOOKUP_TIMEOUT", "8")),
+    )
+
+    try:
+        result = client.filter_e_invoice_users(target_vkn, page_size=10)
+        match = _best_uyumsoft_user_match(result, target_vkn)
+        if not match:
+            aliases_result = client.get_user_aliases(target_vkn)
+            match = _best_uyumsoft_user_match(aliases_result, target_vkn)
+    except Exception as exc:
+        invoice_data["_uyumsoft_customer_lookup"] = f"failed: {type(exc).__name__}: {str(exc)}"
+        return invoice_data
+
+    if not match:
+        invoice_data["_uyumsoft_customer_lookup"] = "not_found"
+        return invoice_data
+
+    title = str(match.get("Title") or "").strip()
+    if title:
+        invoice_data["customer_name"] = title
+        invoice_data["customer_title"] = title
+        invoice_data["_uyumsoft_customer_lookup"] = "matched"
+
+    alias = str(match.get("PostboxAlias") or match.get("Alias") or "").strip()
+    if alias and not invoice_data.get("customer_alias"):
+        invoice_data["customer_alias"] = alias
+
+    return invoice_data
 
 
 def build_validate_invoice_body(invoice: dict[str, Any]) -> str:
