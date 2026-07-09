@@ -11,6 +11,16 @@ UNIT_RE = r"Adet|AdeTt|Kg|Lt|Paket|Pak|Kutu|Ay|Yıl|Yil|Ad\.|M2|M3|Saat|Hizmet|G
 WATERMARK_CHARS = "A-ZÇĞİÖŞÜ"
 
 
+def _fix_mojibake_currency(text):
+    return (
+        text.replace("\u00e2\u201a\u00ba", "₺")
+        .replace("\u00e2\u0082\u00ba", "₺")
+        .replace("\u00e2\u201a\u00ac", "€")
+        .replace("\u00e2\u0082\u00ac", "€")
+        .replace("\u00c2\u00a3", "£")
+    )
+
+
 def _first_match(patterns, text, flags=0):
     for pattern in patterns:
         match = re.search(pattern, text, flags)
@@ -23,7 +33,7 @@ def _parse_money_number(value):
     if value is None or value == "":
         return 0.0
 
-    text = str(value).strip().upper()
+    text = _fix_mojibake_currency(str(value)).strip().upper()
     for token in ["₺", "TL", "TRY", "$", "USD", "DOLAR", "€", "EUR", "EURO", "£", "GBP", "%"]:
         text = text.replace(token, "")
     text = text.replace(" ", "")
@@ -51,6 +61,7 @@ def _format_amount(value):
 
 
 def _clean_pdf_line(line):
+    line = _fix_mojibake_currency(line)
     line = line.replace("\xa0", " ")
     line = re.sub(r"\bAdeTt\b", "Adet", line)
 
@@ -213,16 +224,21 @@ def parse_invoice_text(text: str) -> dict:
     data["items"] = _find_items(text)
     data["subtotal"] = _first_match([rf"Ara\s*Toplam\s+{MONEY_RE}"], text, re.IGNORECASE)
     data["discount_amount"] = (
-        _first_match([rf"(?:İskonto|İndirim|Discount).*?{MONEY_RE}"], text, re.IGNORECASE) or 0.0
+        _first_match(
+            [rf"(?:Iskonto|İskonto|Ä°skonto|Indirim|İndirim|Ä°ndirim|Discount).*?{MONEY_RE}"],
+            text,
+            re.IGNORECASE,
+        )
+        or 0.0
     )
     data["tax_amount"] = _sum_tax_lines(text)
     data["total_amount"] = _first_match(
         [
-            rf"Yekün.*?{MONEY_RE}",
-            rf"Döviz\s*Toplam\s*:?\s*{MONEY_RE}",
-            rf"FATURA\s+BEDELİ\s+{MONEY_RE}",
+            rf"Yek(?:un|ün|Ã¼n).*?{MONEY_RE}",
+            rf"D(?:oviz|öviz|Ã¶viz)\s*Toplam\s*:?\s*{MONEY_RE}",
+            rf"FATURA\s+BEDEL(?:I|İ|Ä°)\s+{MONEY_RE}",
             rf"Genel\s*Toplam\s+{MONEY_RE}",
-            rf"Ödenecek\s*Tutar\s+{MONEY_RE}",
+            rf"(?:Odenecek|Ödenecek|Ã–denecek)\s*Tutar\s+{MONEY_RE}",
         ],
         text,
         re.IGNORECASE,
