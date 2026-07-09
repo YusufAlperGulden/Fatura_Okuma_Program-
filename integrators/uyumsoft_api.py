@@ -133,6 +133,20 @@ def normalize_currency(value):
 
     return mapping.get(text, "TRY")
 
+
+def _customer_display_name(invoice: dict[str, Any], customer_tax_id: str) -> str:
+    name = (
+        invoice.get("customer_title")
+        or invoice.get("customer_name")
+        or invoice.get("customer")
+    )
+    if name:
+        return str(name).strip()
+    if customer_tax_id and customer_tax_id != "0000000000":
+        return f"MUSTERI {customer_tax_id}"
+    return "BILINMEYEN MUSTERI"
+
+
 def build_ubl_invoice(invoice: dict[str, Any]) -> str:
     invoice_no = str(invoice.get("invoice_no") or f"AUTO-{uuid.uuid4().hex[:12].upper()}")
     issue_date = _parse_date(invoice.get("date"))
@@ -160,12 +174,7 @@ def build_ubl_invoice(invoice: dict[str, Any]) -> str:
     if len(customer_tax_id) not in (10, 11):
         customer_tax_id = "0000000000"
         
-    customer_name = str(
-        invoice.get("customer_title")
-        or invoice.get("customer_name")
-        or invoice.get("customer")
-        or "UNKNOWN CUSTOMER"
-    )
+    customer_name = _customer_display_name(invoice, customer_tax_id)
 
     items = invoice.get("items") or []
     rate = _tax_rate(invoice)
@@ -529,9 +538,7 @@ def build_invoice_info_body(operation: str, invoice: dict[str, Any]) -> str:
         target_vkn = "0000000000"
     target_vkn = escape(target_vkn)
     
-    target_title = escape(
-        str(invoice.get("customer_title") or invoice.get("customer_name") or invoice.get("customer") or "UNKNOWN CUSTOMER")
-    )
+    target_title = escape(_customer_display_name(invoice, target_vkn))
     target_alias = invoice.get("customer_alias")
     alias_attr = f' Alias="{escape(str(target_alias))}"' if target_alias else ""
     scenario = escape(str(invoice.get("scenario") or os.getenv("UYUMSOFT_SCENARIO", "Automated")))
