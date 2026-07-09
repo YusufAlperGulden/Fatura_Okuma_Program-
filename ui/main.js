@@ -187,6 +187,15 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('res-date').textContent = data.date || '-';
         document.getElementById('res-vkn').textContent = data.customer_tax_id || '-';
         document.getElementById('res-subtotal').textContent = data.subtotal ? `${sym}${data.subtotal}` : '-';
+        
+        const discountCard = document.getElementById('discount-card');
+        if (data.discount_amount && parseFloat(data.discount_amount.replace(/\./g, '').replace(',', '.')) > 0) {
+            document.getElementById('res-discount').textContent = `-${sym}${data.discount_amount}`;
+            discountCard.classList.remove('hidden');
+        } else {
+            discountCard.classList.add('hidden');
+        }
+        
         document.getElementById('res-tax').textContent = data.tax_amount ? `${sym}${data.tax_amount}` : '-';
         document.getElementById('res-total').textContent = data.total_amount ? `${sym}${data.total_amount}` : '-';
         
