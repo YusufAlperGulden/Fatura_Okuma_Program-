@@ -15,6 +15,7 @@ FALLBACK_GEMINI_MODELS = (
 
 # Define the expected JSON structure using Pydantic
 class InvoiceItem(BaseModel):
+    code: Optional[str] = Field(description="Ürün Kodu veya Stok Kodu (Örn: USD-001). Yoksa boş bırak.")
     description: str = Field(description="Müşteriye satılan ürün veya hizmetin tam adı / açıklaması.")
     quantity: float = Field(description="Miktar / Adet.")
     unit_price: float = Field(description="Birim Fiyat (KDV Hariç).")
