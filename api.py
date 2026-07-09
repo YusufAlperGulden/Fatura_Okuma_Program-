@@ -132,6 +132,8 @@ async def upload_invoice(file: UploadFile = File(...)):
             is_valid_local, local_errors = validate_invoice(data)
             if not is_valid_local:
                 local_error = True
+                if "_raw_text" in data:
+                    local_errors.append(f"DEBUG RAW TEXT:\n{data['_raw_text']}")
             
     except Exception as e:
         local_error = True
@@ -172,6 +174,9 @@ async def upload_invoice(file: UploadFile = File(...)):
     # If valid, export to Uyumsoft Master Excel
     if is_valid:
         export_to_uyumsoft_excel([data], "Uyumsoft_Aktarim_Taslagi.xlsx")
+    else:
+        if data and "_raw_text" in data:
+            errors.append(f"DEBUG RAW TEXT:\n{data['_raw_text']}")
         
     # Clean up file asynchronously or let OS handle temp folder
     try:
