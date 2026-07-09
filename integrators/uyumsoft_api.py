@@ -43,11 +43,13 @@ def _money(value: Any) -> Decimal:
     if value is None or value == "":
         return Decimal("0.00")
 
-    text = str(value).strip()
-    text = text.replace("TRY", "").replace("TL", "").replace(" ", "")
-    text = text.replace("₺", "")
-    text = text.replace("$", "").replace("USD", "").replace("€", "").replace("EUR", "")
-    text = text.replace("£", "").replace("GBP", "")
+    text = str(value).strip().upper()
+    for currency in ["₺", "TL", "TRY", "$", "USD", "DOLAR", "€", "EUR", "EURO", "£", "GBP", "%"]:
+        text = text.replace(currency, "")
+    text = text.replace(" ", "").strip()
+
+    if not text:
+        return Decimal("0.00")
 
     if "," in text and "." in text:
         if text.rfind(",") > text.rfind("."):
@@ -55,7 +57,17 @@ def _money(value: Any) -> Decimal:
         else:
             text = text.replace(",", "")
     elif "," in text:
-        text = text.replace(",", ".")
+        parts = text.split(",")
+        if len(parts) == 2 and len(parts[1]) != 3:
+            text = text.replace(",", ".")
+        elif len(parts) > 1 and all(len(p) == 3 for p in parts[1:]):
+            text = text.replace(",", "")
+        else:
+            text = text.replace(",", ".")
+    elif "." in text:
+        parts = text.split(".")
+        if len(parts) > 1 and all(len(p) == 3 for p in parts[1:]):
+            text = text.replace(".", "")
 
     try:
         return Decimal(text)
@@ -120,7 +132,11 @@ def build_ubl_invoice(invoice: dict[str, Any]) -> str:
         invoice.get("supplier_tax_office") or os.getenv("UYUMSOFT_SUPPLIER_TAX_OFFICE", "")
     )
 
-    customer_tax_id = str(invoice.get("customer_tax_id") or "").strip()
+    customer_tax_id_raw = str(invoice.get("customer_tax_id") or "").strip()
+    customer_tax_id = "".join(filter(str.isdigit, customer_tax_id_raw))
+    if len(customer_tax_id) not in (10, 11):
+        customer_tax_id = "0000000000"
+        
     customer_name = str(
         invoice.get("customer_title")
         or invoice.get("customer_name")
@@ -197,6 +213,17 @@ def build_ubl_invoice(invoice: dict[str, Any]) -> str:
     supplier_scheme = _scheme_id(supplier_tax_id)
     customer_scheme = _scheme_id(customer_tax_id)
 
+    allowance_charge_xml = ""
+    discount_amount = _money(invoice.get("discount_amount"))
+    taxable_amount = subtotal - discount_amount
+    
+    if discount_amount > Decimal("0.00"):
+        allowance_charge_xml = f"""
+  <cac:AllowanceCharge>
+    <cbc:ChargeIndicator>false</cbc:ChargeIndicator>
+    <cbc:Amount currencyID="{currency}">{_fmt_money(discount_amount)}</cbc:Amount>
+  </cac:AllowanceCharge>"""
+
     return f"""<Invoice xmlns="{UBL_INVOICE_NS}" xmlns:cac="{CAC_NS}" xmlns:cbc="{CBC_NS}">
   <cbc:UBLVersionID>2.1</cbc:UBLVersionID>
   <cbc:CustomizationID>TR1.2</cbc:CustomizationID>
@@ -225,10 +252,11 @@ def build_ubl_invoice(invoice: dict[str, Any]) -> str:
       {f'<cac:Person><cbc:FirstName>{escape(customer_name)}</cbc:FirstName><cbc:FamilyName>{escape(customer_name)}</cbc:FamilyName></cac:Person>' if customer_scheme == 'TCKN' else f'<cac:PartyName><cbc:Name>{escape(customer_name)}</cbc:Name></cac:PartyName>'}
     </cac:Party>
   </cac:AccountingCustomerParty>
+  {allowance_charge_xml}
   <cac:TaxTotal><cbc:TaxAmount currencyID="{currency}">{_fmt_money(tax_amount)}</cbc:TaxAmount></cac:TaxTotal>
   <cac:LegalMonetaryTotal>
     <cbc:LineExtensionAmount currencyID="{currency}">{_fmt_money(subtotal)}</cbc:LineExtensionAmount>
-    <cbc:TaxExclusiveAmount currencyID="{currency}">{_fmt_money(subtotal)}</cbc:TaxExclusiveAmount>
+    <cbc:TaxExclusiveAmount currencyID="{currency}">{_fmt_money(taxable_amount)}</cbc:TaxExclusiveAmount>
     <cbc:TaxInclusiveAmount currencyID="{currency}">{_fmt_money(total_amount)}</cbc:TaxInclusiveAmount>
     <cbc:PayableAmount currencyID="{currency}">{_fmt_money(total_amount)}</cbc:PayableAmount>
   </cac:LegalMonetaryTotal>
@@ -350,7 +378,13 @@ def build_invoice_info_body(operation: str, invoice: dict[str, Any]) -> str:
 
     ubl = build_uyumsoft_invoice_element(invoice, "Invoice")
     local_document_id = escape(str(invoice.get("invoice_no") or f"AUTO-{uuid.uuid4().hex[:12]}"))
-    target_vkn = escape(str(invoice.get("customer_tax_id") or ""))
+    
+    target_vkn_raw = str(invoice.get("customer_tax_id") or "").strip()
+    target_vkn = "".join(filter(str.isdigit, target_vkn_raw))
+    if len(target_vkn) not in (10, 11):
+        target_vkn = "0000000000"
+    target_vkn = escape(target_vkn)
+    
     target_title = escape(
         str(invoice.get("customer_title") or invoice.get("customer_name") or invoice.get("customer") or "UNKNOWN CUSTOMER")
     )
