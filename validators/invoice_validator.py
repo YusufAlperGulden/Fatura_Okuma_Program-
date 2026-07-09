@@ -84,6 +84,12 @@ def validate_invoice(data):
     discount_amount = parse_amount(data.get("discount_amount"))
     tax_amount = parse_amount(data.get("tax_amount"))
     total_amount = parse_amount(data.get("total_amount"))
+
+    if discount_amount <= 0.05 and calculated_subtotal > 0 and tax_amount >= 0 and total_amount > 0:
+        inferred_discount = round(calculated_subtotal + tax_amount - total_amount, 2)
+        if inferred_discount > 0.05 and abs((calculated_subtotal - inferred_discount + tax_amount) - total_amount) <= 0.05:
+            discount_amount = inferred_discount
+            data["discount_amount"] = discount_amount
     
     # Check if extracted subtotal matches sum of items
     # Sometimes 'subtotal' on invoice is the pre-discount sum, sometimes it's the post-discount taxable amount.
