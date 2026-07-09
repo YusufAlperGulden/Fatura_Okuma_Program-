@@ -92,6 +92,74 @@ def _normalize_extracted_text(text):
     return re.sub(r"(?i)\b(?:ÖRNEKTİR|RESMİ FATURA DEĞİLDİR|ARA FATURASI)\b", "", cleaned)
 
 
+def clean_table_cell(value):
+    if value is None:
+        return ""
+
+    text = str(value).replace("\n", " ").replace("\xa0", " ").strip()
+    text = re.sub(r"\b[A-ZÇĞİÖŞÜ]\b", "", text)
+    text = re.sub(
+        r"(\d+(?:[.,]\d+)?)[A-ZÇĞİÖŞÜ]+(Adet|Saat|Hizmet|Kg|Lt|Paket|Kutu)",
+        r"\1 \2",
+        text,
+        flags=re.IGNORECASE,
+    )
+    text = re.sub(
+        r"\b[A-ZÇĞİÖŞÜ]+(Adet|Saat|Hizmet|Kg|Lt|Paket|Kutu)\b",
+        r"\1",
+        text,
+        flags=re.IGNORECASE,
+    )
+    text = re.sub(r"([€$₺£]\d+[.,])[A-ZÇĞİÖŞÜ]+(?=\d)", r"\1", text)
+    return re.sub(r"\s+", " ", text).strip()
+
+def extract_items_from_tables(pdf):
+    items = []
+
+    for page in pdf.pages:
+        tables = page.extract_tables() or []
+
+        for table in tables:
+            if not table or len(table) < 2:
+                continue
+
+            header = [clean_table_cell(c).lower() for c in table[0]]
+
+            if not any("kodu" in h for h in header):
+                continue
+            if not any("toplam" in h for h in header):
+                continue
+
+            for row in table[1:]:
+                if not row or len(row) < 7:
+                    continue
+
+                code = clean_table_cell(row[0])
+                description = clean_table_cell(row[1])
+                quantity = clean_table_cell(row[2])
+                unit = clean_table_cell(row[3])
+                unit_price = clean_table_cell(row[4])
+                tax_rate = clean_table_cell(row[5])
+                total_price = clean_table_cell(row[6])
+
+                if not re.match(r"^\d{4}\.\d{3}$", code):
+                    continue
+
+                quantity_match = re.search(r"\d+(?:[.,]\d+)?", quantity)
+                tax_match = re.search(r"\d+(?:[.,]\d+)?", tax_rate)
+
+                items.append({
+                    "code": code,
+                    "description": description,
+                    "quantity": quantity_match.group(0).replace(".", ",") if quantity_match else quantity.replace(".", ","),
+                    "unit_price": _format_amount(_parse_money_number(unit_price)),
+                    "tax_rate": tax_match.group(0) if tax_match else tax_rate,
+                    "total_price": _format_amount(_parse_money_number(total_price)),
+                })
+
+    return items
+
+
 def _find_items(text):
     item_line_pattern = re.compile(
         rf"^[ \t]*(?P<code>(?:\d{{4}}\.\d{{3}}|[A-Z]{{2,4}}-\d{{3}}|[-\w][\w.-]*))[ \t]+"
@@ -255,6 +323,8 @@ def parse_pdf_invoice(file_path: str) -> dict:
 
     try:
         with pdfplumber.open(file_path) as pdf:
+            table_items = extract_items_from_tables(pdf)
+
             plain_text = ""
             layout_text = ""
             for page in pdf.pages:
@@ -278,6 +348,9 @@ def parse_pdf_invoice(file_path: str) -> dict:
                 parsed["_raw_text"] = text
                 candidates.append(parsed)
             data = max(candidates, key=_score_data)
+
+            if table_items and len(table_items) >= len(data.get("items", [])):
+                data["items"] = table_items
 
         if not data["items"]:
             print("PDF text was read, but line items were not matched. Falling back to OCR...")
