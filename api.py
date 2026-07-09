@@ -180,6 +180,8 @@ async def upload_invoice(file: UploadFile = File(...)):
     if data:
         is_valid, validation_errors = validate_invoice(data)
         errors.extend(validation_errors)
+    elif local_errors:
+        errors.extend(local_errors)
 
     raw_text = data.pop("_raw_text", None) if isinstance(data, dict) else None
 
