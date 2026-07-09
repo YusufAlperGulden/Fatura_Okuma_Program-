@@ -12,6 +12,11 @@ from extractors.excel_extractor import parse_excel_invoice
 from extractors.pdf_extractor import parse_pdf_invoice
 from extractors.xml_extractor import parse_xml_invoice
 from validators.invoice_validator import validate_invoice
+from integrators.mikro_v16_bridge import (
+    MikroBridgeError,
+    MikroV16SqlClient,
+    build_mikro_v16_invoice_package,
+)
 from integrators.uyumsoft_excel import export_to_uyumsoft_excel
 from integrators.uyumsoft_api import send_invoice_to_uyumsoft
 
@@ -45,6 +50,10 @@ class ProcessResponse(BaseModel):
 class SendUyumsoftRequest(BaseModel):
     invoice_data: dict
     action: str | None = None
+
+class SendMikroV16Request(BaseModel):
+    invoice_data: dict | None = None
+    action: str | None = "export_package"
 
 
 def _is_image_extension(ext: str) -> bool:
@@ -193,6 +202,51 @@ async def send_uyumsoft_api(request: SendUyumsoftRequest):
 
     result = send_invoice_to_uyumsoft(request.invoice_data, action=request.action)
     return result
+
+@app.get("/mikro-v16/status")
+async def mikro_v16_status():
+    return {
+        "success": True,
+        "connection_configured": bool(os.getenv("MIKRO_V16_ODBC_CONNECTION")),
+        "mode": "file_import_first",
+        "message": "MikroV16 uses API-key-free package export by default; ODBC is read-only when configured.",
+    }
+
+@app.post("/send-mikro-v16")
+async def send_mikro_v16(request: SendMikroV16Request):
+    action = (request.action or "export_package").lower()
+
+    if action == "test_connection":
+        try:
+            return MikroV16SqlClient().test_connection()
+        except MikroBridgeError as exc:
+            return {"success": False, "message": str(exc), "response_code": 400}
+
+    invoice_data = request.invoice_data or {}
+    is_valid, errors = validate_invoice(invoice_data)
+    if not is_valid:
+        return {
+            "success": False,
+            "message": "Invoice data failed local validation.",
+            "details": errors,
+            "response_code": 400,
+        }
+
+    try:
+        result = build_mikro_v16_invoice_package(invoice_data, output_dir=os.path.join("scratch", "mikro_v16"))
+    except MikroBridgeError as exc:
+        return {"success": False, "message": str(exc), "response_code": 400}
+
+    return {
+        "success": True,
+        "message": result.message,
+        "operation": "MikroV16ImportPackage",
+        "response_code": 200,
+        "package_id": result.package_id,
+        "package_dir": result.package_dir,
+        "files": result.files,
+        "details": result.manifest,
+    }
 
 @app.get("/download_excel")
 async def download_excel():
