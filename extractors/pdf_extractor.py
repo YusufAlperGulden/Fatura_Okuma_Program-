@@ -216,13 +216,14 @@ def _sum_tax_lines(text):
     total = 0.0
     found = False
     for line in text.splitlines():
-        if "KDV" not in line.upper():
+        if "KDV" not in line.upper() and "K.D.V" not in line.upper():
             continue
-        matches = list(re.finditer(MONEY_RE, line, re.IGNORECASE))
-        if not matches:
-            continue
-        found = True
-        total += _parse_money_number(matches[-1].group(1))
+        parts = re.split(r'(?i)\bK\.?D\.?V\.?\b', line)
+        for part in parts[1:]:
+            matches = list(re.finditer(MONEY_RE, part, re.IGNORECASE))
+            if matches:
+                found = True
+                total += _parse_money_number(matches[-1].group(1))
 
     return _format_amount(total) if found else None
 
