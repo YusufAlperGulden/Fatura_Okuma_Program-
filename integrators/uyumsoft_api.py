@@ -150,7 +150,15 @@ def _customer_display_name(invoice: dict[str, Any], customer_tax_id: str) -> str
 def build_ubl_invoice(invoice: dict[str, Any]) -> str:
     invoice_no = str(invoice.get("invoice_no") or f"AUTO-{uuid.uuid4().hex[:12].upper()}")
     issue_date = _parse_date(invoice.get("date"))
-    issue_time = datetime.now().strftime("%H:%M:%S")
+    
+    extracted_time = invoice.get("time")
+    if extracted_time:
+        if len(extracted_time) == 5:
+            extracted_time += ":00"
+        issue_time = extracted_time
+    else:
+        issue_time = datetime.now().strftime("%H:%M:%S")
+        
     currency = normalize_currency(invoice.get("currency") or os.getenv("UYUMSOFT_CURRENCY", "TRY"))
     profile_id = str(invoice.get("profile_id") or os.getenv("UYUMSOFT_PROFILE_ID", "TICARIFATURA"))
     invoice_type = str(invoice.get("invoice_type") or os.getenv("UYUMSOFT_INVOICE_TYPE", "SATIS"))
