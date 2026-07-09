@@ -12,6 +12,7 @@ def export_to_uyumsoft_excel(valid_invoices, output_path="Uyumsoft_Aktarim_Tasla
             row = {
                 "Fatura Tarihi": invoice.get("date"),
                 "Müşteri VKN/TCKN": invoice.get("customer_tax_id"),
+                "Müşteri Adı": invoice.get("customer_title") or invoice.get("customer_name"),
                 "Ürün Kodu": item.get("code"),
                 "Ürün Açıklaması": item.get("description"),
                 "Miktar": item.get("quantity"),

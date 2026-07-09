@@ -29,6 +29,94 @@ def _first_match(patterns, text, flags=0):
     return None
 
 
+def _buyer_section_lines(text):
+    lines = [line.strip() for line in text.splitlines()]
+    buyer_lines = []
+    in_buyer_section = False
+
+    for line in lines:
+        if not line:
+            continue
+
+        if re.search(r"\b(?:Alıcı|Alici|Buyer|Customer)\b", line, re.IGNORECASE):
+            in_buyer_section = True
+            continue
+
+        if in_buyer_section and re.search(
+            r"^(?:Kodu|Kod\s|Mal\s*/?\s*Hizmet|Ürün|Urun|Ara\s*Toplam|Döviz\s*Kuru|Doviz\s*Kuru)\b",
+            line,
+            re.IGNORECASE,
+        ):
+            break
+
+        if in_buyer_section:
+            buyer_lines.append(line)
+
+    return buyer_lines
+
+
+def _clean_customer_name_line(line):
+    line = _fix_mojibake_currency(str(line or "")).strip()
+    if not line:
+        return None
+
+    line = re.split(
+        r"\b(?:Ödeme|Odeme)\s*şekli\b|\bVade\b|\b(?:TC|TCKN|VKN|VKN/TCKN|Vergi\s*No)\b|\bTahsilat\b",
+        line,
+        maxsplit=1,
+        flags=re.IGNORECASE,
+    )[0].strip(" :-")
+
+    if not line or not re.search(r"[A-Za-zÇĞİÖŞÜçğıöşü]", line):
+        return None
+
+    skip_patterns = [
+        r"\b(?:Mah\.?|Mahallesi|Cad\.?|Caddesi|Sk\.?|Sok\.?|Sokak|Bulvar|No:|Türkiye|Turkey)\b",
+        r"\b(?:Fatura|Düzenleme|Duzenleme|Vergi\s*Dairesi|Para\s*Birimi|Senaryo)\b",
+    ]
+    if any(re.search(pattern, line, re.IGNORECASE) for pattern in skip_patterns):
+        return None
+
+    return re.sub(r"\s+", " ", line).strip()
+
+
+def _extract_customer_name(text):
+    for line in _buyer_section_lines(text):
+        customer_name = _clean_customer_name_line(line)
+        if customer_name:
+            return customer_name
+
+    match = re.search(
+        r"\b(?:Alıcı|Alici|Buyer|Customer)\b[^\n]*\n\s*([^\n]+)",
+        text,
+        re.IGNORECASE,
+    )
+    if match:
+        return _clean_customer_name_line(match.group(1))
+
+    return None
+
+
+def _extract_customer_tax_id(text):
+    for line in _buyer_section_lines(text):
+        match = re.search(
+            r"\b(?:TC|TCKN|VKN|VKN/TCKN|Vergi[ \t]*No)[ \t]*[:#-]?[ \t]*(\d{10,11})\b",
+            line,
+            re.IGNORECASE,
+        )
+        if match:
+            return match.group(1)
+
+    return _first_match(
+        [
+            r"\b(?:TC|TCKN|VKN|VKN/TCKN|Vergi[ \t]*No)[ \t]*[:#-]?[ \t]*(\d{10,11})\b",
+            r"\b(\d{10,11})\b",
+        ],
+        text,
+        re.IGNORECASE,
+    )
+
+
 def _parse_money_number(value):
     if value is None or value == "":
         return 0.0
@@ -259,6 +347,8 @@ def parse_invoice_text(text: str) -> dict:
         "invoice_no": None,
         "date": None,
         "customer_tax_id": None,
+        "customer_name": None,
+        "customer_title": None,
         "items": [],
         "subtotal": None,
         "discount_amount": 0.0,
@@ -288,14 +378,9 @@ def parse_invoice_text(text: str) -> dict:
         re.IGNORECASE,
     )
     data["date"] = _first_match([r"\b(\d{1,2}\.\d{2}\.\d{4})\b"], text)
-    data["customer_tax_id"] = _first_match(
-        [
-            r"\b(?:TC|TCKN|VKN|VKN/TCKN|Vergi[ \t]*No)[ \t]*[:#-]?[ \t]*(\d{10,11})\b",
-            r"\b(\d{10,11})\b",
-        ],
-        text,
-        re.IGNORECASE,
-    )
+    data["customer_tax_id"] = _extract_customer_tax_id(text)
+    data["customer_name"] = _extract_customer_name(text)
+    data["customer_title"] = data["customer_name"]
 
     data["items"] = _find_items(text)
     data["subtotal"] = _first_match([rf"Ara\s*Toplam\s+{MONEY_RE}"], text, re.IGNORECASE)

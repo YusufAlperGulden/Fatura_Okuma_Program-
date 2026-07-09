@@ -56,6 +56,8 @@ def parse_excel_invoice(file_path: str) -> dict:
         "invoice_no": None,
         "date": None,
         "customer_tax_id": None,
+        "customer_name": None,
+        "customer_title": None,
         "items": [],
         "subtotal": None,
         "tax_amount": None,
@@ -79,6 +81,15 @@ def parse_excel_invoice(file_path: str) -> dict:
                 "musteri vergi no",
                 "customer tax id",
             ],
+            "customer_name": [
+                "musteri adi",
+                "musteri unvan",
+                "musteri unvani",
+                "alici adi",
+                "alici unvan",
+                "customer name",
+                "customer title",
+            ],
             "item_code": ["urun kodu", "mal hizmet kodu", "kod", "code"],
             "item_description": [
                 "urun aciklamasi",
@@ -99,6 +110,8 @@ def parse_excel_invoice(file_path: str) -> dict:
         data["invoice_no"] = _as_text(_first_present(first, column_sets["invoice_no"]))
         data["date"] = _as_text(_first_present(first, column_sets["date"]))
         data["customer_tax_id"] = _as_text(_first_present(first, column_sets["customer_tax_id"]))
+        data["customer_name"] = _as_text(_first_present(first, column_sets["customer_name"]))
+        data["customer_title"] = data["customer_name"]
         data["subtotal"] = _as_text(_first_present(first, column_sets["subtotal"]))
         data["tax_amount"] = _as_text(_first_present(first, column_sets["tax_amount"]))
         data["total_amount"] = _as_text(_first_present(first, column_sets["total_amount"]))

@@ -26,6 +26,8 @@ def parse_xml_invoice(file_path: str) -> dict:
         "invoice_no": None,
         "date": None,
         "customer_tax_id": None,
+        "customer_name": None,
+        "customer_title": None,
         "items": [],
         "subtotal": None,
         "tax_amount": None,
@@ -52,6 +54,16 @@ def parse_xml_invoice(file_path: str) -> dict:
             party_id = find_text_agnostic(customer_party, "ID")
             if party_id:
                 data["customer_tax_id"] = party_id
+
+            customer_name = find_text_agnostic(customer_party, "RegistrationName")
+            if not customer_name:
+                for elem in customer_party.iter():
+                    if elem.tag.endswith("}PartyName") or elem.tag == "PartyName":
+                        customer_name = find_text_agnostic(elem, "Name")
+                        break
+            if customer_name:
+                data["customer_name"] = customer_name
+                data["customer_title"] = customer_name
                 
         # 3. Invoice Lines
         for elem in root.iter():

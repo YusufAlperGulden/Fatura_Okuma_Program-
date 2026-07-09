@@ -111,11 +111,12 @@ def extract_invoice_with_ai(file_bytes: bytes, mime_type: str = "application/pdf
     prompt instead of generation_config because Render/Gemini package versions
     can reject Pydantic schema fields such as "default".
     """
-    api_key = os.getenv("GEMINI_API_KEY")
-    if not api_key:
-        raise ValueError("GEMINI_API_KEY is not set. Cannot use AI Extractor.")
+    api_key = os.environ.get("GEMINI_API_KEY")
 
-    genai.configure(api_key=api_key)
+    if api_key:
+        genai.configure(api_key=api_key)
+    else:
+        print("Warning: GEMINI_API_KEY is not set.")
 
     if mime_type in ["image/jpeg", "image/png", "image/webp"]:
         try:

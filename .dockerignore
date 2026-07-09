@@ -3,7 +3,11 @@ __pycache__/
 .git/
 .env
 uploads/
+scratch/
 Uyumsoft_Aktarim_Taslagi.xlsx
 ornek.xml
 ornek.pdf
 *.log
+*.pyc
+push_to_github.py
+update_github*.py

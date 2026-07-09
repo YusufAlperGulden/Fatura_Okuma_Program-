@@ -1,0 +1,70 @@
+/* Checklist & Workflow Panel */
+.workflow-panel {
+    background-color: var(--panel-bg);
+    border: 1px solid var(--border-color);
+    border-radius: 12px;
+    padding: 1.5rem 2rem;
+    margin-bottom: 2rem;
+}
+
+.workflow-panel h3 {
+    margin-bottom: 1rem;
+    color: var(--accent-color);
+}
+
+.checklist {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+
+.checklist li {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.75rem 0;
+    border-bottom: 1px solid var(--border-color);
+    color: var(--text-primary);
+    font-size: 1rem;
+}
+
+.checklist li:last-child {
+    border-bottom: none;
+}
+
+.checklist li.success svg {
+    color: var(--success-text);
+}
+
+.checklist li.error {
+    color: var(--error-text);
+}
+.checklist li.error svg {
+    color: var(--error-border);
+}
+
+.checklist li.pending {
+    color: var(--text-secondary);
+}
+
+/* Admin Panel Collapsible */
+.admin-panel {
+    border: 1px dashed var(--border-color);
+    background-color: rgba(30, 41, 59, 0.5); /* slightly darker/transparent panel-bg */
+}
+
+.admin-panel summary {
+    cursor: pointer;
+    font-weight: 600;
+    color: var(--text-secondary);
+    user-select: none;
+    outline: none;
+}
+
+.admin-panel summary:hover {
+    color: var(--accent-color);
+}
+
+.admin-panel .actions-panel {
+    margin-top: 1.5rem;
+}
