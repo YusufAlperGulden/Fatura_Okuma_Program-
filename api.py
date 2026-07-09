@@ -92,123 +92,141 @@ def _try_gemini_extraction(file_path: str, ext: str) -> tuple[dict, bool, list[s
 
 @app.post("/upload", response_model=ProcessResponse)
 async def upload_invoice(file: UploadFile = File(...)):
-    # Save the file temporarily
-    file_id = str(uuid.uuid4())
-    ext = os.path.splitext(file.filename)[1].lower()
-    temp_path = os.path.join(UPLOAD_DIR, f"{file_id}{ext}")
+    import traceback
+    from fastapi.responses import JSONResponse
     
-    with open(temp_path, "wb") as buffer:
-        shutil.copyfileobj(file.file, buffer)
-        
-    file_path = temp_path
-    data = {}
-    local_error = False
-    local_errors = []
-    
-    # STAGE 1: Process based on extension (LOCAL EXTRACTION)
     try:
-        if ext in ['.xlsx', '.xls', '.csv']:
-            data = parse_excel_invoice(file_path)
-        elif ext == '.pdf':
-            data = parse_pdf_invoice(file_path)
-        elif ext == '.xml':
-            data = parse_xml_invoice(file_path)
-        elif _is_image_extension(ext):
-            from extractors.ocr_extractor import parse_image_invoice_ocr
-            data = parse_image_invoice_ocr(file_path)
-        else:
-            os.remove(file_path)
-            return ProcessResponse(filename=file.filename, is_valid=False, data=None, errors=[f"Unsupported format: {ext}"])
+        # Save the file temporarily
+        file_id = str(uuid.uuid4())
+        ext = os.path.splitext(file.filename)[1].lower()
+        temp_path = os.path.join(UPLOAD_DIR, f"{file_id}{ext}")
+        
+        with open(temp_path, "wb") as buffer:
+            shutil.copyfileobj(file.file, buffer)
             
-        if not data or not data.get("items"):
-            local_error = True
-            local_errors = ["Yerel okuyucu fatura kalemlerini bulamadi."]
-        else:
-            # Eger extraction verisi geldiyse, matematigi dogru mu diye kontrol et!
-            is_valid_local, local_errors = validate_invoice(data)
-            if not is_valid_local:
-                local_error = True
-                if os.getenv("DEBUG_PDF_TEXT", "").lower() in {"1", "true", "yes"} and "_raw_text" in data:
-                    local_errors.append(f"DEBUG RAW TEXT:\n{data['_raw_text']}")
-            
-    except Exception as e:
-        local_error = True
-        local_errors = [f"Yerel okuyucu hatasi: {str(e)}"]
-
-    errors = []
-    is_valid = False
-
-    # STAGE 1B: Optional OCR fallback. Tesseract is slow on Render, so keep it off
-    # unless scanned PDFs make it necessary.
-    if local_error and ext == ".pdf" and _env_enabled("USE_TESSERACT_FALLBACK"):
+        file_path = temp_path
+        data = {}
+        local_error = False
+        local_errors = []
+        
+        # STAGE 1: Process based on extension (LOCAL EXTRACTION)
         try:
-            from extractors.ocr_extractor import parse_pdf_invoice_ocr
-
-            ocr_data = parse_pdf_invoice_ocr(file_path)
-            ocr_valid, ocr_errors = _validate_candidate(ocr_data)
-            if ocr_valid:
-                data = ocr_data
-                data["_extraction_method"] = "ocr"
-                local_error = False
-            elif ocr_data and len(ocr_data.get("items", [])) > len(data.get("items", [])):
-                data = ocr_data
-                local_errors = ocr_errors
-        except Exception as e:
-            local_errors.append(f"Tesseract OCR hatasi: {str(e)}")
-
-    # STAGE 2: FALLBACK TO AI (Only if local extraction failed)
-    if local_error and os.getenv("GEMINI_API_KEY") and (ext == ".pdf" or _is_image_extension(ext)):
-        try:
-            from extractors.ai_extractor import extract_invoice_with_ai
-            with open(file_path, "rb") as f:
-                file_bytes = f.read()
-            mime_type = "application/pdf"
-            if ext in ['.jpg', '.jpeg']: mime_type = "image/jpeg"
-            elif ext == '.png': mime_type = "image/png"
-            elif ext == '.webp': mime_type = "image/webp"
-            
-            data = extract_invoice_with_ai(file_bytes, mime_type)
-            data["_extraction_method"] = "gemini"
-        except Exception as e:
-            if _is_gemini_quota_error(e):
-                errors.append("Gemini limiti doldu; yerel okuyucu sonucu korundu.")
+            if ext in ['.xlsx', '.xls', '.csv']:
+                data = parse_excel_invoice(file_path)
+            elif ext == '.pdf':
+                data = parse_pdf_invoice(file_path)
+            elif ext == '.xml':
+                data = parse_xml_invoice(file_path)
+            elif _is_image_extension(ext):
+                from extractors.ocr_extractor import parse_image_invoice_ocr
+                data = parse_image_invoice_ocr(file_path)
             else:
-                errors.append(f"AI Extraction Error: {str(e)}")
+                os.remove(file_path)
+                return ProcessResponse(filename=file.filename, is_valid=False, data=None, errors=[f"Unsupported format: {ext}"])
+                
+            if not data or not data.get("items"):
+                local_error = True
+                local_errors = ["Yerel okuyucu fatura kalemlerini bulamadi."]
+            else:
+                # Eger extraction verisi geldiyse, matematigi dogru mu diye kontrol et!
+                is_valid_local, local_errors = validate_invoice(data)
+                if not is_valid_local:
+                    local_error = True
+                    if os.getenv("DEBUG_PDF_TEXT", "").lower() in {"1", "true", "yes"} and "_raw_text" in data:
+                        local_errors.append(f"DEBUG RAW TEXT:\n{data['_raw_text']}")
+                
+        except Exception as e:
+            local_error = True
+            local_errors = [f"Yerel okuyucu hatasi: {str(e)}"]
+
+        errors = []
+        is_valid = False
+
+        # STAGE 1B: Optional OCR fallback. Tesseract is slow on Render, so keep it off
+        # unless scanned PDFs make it necessary.
+        if local_error and ext == ".pdf" and _env_enabled("USE_TESSERACT_FALLBACK"):
+            try:
+                from extractors.ocr_extractor import parse_pdf_invoice_ocr
+
+                ocr_data = parse_pdf_invoice_ocr(file_path)
+                ocr_valid, ocr_errors = _validate_candidate(ocr_data)
+                if ocr_valid:
+                    data = ocr_data
+                    data["_extraction_method"] = "ocr"
+                    local_error = False
+                elif ocr_data and len(ocr_data.get("items", [])) > len(data.get("items", [])):
+                    data = ocr_data
+                    local_errors = ocr_errors
+            except Exception as e:
+                local_errors.append(f"Tesseract OCR hatasi: {str(e)}")
+
+        # STAGE 2: FALLBACK TO AI (Only if local extraction failed)
+        if local_error and os.getenv("GEMINI_API_KEY") and (ext == ".pdf" or _is_image_extension(ext)):
+            try:
+                from extractors.ai_extractor import extract_invoice_with_ai
+                with open(file_path, "rb") as f:
+                    file_bytes = f.read()
+                mime_type = "application/pdf"
+                if ext in ['.jpg', '.jpeg']: mime_type = "image/jpeg"
+                elif ext == '.png': mime_type = "image/png"
+                elif ext == '.webp': mime_type = "image/webp"
+                
+                data = extract_invoice_with_ai(file_bytes, mime_type)
+                data["_extraction_method"] = "gemini"
+            except Exception as e:
+                if _is_gemini_quota_error(e):
+                    errors.append("Gemini limiti doldu; yerel okuyucu sonucu korundu.")
+                else:
+                    errors.append(f"AI Extraction Error: {str(e)}")
+                
+        elif local_error and (ext == ".pdf" or _is_image_extension(ext)) and not os.getenv("GEMINI_API_KEY"):
+            errors.append("Gemini API anahtari olmadigi icin son yedek okuma adimi calistirilamadi.")
+        elif local_error and not data and _is_image_extension(ext):
+            errors.append("Resim formatı yüklendi ancak GEMINI_API_KEY ortam değişkeni ayarlanmadığı için Yapay Zeka devreye giremedi.")
+        elif local_error and not data:
+            errors.append("Fatura okunamadı ve GEMINI_API_KEY ayarlanmadığı için Yapay Zeka (Fallback) devreye giremedi.")
             
-    elif local_error and (ext == ".pdf" or _is_image_extension(ext)) and not os.getenv("GEMINI_API_KEY"):
-        errors.append("Gemini API anahtari olmadigi icin son yedek okuma adimi calistirilamadi.")
-    elif local_error and not data and _is_image_extension(ext):
-        errors.append("Resim formatı yüklendi ancak GEMINI_API_KEY ortam değişkeni ayarlanmadığı için Yapay Zeka devreye giremedi.")
-    elif local_error and not data:
-        errors.append("Fatura okunamadı ve GEMINI_API_KEY ayarlanmadığı için Yapay Zeka (Fallback) devreye giremedi.")
-        
-    if data:
-        is_valid, validation_errors = validate_invoice(data)
-        errors.extend(validation_errors)
-    elif local_errors:
-        errors.extend(local_errors)
+        if data:
+            is_valid, validation_errors = validate_invoice(data)
+            errors.extend(validation_errors)
+        elif local_errors:
+            errors.extend(local_errors)
 
-    raw_text = data.pop("_raw_text", None) if isinstance(data, dict) else None
+        raw_text = data.pop("_raw_text", None) if isinstance(data, dict) else None
 
-    # If valid, export to Uyumsoft Master Excel
-    if is_valid:
-        export_to_uyumsoft_excel([data], "Uyumsoft_Aktarim_Taslagi.xlsx")
-    else:
-        if raw_text and os.getenv("DEBUG_PDF_TEXT", "").lower() in {"1", "true", "yes"}:
-            errors.append(f"DEBUG RAW TEXT:\n{raw_text}")
-        
-    # Clean up file asynchronously or let OS handle temp folder
-    try:
-        os.remove(file_path)
-    except:
-        pass
-        
-    return ProcessResponse(
-        filename=file.filename,
-        is_valid=is_valid,
-        data=data,
-        errors=errors
-    )
+        # If valid, export to Uyumsoft Master Excel
+        if is_valid:
+            export_to_uyumsoft_excel([data], "Uyumsoft_Aktarim_Taslagi.xlsx")
+        else:
+            if raw_text and os.getenv("DEBUG_PDF_TEXT", "").lower() in {"1", "true", "yes"}:
+                errors.append(f"DEBUG RAW TEXT:\n{raw_text}")
+            
+        # Clean up file asynchronously or let OS handle temp folder
+        try:
+            os.remove(file_path)
+        except:
+            pass
+            
+        return ProcessResponse(
+            filename=file.filename,
+            is_valid=is_valid,
+            data=data,
+            errors=errors
+        )
+    except Exception as e:
+        print("UPLOAD_FATAL_ERROR")
+        print(traceback.format_exc())
+        return JSONResponse(
+            status_code=200,
+            content={
+                "filename": file.filename if file else "",
+                "is_valid": False,
+                "data": None,
+                "errors": [
+                    f"Sunucu hatası yakalandı: {type(e).__name__}: {str(e)}"
+                ],
+            },
+        )
 
 @app.post("/send-uyumsoft")
 async def send_uyumsoft_api(request: SendUyumsoftRequest):
