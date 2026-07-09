@@ -40,6 +40,11 @@ def to_decimal(value):
     except (InvalidOperation, ValueError, TypeError):
         return Decimal("0.00")
 
+
+def parse_amount(value):
+    return float(to_decimal(value))
+
+
 def validate_invoice(data):
     errors = []
     
@@ -71,6 +76,11 @@ def validate_invoice(data):
     tax_amount = to_decimal(data.get("tax_amount"))
     total_amount = to_decimal(data.get("total_amount"))
 
+    if discount_amount <= Decimal("0.05") and calculated_subtotal > Decimal("0.00") and tax_amount >= Decimal("0.00") and total_amount > Decimal("0.00"):
+        inferred_discount = (calculated_subtotal + tax_amount - total_amount).quantize(Decimal("0.01"))
+        if inferred_discount > Decimal("0.05") and abs((calculated_subtotal - inferred_discount + tax_amount) - total_amount) <= Decimal("0.05"):
+            discount_amount = inferred_discount
+            data["discount_amount"] = discount_amount
 
     if abs(calculated_subtotal - subtotal) > Decimal("0.05") and abs((calculated_subtotal - discount_amount) - subtotal) > Decimal("0.05"):
          errors.append(f"Subtotal mismatch: Items sum ({calculated_subtotal}) does not match Subtotal ({subtotal}) with or without discount.")
