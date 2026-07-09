@@ -78,6 +78,8 @@ document.addEventListener('DOMContentLoaded', () => {
         // Clear old results data visually
         document.getElementById('res-date').textContent = '-';
         document.getElementById('res-vkn').textContent = '-';
+        document.getElementById('res-customer-name').textContent = '-';
+        document.getElementById('customer-name-card').classList.add('hidden');
         document.getElementById('res-subtotal').textContent = '-';
         document.getElementById('res-tax').textContent = '-';
         document.getElementById('res-total').textContent = '-';
@@ -126,6 +128,9 @@ document.addEventListener('DOMContentLoaded', () => {
                     // Show successful validation steps
                     checklist.innerHTML += `<li class="success"><svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg> Fatura okundu</li>`;
                     checklist.innerHTML += `<li class="success"><svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg> Toplamlar doğrulandı</li>`;
+                    if (currentInvoiceData && currentInvoiceData._uyumsoft_customer_lookup === 'matched') {
+                        checklist.innerHTML += `<li class="success"><svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg> Müşteri adı Uyumsoft mükellef listesinden eşleştirildi</li>`;
+                    }
                     
                     checklist.innerHTML += `<li class="pending">Uyumsoft islemi otomatik baslatildi.</li>`;
                     runUyumsoftAction();
@@ -186,6 +191,15 @@ document.addEventListener('DOMContentLoaded', () => {
         // Update summary cards
         document.getElementById('res-date').textContent = data.date || '-';
         document.getElementById('res-vkn').textContent = data.customer_tax_id || '-';
+        const customerName = data.customer_title || data.customer_name || data.customer || '';
+        const customerNameCard = document.getElementById('customer-name-card');
+        if (customerName) {
+            document.getElementById('res-customer-name').textContent = customerName;
+            customerNameCard.classList.remove('hidden');
+        } else {
+            document.getElementById('res-customer-name').textContent = '-';
+            customerNameCard.classList.add('hidden');
+        }
         document.getElementById('res-subtotal').textContent = data.subtotal ? `${sym}${data.subtotal}` : '-';
         
         const discountCard = document.getElementById('discount-card');
