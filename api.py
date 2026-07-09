@@ -50,6 +50,10 @@ def _is_image_extension(ext: str) -> bool:
     return ext in [".jpg", ".jpeg", ".png", ".webp"]
 
 
+def _env_enabled(name: str) -> bool:
+    return os.getenv(name, "").lower() in {"1", "true", "yes", "on"}
+
+
 def _is_gemini_quota_error(error: Exception) -> bool:
     text = str(error).lower()
     return "429" in text or "quota" in text or "rate-limit" in text or "rate limit" in text
@@ -134,8 +138,9 @@ async def upload_invoice(file: UploadFile = File(...)):
     errors = []
     is_valid = False
 
-    # STAGE 1B: Try Tesseract OCR before Gemini if PDF text extraction failed validation.
-    if local_error and ext == ".pdf":
+    # STAGE 1B: Optional OCR fallback. Tesseract is slow on Render, so keep it off
+    # unless scanned PDFs make it necessary.
+    if local_error and ext == ".pdf" and _env_enabled("USE_TESSERACT_FALLBACK"):
         try:
             from extractors.ocr_extractor import parse_pdf_invoice_ocr
 
