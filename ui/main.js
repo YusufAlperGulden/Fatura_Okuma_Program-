@@ -272,6 +272,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 
                 const discountAmt = parseMoney(data.discount_amount);
                 let breakdownHtml = '';
+                let totalTax = 0;
                 for (let rate in breakdown) {
                     let taxable = breakdown[rate].taxable;
                     if (discountAmt > 0 && calcSub > 0) {
@@ -279,15 +280,15 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
                     const tax = taxable * parseFloat(rate) / 100;
                     if (tax > 0 || parseFloat(rate) === 0) {
+                        totalTax += tax;
                         const formattedTax = tax.toLocaleString('tr-TR', {minimumFractionDigits: 2, maximumFractionDigits: 2});
                         breakdownHtml += `
-                            <div style="margin-bottom: 8px;">
-                                <div style="color: #c0392b;">%${rate} = ${formattedTax}</div>
-                                <div style="color: #2980b9;">Top = ${formattedTax}</div>
-                            </div>
+                            <div style="color: #c0392b; margin-bottom: 2px;">%${rate} = ${formattedTax}</div>
                         `;
                     }
                 }
+                const formattedTotalTax = totalTax.toLocaleString('tr-TR', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+                breakdownHtml += `<div style="color: #2980b9; margin-top: 4px;">Top = ${formattedTotalTax}</div>`;
                 breakdownDiv.innerHTML = breakdownHtml;
             } else {
                 breakdownDiv.innerHTML = data.tax_amount ? `${sym}${data.tax_amount}` : '-';
