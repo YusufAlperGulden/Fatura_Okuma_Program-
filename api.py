@@ -100,8 +100,6 @@ async def upload_invoice(file: UploadFile = File(...)):
     file_path = temp_path
     data = {}
     local_error = False
-    is_valid = False
-    errors = []
     
     # STAGE 1: Process based on extension (LOCAL EXTRACTION)
     try:
@@ -127,7 +125,7 @@ async def upload_invoice(file: UploadFile = File(...)):
     errors = []
     is_valid = False
 
-    # STAGE 2: FALLBACK TO AI
+    # STAGE 2: FALLBACK TO AI (Only if local extraction failed)
     if local_error and os.getenv("GEMINI_API_KEY") and (ext == ".pdf" or _is_image_extension(ext)):
         try:
             from extractors.ai_extractor import extract_invoice_with_ai
@@ -141,7 +139,10 @@ async def upload_invoice(file: UploadFile = File(...)):
             data = extract_invoice_with_ai(file_bytes, mime_type)
             data["_extraction_method"] = "gemini"
         except Exception as e:
-            errors.append(f"AI Extraction Error: {str(e)}")
+            if _is_gemini_quota_error(e):
+                errors.append("Gemini limiti doldu; yerel okuyucu sonucu korundu.")
+            else:
+                errors.append(f"AI Extraction Error: {str(e)}")
             
     elif local_error and (ext == ".pdf" or _is_image_extension(ext)) and not os.getenv("GEMINI_API_KEY"):
         errors.append("Gemini API anahtari olmadigi icin son yedek okuma adimi calistirilamadi.")
