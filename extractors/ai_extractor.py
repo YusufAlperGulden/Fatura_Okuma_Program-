@@ -149,6 +149,7 @@ Beklenen JSON alani:
 {
   "invoice_no": "string veya null",
   "date": "YYYY-MM-DD veya DD.MM.YYYY",
+  "time": "HH:MM veya HH:MM:SS",
   "customer_tax_id": "10 veya 11 haneli VKN/TCKN; belgede yoksa bos string",
   "customer_name": "string",
   "subtotal": 0.0,

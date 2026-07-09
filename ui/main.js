@@ -82,7 +82,8 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('loading-text').textContent = 'Fatura işleniyor...';
         
         // Clear old results data visually
-        document.getElementById('res-date').textContent = '-';
+        document.getElementById('res-invoice-no').textContent = '-';
+        document.getElementById('res-date-time').textContent = '-';
         document.getElementById('res-vkn').textContent = '-';
         document.getElementById('res-customer-name').textContent = '-';
         document.getElementById('res-method').textContent = '-';
@@ -192,7 +193,12 @@ document.addEventListener('DOMContentLoaded', () => {
         const sym = getSymbol(data.currency);
         
         // Update summary cards
-        document.getElementById('res-date').textContent = data.date || '-';
+        document.getElementById('res-invoice-no').textContent = data.invoice_no || '-';
+        let dateTimeStr = data.date || '-';
+        if (data.time) {
+            dateTimeStr += ` ${data.time}`;
+        }
+        document.getElementById('res-date-time').textContent = dateTimeStr;
         document.getElementById('res-vkn').textContent = data.customer_tax_id || '-';
         const customerName = data.customer_title || data.customer_name || data.customer || '';
         if (customerName) {

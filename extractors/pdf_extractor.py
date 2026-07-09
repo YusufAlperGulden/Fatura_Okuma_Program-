@@ -346,6 +346,7 @@ def parse_invoice_text(text: str) -> dict:
     data = {
         "invoice_no": None,
         "date": None,
+        "time": None,
         "customer_tax_id": None,
         "customer_name": None,
         "customer_title": None,
@@ -355,6 +356,7 @@ def parse_invoice_text(text: str) -> dict:
         "tax_amount": None,
         "total_amount": None,
         "currency": "TRY",
+        "_extraction_method": "Yerel Okuyucu (PDF)",
     }
 
     usd_matches = len(re.findall(r"\$[ \t]*\d|\d+(?:[.,]\d+)?[ \t]*(?:USD|DOLAR)", text, re.IGNORECASE))
@@ -378,6 +380,7 @@ def parse_invoice_text(text: str) -> dict:
         re.IGNORECASE,
     )
     data["date"] = _first_match([r"\b(\d{1,2}\.\d{2}\.\d{4})\b"], text)
+    data["time"] = _first_match([r"\b(\d{2}:\d{2}(?::\d{2})?)\b"], text)
     data["customer_tax_id"] = _extract_customer_tax_id(text)
     data["customer_name"] = _extract_customer_name(text)
     data["customer_title"] = data["customer_name"]
