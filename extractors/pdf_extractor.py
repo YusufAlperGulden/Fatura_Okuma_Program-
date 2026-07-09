@@ -51,12 +51,48 @@ def parse_invoice_text(text: str) -> dict:
         r"\b(\d{10,11})\b",
     ], text, re.IGNORECASE)
 
+    def parse_money(text):
+        if not text: return 0.0
+        text = text.replace(" ", "").strip()
+        if "," in text and "." in text:
+            if text.rfind(",") > text.rfind("."):
+                text = text.replace(".", "").replace(",", ".")
+            else:
+                text = text.replace(",", "")
+        elif "," in text:
+            parts = text.split(",")
+            if len(parts) == 2 and len(parts[1]) != 3:
+                text = text.replace(",", ".")
+            elif len(parts) > 1 and all(len(p) == 3 for p in parts[1:]):
+                text = text.replace(",", "")
+            else:
+                text = text.replace(",", ".")
+        elif "." in text:
+            parts = text.split(".")
+            if len(parts) > 1 and all(len(p) == 3 for p in parts[1:]):
+                text = text.replace(".", "")
+        try:
+            return float(text)
+        except:
+            return 0.0
+
+    def _all_matches_sum(patterns, text, flags=0):
+        total = 0.0
+        found = False
+        for pattern in patterns:
+            for match in re.finditer(pattern, text, flags):
+                found = True
+                total += parse_money(match.group(1).strip())
+        if found:
+            return str(round(total, 2)).replace(".", ",")
+        return None
+
     # Clean common vertical watermarks that might mix into lines
     text = re.sub(r"(?i)\b(?:ÖRNEKTİR|RESMİ FATURA DEĞİLDİR|ARA FATURASI)\b", "", text)
     
     item_pattern = re.compile(
         rf"(?m)^[ \t]*(?:[A-Z][ \t]+)?(?!\d{{1,2}}\.\d{{2}}\.)([-\w][\w.-]*)[ \t]+(.+?)[ \t]+"
-        rf"(\d+(?:[.,]\d+)?)[ \t]+(?:(?:Adet|Kg|Lt|Paket|Pak|Kutu|Ay|Yıl|Ad\.|M2|M3)[ \t]+)?{MONEY_RE}[ \t]+(?:%?[ \t]*\d+(?:[.,]\d+)?[ \t]*(?:%[ \t]*)?)?{MONEY_RE}",
+        rf"(\d+(?:[.,]\d+)?)[ \t]+(?:(?:Adet|Kg|Lt|Paket|Pak|Kutu|Ay|Yıl|Ad\.|M2|M3)[ \t]+)?{MONEY_RE}[ \t]+(?:%?[ \t]*(\d+(?:[.,]\d+)?)[ \t]*(?:%[ \t]*)?)?{MONEY_RE}",
         re.IGNORECASE,
     )
     for match in item_pattern.finditer(text):
@@ -65,14 +101,15 @@ def parse_invoice_text(text: str) -> dict:
             "description": match.group(2).strip(),
             "quantity": match.group(3).replace(".", ","),
             "unit_price": match.group(4),
-            "total_price": match.group(5)
+            "tax_rate": match.group(5),
+            "total_price": match.group(6)
         }
         if item not in data["items"]:
             data["items"].append(item)
 
     data["subtotal"] = _first_match([rf"Ara\s*Toplam\s+{MONEY_RE}"], text, re.IGNORECASE)
     data["discount_amount"] = _first_match([rf"(?:İskonto|İndirim|Discount).*?{MONEY_RE}"], text, re.IGNORECASE) or 0.0
-    data["tax_amount"] = _first_match([rf"\bKDV\b.*?{MONEY_RE}"], text, re.IGNORECASE)
+    data["tax_amount"] = _all_matches_sum([rf"\bKDV\b.*?{MONEY_RE}"], text, re.IGNORECASE)
     data["total_amount"] = _first_match([
         rf"Döviz\s*Toplam\s*:\s*{MONEY_RE}",
         rf"FATURA\s+BEDELİ\s+{MONEY_RE}",
