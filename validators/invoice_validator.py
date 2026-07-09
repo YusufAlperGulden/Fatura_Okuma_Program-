@@ -6,7 +6,7 @@ def parse_amount(amount_str):
 
     # Remove currency symbols and text
     amount_str = str(amount_str).strip().upper()
-    for currency in ["₺", "TL", "TRY", "$", "USD", "DOLAR", "€", "EUR", "EURO", "£", "GBP"]:
+    for currency in ["₺", "TL", "TRY", "$", "USD", "DOLAR", "€", "EUR", "EURO", "£", "GBP", "%"]:
         amount_str = amount_str.replace(currency, "")
     amount_str = amount_str.strip()
 
@@ -78,7 +78,7 @@ def validate_invoice(data):
                 corrected_unit_price = round(total_price / quantity, 6)
                 item["unit_price"] = str(corrected_unit_price) # Auto-fix the data
             else:
-                errors.append(f"Item math error: {item.get('description')} ({quantity} * {unit_price} != {total_price})")
+                errors.append(f"Matematik Hatası veya Hatalı Okuma: {item.get('description')} (Miktar: {quantity}, Fiyat: {unit_price}, Toplam: {total_price})")
 
     subtotal = parse_amount(data.get("subtotal"))
     tax_amount = parse_amount(data.get("tax_amount"))
