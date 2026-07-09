@@ -215,6 +215,7 @@ def _find_items(text):
 def _sum_tax_lines(text):
     total = 0.0
     found = False
+    seen_tax_parts = set()
     for line in text.splitlines():
         if "KDV" not in line.upper() and "K.D.V" not in line.upper():
             continue
@@ -222,6 +223,11 @@ def _sum_tax_lines(text):
         for part in parts[1:]:
             matches = list(re.finditer(MONEY_RE, part, re.IGNORECASE))
             if matches:
+                norm_part = re.sub(r'\s+', '', part).upper()
+                if norm_part in seen_tax_parts:
+                    continue
+                seen_tax_parts.add(norm_part)
+                
                 found = True
                 total += _parse_money_number(matches[-1].group(1))
 
