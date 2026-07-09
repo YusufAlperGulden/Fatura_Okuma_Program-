@@ -110,11 +110,34 @@ def _tax_rate(invoice: dict[str, Any]) -> Decimal:
     return Decimal("0.00")
 
 
+def normalize_currency(value):
+    text = str(value or "").strip().upper()
+
+    mapping = {
+        "TL": "TRY",
+        "TRY": "TRY",
+        "₺": "TRY",
+        "TÜRK LİRASI": "TRY",
+        "TURK LIRASI": "TRY",
+
+        "EURO": "EUR",
+        "EUR": "EUR",
+        "€": "EUR",
+
+        "DOLAR": "USD",
+        "USD": "USD",
+        "$": "USD",
+        "AMERIKAN DOLARI": "USD",
+        "AMERİKAN DOLARI": "USD",
+    }
+
+    return mapping.get(text, "TRY")
+
 def build_ubl_invoice(invoice: dict[str, Any]) -> str:
     invoice_no = str(invoice.get("invoice_no") or f"AUTO-{uuid.uuid4().hex[:12].upper()}")
     issue_date = _parse_date(invoice.get("date"))
     issue_time = datetime.now().strftime("%H:%M:%S")
-    currency = str(invoice.get("currency") or os.getenv("UYUMSOFT_CURRENCY", "TRY"))
+    currency = normalize_currency(invoice.get("currency") or os.getenv("UYUMSOFT_CURRENCY", "TRY"))
     profile_id = str(invoice.get("profile_id") or os.getenv("UYUMSOFT_PROFILE_ID", "TICARIFATURA"))
     invoice_type = str(invoice.get("invoice_type") or os.getenv("UYUMSOFT_INVOICE_TYPE", "SATIS"))
 
