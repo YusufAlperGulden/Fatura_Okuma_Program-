@@ -76,6 +76,7 @@ def _clean_pdf_line(line):
         r"\1 \2",
         line,
     )
+    line = re.sub(rf"\bK[{WATERMARK_CHARS}]*D[{WATERMARK_CHARS}]*V\b", "KDV", line, flags=re.IGNORECASE)
     line = re.sub(rf"(?<=\s)[{WATERMARK_CHARS}]+({UNIT_RE})\b", r"\1", line, flags=re.IGNORECASE)
     line = re.sub(rf"(\d+(?:[.,]\d+)?)[ \t]*[{WATERMARK_CHARS}]+({UNIT_RE})\b", r"\1 \2", line, flags=re.IGNORECASE)
     line = re.sub(
