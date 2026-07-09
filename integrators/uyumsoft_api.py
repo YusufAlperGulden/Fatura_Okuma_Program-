@@ -185,6 +185,7 @@ def build_ubl_invoice(invoice: dict[str, Any]) -> str:
     line_xml = []
     calculated_subtotal = Decimal("0.00")
     calculated_tax = Decimal("0.00")
+    tax_subtotals: dict[Decimal, dict[str, Decimal]] = {}
 
     for index, item in enumerate(items, start=1):
         quantity = _money(item.get("quantity") or "1")
@@ -202,6 +203,11 @@ def build_ubl_invoice(invoice: dict[str, Any]) -> str:
         )
         calculated_subtotal += line_total
         calculated_tax += line_tax
+        
+        if item_rate not in tax_subtotals:
+            tax_subtotals[item_rate] = {"taxable": Decimal("0.00"), "tax": Decimal("0.00")}
+        tax_subtotals[item_rate]["taxable"] += line_total
+        tax_subtotals[item_rate]["tax"] += line_tax
 
         description = escape(str(item.get("description") or item.get("name") or "Item"))
         code = escape(str(item.get("code") or index))
@@ -255,6 +261,28 @@ def build_ubl_invoice(invoice: dict[str, Any]) -> str:
     <cbc:ChargeIndicator>false</cbc:ChargeIndicator>
     <cbc:Amount currencyID="{currency}">{_fmt_money(discount_amount)}</cbc:Amount>
   </cac:AllowanceCharge>"""
+        if calculated_subtotal > Decimal("0.00"):
+            for t_rate, t_amounts in tax_subtotals.items():
+                proportion = t_amounts["taxable"] / calculated_subtotal
+                discount_part = (discount_amount * proportion).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+                t_amounts["taxable"] -= discount_part
+                t_amounts["tax"] = (t_amounts["taxable"] * t_rate / Decimal("100")).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+
+    doc_tax_subtotals_xml = []
+    for t_rate, t_amounts in tax_subtotals.items():
+        doc_tax_subtotals_xml.append(f"""
+    <cac:TaxSubtotal>
+      <cbc:TaxableAmount currencyID="{currency}">{_fmt_money(t_amounts["taxable"])}</cbc:TaxableAmount>
+      <cbc:TaxAmount currencyID="{currency}">{_fmt_money(t_amounts["tax"])}</cbc:TaxAmount>
+      <cbc:Percent>{_fmt_money(t_rate)}</cbc:Percent>
+      <cac:TaxCategory>
+        <cac:TaxScheme>
+          <cbc:Name>KDV</cbc:Name>
+          <cbc:TaxTypeCode>0015</cbc:TaxTypeCode>
+        </cac:TaxScheme>
+      </cac:TaxCategory>
+    </cac:TaxSubtotal>""")
+    doc_tax_subtotal_str = "".join(doc_tax_subtotals_xml)
 
     return f"""<Invoice xmlns="{UBL_INVOICE_NS}" xmlns:cac="{CAC_NS}" xmlns:cbc="{CBC_NS}">
   <cbc:UBLVersionID>2.1</cbc:UBLVersionID>
@@ -285,7 +313,10 @@ def build_ubl_invoice(invoice: dict[str, Any]) -> str:
     </cac:Party>
   </cac:AccountingCustomerParty>
   {allowance_charge_xml}
-  <cac:TaxTotal><cbc:TaxAmount currencyID="{currency}">{_fmt_money(tax_amount)}</cbc:TaxAmount></cac:TaxTotal>
+  <cac:TaxTotal>
+    <cbc:TaxAmount currencyID="{currency}">{_fmt_money(tax_amount)}</cbc:TaxAmount>
+    {doc_tax_subtotal_str}
+  </cac:TaxTotal>
   <cac:LegalMonetaryTotal>
     <cbc:LineExtensionAmount currencyID="{currency}">{_fmt_money(subtotal)}</cbc:LineExtensionAmount>
     <cbc:TaxExclusiveAmount currencyID="{currency}">{_fmt_money(taxable_amount)}</cbc:TaxExclusiveAmount>
