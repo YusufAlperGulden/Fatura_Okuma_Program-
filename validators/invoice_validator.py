@@ -4,17 +4,39 @@ def parse_amount(amount_str):
     if isinstance(amount_str, (int, float)):
         return float(amount_str)
 
-    # Remove thousand separators (.) and replace decimal separator (,) with (.)
-    amount_str = str(amount_str).strip()
-    amount_str = amount_str.replace("₺", "").replace("TL", "").replace("TRY", "")
-    amount_str = amount_str.replace("$", "").replace("USD", "").replace("€", "").replace("EUR", "")
-    amount_str = amount_str.replace("£", "").replace("GBP", "").strip()
+    # Remove currency symbols and text
+    amount_str = str(amount_str).strip().upper()
+    for currency in ["₺", "TL", "TRY", "$", "USD", "DOLAR", "€", "EUR", "EURO", "£", "GBP"]:
+        amount_str = amount_str.replace(currency, "")
+    amount_str = amount_str.strip()
 
-    if "," in amount_str:
-        amount_str = amount_str.replace('.', '').replace(',', '.')
+    if not amount_str:
+        return 0.0
+
+    # Handle decimal and thousand separators intelligently
+    if "," in amount_str and "." in amount_str:
+        # Example: 1.250,00 (TR) -> last separator is ,
+        # Example: 1,250.00 (US) -> last separator is .
+        if amount_str.rfind(",") > amount_str.rfind("."):
+            amount_str = amount_str.replace(".", "").replace(",", ".")
+        else:
+            amount_str = amount_str.replace(",", "")
+    elif "," in amount_str:
+        # Check if comma is used as thousand separator without decimal (e.g., 1,250) or as decimal (1250,00)
+        parts = amount_str.split(",")
+        if len(parts) == 2 and len(parts[1]) != 3:
+            # It's a decimal separator like 1250,50
+            amount_str = amount_str.replace(",", ".")
+        elif len(parts) > 1 and all(len(p) == 3 for p in parts[1:]):
+            # It's a thousand separator like 1,250
+            amount_str = amount_str.replace(",", "")
+        else:
+            # Default to decimal replacement if ambiguous
+            amount_str = amount_str.replace(",", ".")
     elif "." in amount_str:
+        # Check if dot is used as thousand separator without decimal (e.g., 1.250) or as decimal (1250.00)
         parts = amount_str.split(".")
-        if len(parts) > 1 and all(len(part) == 3 for part in parts[1:]):
+        if len(parts) > 1 and all(len(p) == 3 for p in parts[1:]):
             amount_str = amount_str.replace(".", "")
 
     try:
