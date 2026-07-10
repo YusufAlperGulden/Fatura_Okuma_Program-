@@ -164,6 +164,52 @@ def _extract_exchange_rate(text):
     return f"{rate:.6f}".rstrip("0").rstrip(".")
 
 
+def _extract_invoice_notes(text):
+    note_header = re.compile(
+        r"^(?:(?:Genel|Fatura)\s+)?(?:Açıklama(?:lar)?|Aciklama(?:lar)?|AÃ§Ä±klama(?:lar)?|Not(?:u|lar)?)"
+        r"\s*(?:(?::|-)\s*(.*))?$",
+        re.IGNORECASE,
+    )
+    section_stop = re.compile(
+        r"^(?:Kodu\b|Kod\s|Mal\s*/?\s*Hizmet|Ürün\b|Urun\b|Ara\s*Toplam\b|"
+        r"K\.?D\.?V\.?\b|Genel\s*Toplam\b|Yek(?:un|ün)\b|(?:Ödenecek|Odenecek)\s*Tutar\b|"
+        r"(?:Satıcı|Satici|Alıcı|Alici)\b|Fatura\s+(?:No|Tarihi)\b|ETTN\b|İmza\b|Imza\b|Kaşe\b|Kase\b)",
+        re.IGNORECASE,
+    )
+
+    lines = [_clean_pdf_line(line).strip() for line in text.splitlines()]
+    notes = []
+    seen = set()
+
+    for index, line in enumerate(lines):
+        if not line:
+            continue
+
+        match = note_header.match(line)
+        if not match:
+            continue
+
+        parts = []
+        inline_note = (match.group(1) or "").strip()
+        if inline_note:
+            parts.append(inline_note)
+
+        for continuation in lines[index + 1 : index + 9]:
+            if not continuation:
+                break
+            if note_header.match(continuation) or section_stop.search(continuation):
+                break
+            parts.append(continuation)
+
+        note = re.sub(r"\s+", " ", " ".join(parts)).strip(" :-")
+        note_key = note.casefold()
+        if note and note_key not in seen:
+            seen.add(note_key)
+            notes.append(note)
+
+    return "\n".join(notes)
+
+
 def _clean_pdf_line(line):
     line = _fix_mojibake_currency(line)
     line = line.replace("\xa0", " ")
@@ -373,6 +419,7 @@ def parse_invoice_text(text: str) -> dict:
         "total_amount": None,
         "currency": "TRY",
         "exchange_rate": None,
+        "notes": "",
         "_extraction_method": "Yerel Okuyucu (PDF)",
     }
 
@@ -402,6 +449,7 @@ def parse_invoice_text(text: str) -> dict:
     data["customer_name"] = _extract_customer_name(text)
     data["customer_title"] = data["customer_name"]
     data["exchange_rate"] = _extract_exchange_rate(text)
+    data["notes"] = _extract_invoice_notes(text)
 
     data["items"] = _find_items(text)
     data["subtotal"] = _first_match([rf"Ara\s*Toplam\s+{MONEY_RE}"], text, re.IGNORECASE)

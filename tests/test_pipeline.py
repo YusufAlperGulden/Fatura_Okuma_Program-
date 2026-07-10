@@ -68,6 +68,42 @@ class PipelineTests(unittest.TestCase):
 
         self.assertEqual(data["exchange_rate"], "53.5844")
 
+    def test_parse_pdf_invoice_notes(self):
+        text = """
+        Fatura No: TEST-2026-1
+        Kodu Açıklama Miktar Birim Fiyat Toplam
+        1000.001 Test Ürün 1 Adet 100,00 100,00
+        AÇIKLAMALAR:
+        Sipariş No: 12345
+        Teslimat hafta içi yapılsın.
+        """
+
+        data = parse_invoice_text(text)
+
+        self.assertEqual(
+            data["notes"],
+            "Sipariş No: 12345 Teslimat hafta içi yapılsın.",
+        )
+
+        ubl_root = ET.fromstring(build_ubl_invoice(data))
+        note = next(node for node in ubl_root.iter() if node.tag.endswith("}Note"))
+        self.assertEqual(note.text, data["notes"])
+
+    def test_parse_pdf_invoice_note_is_deduplicated(self):
+        text = """
+        AÇIKLAMA: Şu hesaba yatırınız.
+        AÇIKLAMA: Şu hesaba yatırınız.
+        """
+
+        data = parse_invoice_text(text)
+
+        self.assertEqual(data["notes"], "Şu hesaba yatırınız.")
+
+    def test_pdf_item_description_header_is_not_an_invoice_note(self):
+        data = parse_invoice_text("Kodu Açıklama Miktar Birim Fiyat Toplam")
+
+        self.assertEqual(data["notes"], "")
+
     def test_tcmb_rate_uses_forex_buying(self):
         class FakeResponse:
             def __enter__(self):
