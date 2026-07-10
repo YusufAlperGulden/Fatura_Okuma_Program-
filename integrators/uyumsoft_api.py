@@ -290,19 +290,22 @@ def build_ubl_invoice(invoice: dict[str, Any]) -> str:
   </cac:InvoiceLine>"""
         )
 
+    discount_amount = _money(invoice.get("discount_amount"))
+    line_extension_amount = calculated_subtotal if calculated_subtotal > Decimal("0.00") else subtotal
+
     if subtotal == Decimal("0.00"):
-        subtotal = calculated_subtotal
+        subtotal = line_extension_amount
     if tax_amount == Decimal("0.00"):
         tax_amount = calculated_tax
+
+    taxable_amount = line_extension_amount - discount_amount
     if total_amount == Decimal("0.00"):
-        total_amount = subtotal + tax_amount
+        total_amount = taxable_amount + tax_amount
 
     supplier_scheme = _scheme_id(supplier_tax_id)
     customer_scheme = _scheme_id(customer_tax_id)
 
     allowance_charge_xml = ""
-    discount_amount = _money(invoice.get("discount_amount"))
-    taxable_amount = subtotal - discount_amount
     
     if discount_amount > Decimal("0.00"):
         allowance_charge_xml = f"""
@@ -389,7 +392,7 @@ def build_ubl_invoice(invoice: dict[str, Any]) -> str:
     {doc_tax_subtotal_str}
   </cac:TaxTotal>
   <cac:LegalMonetaryTotal>
-    <cbc:LineExtensionAmount currencyID="{currency}">{_fmt_money(subtotal)}</cbc:LineExtensionAmount>
+    <cbc:LineExtensionAmount currencyID="{currency}">{_fmt_money(line_extension_amount)}</cbc:LineExtensionAmount>
     <cbc:TaxExclusiveAmount currencyID="{currency}">{_fmt_money(taxable_amount)}</cbc:TaxExclusiveAmount>{allowance_total_xml}
     <cbc:TaxInclusiveAmount currencyID="{currency}">{_fmt_money(total_amount)}</cbc:TaxInclusiveAmount>
     <cbc:PayableAmount currencyID="{currency}">{_fmt_money(total_amount)}</cbc:PayableAmount>

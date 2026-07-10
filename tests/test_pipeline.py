@@ -200,6 +200,45 @@ class PipelineTests(unittest.TestCase):
         self.assertIn("12345678901", ubl)
         self.assertIn("144.00", ubl)
 
+    def test_ubl_discount_is_not_subtracted_twice(self):
+        for reported_subtotal in ("100,00", "90,00"):
+            with self.subTest(reported_subtotal=reported_subtotal):
+                data = {
+                    "invoice_no": "TEST-DISCOUNT-1",
+                    "date": "10.07.2026",
+                    "customer_tax_id": "1111111111",
+                    "currency": "TRY",
+                    "subtotal": reported_subtotal,
+                    "discount_amount": "10,00",
+                    "tax_amount": "18,00",
+                    "total_amount": "108,00",
+                    "items": [
+                        {
+                            "description": "Test",
+                            "quantity": "1",
+                            "unit_price": "100,00",
+                            "total_price": "100,00",
+                            "tax_rate": "20",
+                        }
+                    ],
+                }
+
+                self.assertEqual(validate_invoice(data), (True, []))
+
+                root = ET.fromstring(build_ubl_invoice(data))
+                legal_total = next(
+                    node for node in root.iter() if node.tag.endswith("}LegalMonetaryTotal")
+                )
+                values = {
+                    node.tag.rsplit("}", 1)[-1]: node.text for node in legal_total
+                }
+
+                self.assertEqual(values["LineExtensionAmount"], "100.00")
+                self.assertEqual(values["TaxExclusiveAmount"], "90.00")
+                self.assertEqual(values["AllowanceTotalAmount"], "10.00")
+                self.assertEqual(values["TaxInclusiveAmount"], "108.00")
+                self.assertEqual(values["PayableAmount"], "108.00")
+
     def test_uyumsoft_wrapper_safe_default_uses_connection_test(self):
         class FakeClient:
             def __init__(self, *args, **kwargs):
