@@ -65,17 +65,18 @@ header p {
 
 /* Drop Zone */
 .drop-zone {
-    border: 2px dashed var(--border-color);
+    border: 2px solid transparent;
     border-radius: 8px;
     padding: 3rem 2rem;
     text-align: center;
     cursor: pointer;
     transition: all 0.3s ease;
+    background-image: url("data:image/svg+xml,%3csvg width='100%25' height='100%25' xmlns='http://www.w3.org/2000/svg'%3e%3crect width='100%25' height='100%25' fill='none' rx='8' ry='8' stroke='%23334155' stroke-width='4' stroke-dasharray='12%2c 12' stroke-dashoffset='0' stroke-linecap='square'/%3e%3c/svg%3e");
 }
 
 .drop-zone:hover, .drop-zone.dragover {
-    border-color: var(--accent-color);
     background-color: rgba(56, 189, 248, 0.05);
+    background-image: url("data:image/svg+xml,%3csvg width='100%25' height='100%25' xmlns='http://www.w3.org/2000/svg'%3e%3crect width='100%25' height='100%25' fill='none' rx='8' ry='8' stroke='%2338bdf8' stroke-width='4' stroke-dasharray='12%2c 12' stroke-dashoffset='0' stroke-linecap='square'%3e%3canimate attributeName='stroke-dashoffset' values='48;0' dur='1.5s' repeatCount='indefinite'/%3e%3c/rect%3e%3c/svg%3e");
 }
 
 .upload-icon {
