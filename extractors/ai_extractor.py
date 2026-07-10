@@ -93,7 +93,7 @@ def _load_json_response(raw_text: str) -> dict:
 
 
 def _stringify_amount_fields(data: dict) -> dict:
-    for key in ("subtotal", "discount_amount", "tax_amount", "total_amount"):
+    for key in ("subtotal", "discount_amount", "tax_amount", "total_amount", "exchange_rate"):
         if key in data and data[key] is not None:
             data[key] = str(data[key])
 
@@ -157,6 +157,7 @@ Beklenen JSON alani:
   "tax_amount": 0.0,
   "total_amount": 0.0,
   "currency": "TRY veya USD veya EUR veya GBP",
+  "exchange_rate": "faturada acikca yazan doviz kuru; yoksa null",
   "notes": "faturadaki aciklama, genel not veya aciklama metni; yoksa bos string",
   "items": [
     {

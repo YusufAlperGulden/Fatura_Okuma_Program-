@@ -35,9 +35,9 @@ def get_tcmb_rate(currency_code, date_str):
             
             for currency in tree.findall('Currency'):
                 if currency.get('CurrencyCode') == currency_code:
-                    forex_selling = currency.find('ForexSelling')
-                    if forex_selling is not None and forex_selling.text:
-                        return forex_selling.text
+                    forex_buying = currency.find('ForexBuying')
+                    if forex_buying is not None and forex_buying.text:
+                        return forex_buying.text
         except HTTPError as e:
             if e.code == 404:
                 date_obj -= timedelta(days=1)

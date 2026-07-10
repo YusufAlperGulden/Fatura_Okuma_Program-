@@ -148,6 +148,22 @@ def _format_amount(value):
     return f"{value:.2f}".replace(".", ",")
 
 
+def _extract_exchange_rate(text):
+    raw_rate = _first_match(
+        [
+            r"(?:Döviz|Doviz|DÃ¶viz)\s*Kuru\s*[:=-]?\s*(\d+(?:[.,]\d{1,6})?)",
+            r"Exchange\s*Rate\s*[:=-]?\s*(\d+(?:[.,]\d{1,6})?)",
+            r"\bKur\s*[:=-]\s*(\d+(?:[.,]\d{1,6})?)",
+        ],
+        text,
+        re.IGNORECASE,
+    )
+    rate = _parse_money_number(raw_rate)
+    if rate <= 0:
+        return None
+    return f"{rate:.6f}".rstrip("0").rstrip(".")
+
+
 def _clean_pdf_line(line):
     line = _fix_mojibake_currency(line)
     line = line.replace("\xa0", " ")
@@ -356,6 +372,7 @@ def parse_invoice_text(text: str) -> dict:
         "tax_amount": None,
         "total_amount": None,
         "currency": "TRY",
+        "exchange_rate": None,
         "_extraction_method": "Yerel Okuyucu (PDF)",
     }
 
@@ -384,6 +401,7 @@ def parse_invoice_text(text: str) -> dict:
     data["customer_tax_id"] = _extract_customer_tax_id(text)
     data["customer_name"] = _extract_customer_name(text)
     data["customer_title"] = data["customer_name"]
+    data["exchange_rate"] = _extract_exchange_rate(text)
 
     data["items"] = _find_items(text)
     data["subtotal"] = _first_match([rf"Ara\s*Toplam\s+{MONEY_RE}"], text, re.IGNORECASE)

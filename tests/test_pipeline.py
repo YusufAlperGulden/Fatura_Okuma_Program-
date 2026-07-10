@@ -12,6 +12,7 @@ from integrators.uyumsoft_api import (
     _best_uyumsoft_user_match,
     build_invoice_info_body,
     build_ubl_invoice,
+    get_tcmb_rate,
     send_invoice_to_uyumsoft,
 )
 from integrators.uyumsoft_excel import export_to_uyumsoft_excel
@@ -56,6 +57,59 @@ class PipelineTests(unittest.TestCase):
         self.assertEqual(data["customer_tax_id"], "3333333333")
         self.assertEqual(data["customer_name"], "DEMO ALICI LTD. ŞTİ.")
         self.assertEqual(data["customer_title"], "DEMO ALICI LTD. ŞTİ.")
+
+    def test_parse_pdf_explicit_exchange_rate(self):
+        text = """
+        Fatura Tarihi: 10.07.2026
+        Döviz Kuru: 53,5844
+        """
+
+        data = parse_invoice_text(text)
+
+        self.assertEqual(data["exchange_rate"], "53.5844")
+
+    def test_tcmb_rate_uses_forex_buying(self):
+        class FakeResponse:
+            def __enter__(self):
+                return self
+
+            def __exit__(self, exc_type, exc_value, traceback):
+                return False
+
+            def read(self):
+                return b"""<Tarih_Date><Currency CurrencyCode="USD"><ForexBuying>42.1234</ForexBuying><ForexSelling>99.9999</ForexSelling></Currency></Tarih_Date>"""
+
+        with patch("integrators.uyumsoft_api.urllib.request.urlopen", return_value=FakeResponse()):
+            rate = get_tcmb_rate("USD", "2026-07-10")
+
+        self.assertEqual(rate, "42.1234")
+
+    def test_ubl_prefers_pdf_exchange_rate_over_tcmb(self):
+        data = {
+            "invoice_no": "TEST-USD-RATE",
+            "date": "10.07.2026",
+            "customer_tax_id": "1111111111",
+            "currency": "USD",
+            "exchange_rate": "53.5844",
+            "subtotal": "100,00",
+            "tax_amount": "20,00",
+            "total_amount": "120,00",
+            "items": [
+                {
+                    "description": "Test",
+                    "quantity": "1",
+                    "unit_price": "100,00",
+                    "total_price": "100,00",
+                    "tax_rate": "20",
+                }
+            ],
+        }
+
+        with patch("integrators.uyumsoft_api.get_tcmb_rate") as tcmb_lookup:
+            ubl = build_ubl_invoice(data)
+
+        tcmb_lookup.assert_not_called()
+        self.assertIn("<cbc:CalculationRate>53.5844</cbc:CalculationRate>", ubl)
 
     def test_parse_sample_xml(self):
         data = parse_xml_invoice(os.path.join(ROOT, "ornek.xml"))
