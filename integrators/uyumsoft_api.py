@@ -200,6 +200,9 @@ def build_ubl_invoice(invoice: dict[str, Any]) -> str:
     currency = normalize_currency(invoice.get("currency") or os.getenv("UYUMSOFT_CURRENCY", "TRY"))
     profile_id = str(invoice.get("profile_id") or os.getenv("UYUMSOFT_PROFILE_ID", "TICARIFATURA"))
     invoice_type = str(invoice.get("invoice_type") or os.getenv("UYUMSOFT_INVOICE_TYPE", "SATIS"))
+    
+    extracted_notes = str(invoice.get("notes") or "").strip()
+    notes_xml = f"\n  <cbc:Note>{escape(extracted_notes)}</cbc:Note>" if extracted_notes else ""
 
     supplier_tax_id = str(
         invoice.get("supplier_tax_id") or os.getenv("UYUMSOFT_SUPPLIER_VKN", "9000068418")
@@ -361,7 +364,7 @@ def build_ubl_invoice(invoice: dict[str, Any]) -> str:
   <cbc:UUID>{uuid.uuid4()}</cbc:UUID>
   <cbc:IssueDate>{issue_date}</cbc:IssueDate>
   <cbc:IssueTime>{issue_time}</cbc:IssueTime>
-  <cbc:InvoiceTypeCode>{escape(invoice_type)}</cbc:InvoiceTypeCode>
+  <cbc:InvoiceTypeCode>{escape(invoice_type)}</cbc:InvoiceTypeCode>{notes_xml}
   <cbc:DocumentCurrencyCode>{currency}</cbc:DocumentCurrencyCode>
   <cbc:LineCountNumeric>{len(items)}</cbc:LineCountNumeric>{pricing_exchange_rate_xml}
   <cac:AccountingSupplierParty>

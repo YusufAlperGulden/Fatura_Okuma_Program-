@@ -157,6 +157,7 @@ Beklenen JSON alani:
   "tax_amount": 0.0,
   "total_amount": 0.0,
   "currency": "TRY veya USD veya EUR veya GBP",
+  "notes": "faturadaki aciklama, genel not veya aciklama metni; yoksa bos string",
   "items": [
     {
       "code": "urun/stok kodu veya bos string",
