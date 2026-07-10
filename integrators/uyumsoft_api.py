@@ -369,7 +369,7 @@ def build_ubl_invoice(invoice: dict[str, Any]) -> str:
   <cbc:IssueTime>{issue_time}</cbc:IssueTime>
   <cbc:InvoiceTypeCode>{escape(invoice_type)}</cbc:InvoiceTypeCode>{notes_xml}
   <cbc:DocumentCurrencyCode>{currency}</cbc:DocumentCurrencyCode>
-  <cbc:LineCountNumeric>{len(items)}</cbc:LineCountNumeric>{pricing_exchange_rate_xml}
+  <cbc:LineCountNumeric>{len(items)}</cbc:LineCountNumeric>
   <cac:AccountingSupplierParty>
     <cac:Party>
       <cac:PartyIdentification><cbc:ID schemeID="{supplier_scheme}">{escape(supplier_tax_id)}</cbc:ID></cac:PartyIdentification>
@@ -385,7 +385,7 @@ def build_ubl_invoice(invoice: dict[str, Any]) -> str:
       <cac:PartyIdentification><cbc:ID schemeID="{customer_scheme}">{escape(customer_tax_id)}</cbc:ID></cac:PartyIdentification>
       {f'<cac:Person><cbc:FirstName>{escape(customer_name)}</cbc:FirstName><cbc:FamilyName>{escape(customer_name)}</cbc:FamilyName></cac:Person>' if customer_scheme == 'TCKN' else f'<cac:PartyName><cbc:Name>{escape(customer_name)}</cbc:Name></cac:PartyName>'}
     </cac:Party>
-  </cac:AccountingCustomerParty>
+  </cac:AccountingCustomerParty>{pricing_exchange_rate_xml}
   {allowance_charge_xml}
   <cac:TaxTotal>
     <cbc:TaxAmount currencyID="{currency}">{_fmt_money(tax_amount)}</cbc:TaxAmount>
@@ -393,8 +393,8 @@ def build_ubl_invoice(invoice: dict[str, Any]) -> str:
   </cac:TaxTotal>
   <cac:LegalMonetaryTotal>
     <cbc:LineExtensionAmount currencyID="{currency}">{_fmt_money(line_extension_amount)}</cbc:LineExtensionAmount>
-    <cbc:TaxExclusiveAmount currencyID="{currency}">{_fmt_money(taxable_amount)}</cbc:TaxExclusiveAmount>{allowance_total_xml}
-    <cbc:TaxInclusiveAmount currencyID="{currency}">{_fmt_money(total_amount)}</cbc:TaxInclusiveAmount>
+    <cbc:TaxExclusiveAmount currencyID="{currency}">{_fmt_money(taxable_amount)}</cbc:TaxExclusiveAmount>
+    <cbc:TaxInclusiveAmount currencyID="{currency}">{_fmt_money(total_amount)}</cbc:TaxInclusiveAmount>{allowance_total_xml}
     <cbc:PayableAmount currencyID="{currency}">{_fmt_money(total_amount)}</cbc:PayableAmount>
   </cac:LegalMonetaryTotal>
 {''.join(line_xml)}

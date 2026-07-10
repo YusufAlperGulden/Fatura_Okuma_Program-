@@ -239,6 +239,57 @@ class PipelineTests(unittest.TestCase):
                 self.assertEqual(values["TaxInclusiveAmount"], "108.00")
                 self.assertEqual(values["PayableAmount"], "108.00")
 
+    def test_ubl_exchange_rate_and_allowance_follow_schema_order(self):
+        data = {
+            "invoice_no": "TEST-USD-ORDER",
+            "date": "10.07.2026",
+            "customer_tax_id": "1111111111",
+            "currency": "USD",
+            "exchange_rate": "53.5844",
+            "subtotal": "100,00",
+            "discount_amount": "10,00",
+            "tax_amount": "18,00",
+            "total_amount": "108,00",
+            "items": [
+                {
+                    "description": "Test",
+                    "quantity": "1",
+                    "unit_price": "100,00",
+                    "total_price": "100,00",
+                    "tax_rate": "20",
+                }
+            ],
+        }
+
+        root = ET.fromstring(build_ubl_invoice(data))
+        top_level = [node.tag.rsplit("}", 1)[-1] for node in root]
+
+        self.assertLess(
+            top_level.index("AccountingSupplierParty"),
+            top_level.index("AccountingCustomerParty"),
+        )
+        self.assertLess(
+            top_level.index("AccountingCustomerParty"),
+            top_level.index("PricingExchangeRate"),
+        )
+        self.assertLess(
+            top_level.index("PricingExchangeRate"),
+            top_level.index("AllowanceCharge"),
+        )
+
+        legal_total = next(
+            node for node in root.iter() if node.tag.endswith("}LegalMonetaryTotal")
+        )
+        legal_order = [node.tag.rsplit("}", 1)[-1] for node in legal_total]
+        self.assertLess(
+            legal_order.index("TaxInclusiveAmount"),
+            legal_order.index("AllowanceTotalAmount"),
+        )
+        self.assertLess(
+            legal_order.index("AllowanceTotalAmount"),
+            legal_order.index("PayableAmount"),
+        )
+
     def test_uyumsoft_wrapper_safe_default_uses_connection_test(self):
         class FakeClient:
             def __init__(self, *args, **kwargs):
