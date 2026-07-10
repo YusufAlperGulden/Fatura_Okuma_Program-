@@ -48,41 +48,6 @@ def get_tcmb_rate(currency_code, date_str):
             break
             
         date_obj -= timedelta(days=1)
-    
-    currency_map = {
-        "USD": "US DOLLAR", "EUR": "EURO", "GBP": "POUND STERLING",
-        "CHF": "SWISS FRANK", "JPY": "JAPENESE YEN", "CAD": "CANADIAN DOLLAR",
-        "AUD": "AUSTRALIAN DOLLAR", "RUB": "RUSSIAN ROUBLE"
-    }
-    
-    fallback_name = currency_map.get(currency_code)
-    if fallback_name:
-        import json
-        try:
-            fallback_url = "https://hasanadiguzel.com.tr/api/kurgetir"
-            req = urllib.request.Request(fallback_url, headers={'User-Agent': 'Mozilla/5.0'})
-            with urllib.request.urlopen(req, timeout=3) as response:
-                data = json.loads(response.read())
-                for item in data.get('TCMB_AnlikKurBilgileri', []):
-                    if item.get('CurrencyName') == fallback_name:
-                        rate = item.get('ForexBuying')
-                        if rate:
-                            return str(rate)
-        except Exception:
-            pass
-
-    # Final fallback: A global API that does not block Render IPs
-    try:
-        import json
-        fallback_url_global = f"https://api.exchangerate-api.com/v4/latest/{currency_code}"
-        req = urllib.request.Request(fallback_url_global, headers={'User-Agent': 'Mozilla/5.0'})
-        with urllib.request.urlopen(req, timeout=3) as response:
-            data = json.loads(response.read())
-            rate = data.get('rates', {}).get('TRY')
-            if rate:
-                return str(rate)
-    except Exception:
-        pass
             
     return "1.0000"
 
