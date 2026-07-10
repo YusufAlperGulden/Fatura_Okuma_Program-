@@ -50,14 +50,17 @@ def validate_invoice(data):
     
     if not data.get("date"):
         errors.append("Missing date.")
-    if not data.get("customer_tax_id"):
-        errors.append("Missing customer_tax_id.")
+        
+    tax_id = str(data.get("customer_tax_id") or "").strip()
+    if not tax_id or not (len(tax_id) in (10, 11) and tax_id.isdigit()):
+        errors.append(f"Invalid customer_tax_id: '{tax_id}'. Must be 10 or 11 digits.")
+        
     if not data.get("items"):
         errors.append("No items found.")
         
     calculated_subtotal = Decimal("0.00")
     
-    for item in data.get("items", []):
+    for item in (data.get("items") or []):
         quantity = to_decimal(item.get("quantity"))
         unit_price = to_decimal(item.get("unit_price"))
         total_price = to_decimal(item.get("total_price"))
@@ -65,22 +68,15 @@ def validate_invoice(data):
         calculated_subtotal += total_price
         
         if abs((quantity * unit_price) - total_price) > Decimal("0.05"):
-            if quantity > Decimal("0") and total_price > Decimal("0"):
-                corrected_unit_price = (total_price / quantity).quantize(Decimal("0.000001"))
-                item["unit_price"] = str(corrected_unit_price)
-            else:
-                errors.append(f"Matematik Hatası veya Hatalı Okuma: {item.get('description')} (Miktar: {quantity}, Fiyat: {unit_price}, Toplam: {total_price})")
+            errors.append(f"Matematik Hatası veya Hatalı Okuma: {item.get('description')} (Miktar: {quantity}, Fiyat: {unit_price}, Toplam: {total_price})")
 
     subtotal = to_decimal(data.get("subtotal"))
     discount_amount = to_decimal(data.get("discount_amount"))
     tax_amount = to_decimal(data.get("tax_amount"))
     total_amount = to_decimal(data.get("total_amount"))
-
-    if discount_amount <= Decimal("0.05") and calculated_subtotal > Decimal("0.00") and tax_amount >= Decimal("0.00") and total_amount > Decimal("0.00"):
-        inferred_discount = (calculated_subtotal + tax_amount - total_amount).quantize(Decimal("0.01"))
-        if inferred_discount > Decimal("0.05") and abs((calculated_subtotal - inferred_discount + tax_amount) - total_amount) <= Decimal("0.05"):
-            discount_amount = inferred_discount
-            data["discount_amount"] = discount_amount
+    
+    if total_amount <= Decimal("0.00"):
+        errors.append(f"Invalid total_amount: {total_amount}. Must be greater than zero.")
 
     if abs(calculated_subtotal - subtotal) > Decimal("0.05") and abs((calculated_subtotal - discount_amount) - subtotal) > Decimal("0.05"):
          errors.append(f"Subtotal mismatch: Items sum ({calculated_subtotal}) does not match Subtotal ({subtotal}) with or without discount.")
@@ -92,13 +88,17 @@ def validate_invoice(data):
 
     raw_date = data.get("date", "").strip()
     if raw_date:
+        parsed_successfully = False
         for fmt in ("%d.%m.%Y", "%d/%m/%Y", "%Y-%m-%d"):
             try:
                 parsed = datetime.datetime.strptime(raw_date, fmt)
                 data["date"] = parsed.strftime("%d.%m.%Y")
+                parsed_successfully = True
                 break
             except ValueError:
                 pass
+        if not parsed_successfully:
+            errors.append(f"Invalid date format: {raw_date}")
                 
     def format_tr_money(val: Decimal) -> str:
         return f"{float(val):,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")

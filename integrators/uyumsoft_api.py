@@ -558,9 +558,6 @@ def _best_uyumsoft_user_match(result: UyumsoftResult, vkn_tckn: str) -> dict[str
         if identifier == target and user.get("Title"):
             return user
 
-    for user in _extract_system_user_values(result):
-        if user.get("Title"):
-            return user
     return None
 
 

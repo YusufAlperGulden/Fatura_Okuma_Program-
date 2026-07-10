@@ -61,7 +61,11 @@ def parse_excel_invoice(file_path: str) -> dict:
         "items": [],
         "subtotal": None,
         "tax_amount": None,
-        "total_amount": None
+        "total_amount": None,
+        "currency": "TRY",
+        "exchange_rate": None,
+        "discount_amount": None,
+        "notes": ""
     }
 
     try:

@@ -31,7 +31,11 @@ def parse_xml_invoice(file_path: str) -> dict:
         "items": [],
         "subtotal": None,
         "tax_amount": None,
-        "total_amount": None
+        "total_amount": None,
+        "currency": "TRY",
+        "exchange_rate": None,
+        "discount_amount": None,
+        "notes": ""
     }
     
     try:
@@ -41,6 +45,25 @@ def parse_xml_invoice(file_path: str) -> dict:
         # 1. Invoice ID & Date
         data["invoice_no"] = find_text_agnostic(root, "ID")
         data["date"] = find_text_agnostic(root, "IssueDate")
+        
+        currency = find_text_agnostic(root, "DocumentCurrencyCode")
+        if currency:
+            data["currency"] = currency
+            
+        for elem in root.iter():
+            if elem.tag.endswith("}PricingExchangeRate") or elem.tag == "PricingExchangeRate":
+                calc_rate = find_text_agnostic(elem, "CalculationRate")
+                if calc_rate:
+                    data["exchange_rate"] = calc_rate
+                break
+
+        notes = []
+        for elem in root.iter():
+            if elem.tag.endswith("}Note") or elem.tag == "Note":
+                if elem.text and elem.text.strip():
+                    notes.append(elem.text.strip())
+        if notes:
+            data["notes"] = "\n".join(notes)
         
         # 2. Customer Tax ID (Usually inside AccountingCustomerParty -> Party -> PartyIdentification -> ID)
         # To be precise, we find AccountingCustomerParty and search within it.
@@ -87,12 +110,22 @@ def parse_xml_invoice(file_path: str) -> dict:
                         
                 total_price = find_text_agnostic(elem, "LineExtensionAmount")
                 
+                tax_rate = None
+                for sub in elem.iter():
+                    if sub.tag.endswith("}TaxTotal") or sub.tag == "TaxTotal":
+                        for t_sub in sub.iter():
+                            if t_sub.tag.endswith("}Percent") or t_sub.tag == "Percent":
+                                tax_rate = find_text_agnostic(sub, "Percent")
+                                break
+                        break
+
                 data["items"].append({
                     "code": item_code,
                     "description": item_name or "Unknown Item",
                     "quantity": quantity.replace('.', ',') if quantity else None,
                     "unit_price": unit_price.replace('.', ',') if unit_price else None,
-                    "total_price": total_price.replace('.', ',') if total_price else None
+                    "total_price": total_price.replace('.', ',') if total_price else None,
+                    "tax_rate": tax_rate.replace('.', ',') if tax_rate else "0"
                 })
                 
         # 4. Totals (LegalMonetaryTotal)
