@@ -58,7 +58,7 @@ def parse_xml_invoice(file_path: str) -> dict:
                 break
 
         notes = []
-        for elem in root.iter():
+        for elem in list(root):
             if elem.tag.endswith("}Note") or elem.tag == "Note":
                 if elem.text and elem.text.strip():
                     notes.append(elem.text.strip())
@@ -91,7 +91,23 @@ def parse_xml_invoice(file_path: str) -> dict:
         # 3. Invoice Lines
         for elem in root.iter():
             if elem.tag.endswith("}InvoiceLine") or elem.tag == "InvoiceLine":
-                item_code = find_text_agnostic(elem, "ID")
+                item_code = None
+                for sub in elem.iter():
+                    if (
+                        sub.tag.endswith("}SellersItemIdentification")
+                        or sub.tag.endswith("}BuyersItemIdentification")
+                        or sub.tag.endswith("}StandardItemIdentification")
+                        or sub.tag in {
+                            "SellersItemIdentification",
+                            "BuyersItemIdentification",
+                            "StandardItemIdentification",
+                        }
+                    ):
+                        item_code = find_text_agnostic(sub, "ID")
+                        if item_code:
+                            break
+                if not item_code:
+                    item_code = child_text_agnostic(elem, "ID")
                 # Description usually in Item -> Name
                 item_name = None
                 for sub in elem.iter():
@@ -138,6 +154,11 @@ def parse_xml_invoice(file_path: str) -> dict:
         if monetary_total is not None:
             subt = child_text_agnostic(monetary_total, "LineExtensionAmount")
             data["subtotal"] = subt.replace('.', ',') if subt else None
+
+            discount = child_text_agnostic(monetary_total, "AllowanceTotalAmount")
+            data["discount_amount"] = (
+                discount.replace('.', ',') if discount else None
+            )
 
             tot = (
                 child_text_agnostic(monetary_total, "PayableAmount")

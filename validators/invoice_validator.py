@@ -84,9 +84,7 @@ def validate_invoice(data):
     if abs((calculated_subtotal - discount_amount + tax_amount) - total_amount) > Decimal("0.05"):
          errors.append(f"Total mismatch: Items ({calculated_subtotal}) - Discount ({discount_amount}) + Tax ({tax_amount}) != Total ({total_amount})")
          
-    is_valid = len(errors) == 0
-
-    raw_date = data.get("date", "").strip()
+    raw_date = str(data.get("date") or "").strip()
     if raw_date:
         parsed_successfully = False
         for fmt in ("%d.%m.%Y", "%d/%m/%Y", "%Y-%m-%d"):
@@ -99,6 +97,8 @@ def validate_invoice(data):
                 pass
         if not parsed_successfully:
             errors.append(f"Invalid date format: {raw_date}")
+
+    is_valid = len(errors) == 0
                 
     def format_tr_money(val: Decimal) -> str:
         return f"{float(val):,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
@@ -122,7 +122,7 @@ def validate_invoice(data):
         if data.get("tax_amount"): data["tax_amount"] = format_tr_money(tax_amount)
         if data.get("total_amount"): data["total_amount"] = format_tr_money(total_amount)
         
-        for item in data.get("items", []):
+        for item in (data.get("items") or []):
             q = to_decimal(item.get("quantity"))
             up = to_decimal(item.get("unit_price"))
             tp = to_decimal(item.get("total_price"))

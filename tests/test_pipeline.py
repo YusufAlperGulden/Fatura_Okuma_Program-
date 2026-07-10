@@ -85,6 +85,7 @@ class PipelineTests(unittest.TestCase):
             "Sipariş No: 12345 Teslimat hafta içi yapılsın.",
         )
 
+        data["customer_tax_id"] = "1111111111"
         ubl_root = ET.fromstring(build_ubl_invoice(data))
         note = next(node for node in ubl_root.iter() if node.tag.endswith("}Note"))
         self.assertEqual(note.text, data["notes"])
@@ -189,6 +190,119 @@ class PipelineTests(unittest.TestCase):
         self.assertEqual(parse_amount("10.0"), 10.0)
         self.assertEqual(parse_amount("1.234,56"), 1234.56)
 
+    def test_validator_rejects_invalid_date_and_handles_none_items(self):
+        invalid_date = {
+            "date": "NOT-A-DATE",
+            "customer_tax_id": "1111111111",
+            "subtotal": "100,00",
+            "tax_amount": "20,00",
+            "total_amount": "120,00",
+            "items": [
+                {
+                    "description": "Test",
+                    "quantity": "1",
+                    "unit_price": "100,00",
+                    "total_price": "100,00",
+                }
+            ],
+        }
+
+        is_valid, errors = validate_invoice(invalid_date)
+        self.assertFalse(is_valid)
+        self.assertTrue(any("Invalid date format" in error for error in errors))
+
+        is_valid, errors = validate_invoice(
+            {
+                "date": "10.07.2026",
+                "customer_tax_id": "1111111111",
+                "items": None,
+                "total_amount": "1,00",
+            }
+        )
+        self.assertFalse(is_valid)
+        self.assertIn("No items found.", errors)
+
+    def test_excel_extracts_currency_rate_discount_notes_and_tax_rate(self):
+        import pandas as pd
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            path = os.path.join(tmpdir, "invoice.xlsx")
+            pd.DataFrame(
+                [
+                    {
+                        "Invoice No": "INV-EXCEL-1",
+                        "Date": "10.07.2026",
+                        "Customer Tax ID": "1111111111",
+                        "Description": "Test",
+                        "Quantity": 1,
+                        "Unit Price": 100,
+                        "Line Total": 100,
+                        "Subtotal": 100,
+                        "Tax Amount": 18,
+                        "Total Amount": 108,
+                        "Currency": "USD",
+                        "Exchange Rate": 53.5,
+                        "Discount Amount": 10,
+                        "Invoice Note": "Test note",
+                        "Tax Rate": 20,
+                    }
+                ]
+            ).to_excel(path, index=False)
+
+            data = parse_excel_invoice(path)
+
+        self.assertEqual(data["currency"], "USD")
+        self.assertEqual(data["exchange_rate"], "53.5")
+        self.assertEqual(data["discount_amount"], "10")
+        self.assertEqual(data["notes"], "Test note")
+        self.assertEqual(data["items"][0]["tax_rate"], "20")
+
+    def test_xml_extracts_discount_and_seller_item_code(self):
+        xml = """<Invoice xmlns="urn:oasis:names:specification:ubl:schema:xsd:Invoice-2"
+          xmlns:cac="urn:oasis:names:specification:ubl:schema:xsd:CommonAggregateComponents-2"
+          xmlns:cbc="urn:oasis:names:specification:ubl:schema:xsd:CommonBasicComponents-2">
+          <cbc:ID>INV-XML-1</cbc:ID><cbc:IssueDate>2026-07-10</cbc:IssueDate>
+          <cbc:DocumentCurrencyCode>USD</cbc:DocumentCurrencyCode><cbc:Note>Test note</cbc:Note>
+          <cac:AccountingCustomerParty><cac:Party><cac:PartyIdentification>
+          <cbc:ID>1111111111</cbc:ID></cac:PartyIdentification></cac:Party></cac:AccountingCustomerParty>
+          <cac:PricingExchangeRate><cbc:CalculationRate>53.5</cbc:CalculationRate></cac:PricingExchangeRate>
+          <cac:TaxTotal><cbc:TaxAmount currencyID="USD">18</cbc:TaxAmount></cac:TaxTotal>
+          <cac:LegalMonetaryTotal><cbc:LineExtensionAmount currencyID="USD">100</cbc:LineExtensionAmount>
+          <cbc:TaxInclusiveAmount currencyID="USD">108</cbc:TaxInclusiveAmount>
+          <cbc:AllowanceTotalAmount currencyID="USD">10</cbc:AllowanceTotalAmount>
+          <cbc:PayableAmount currencyID="USD">108</cbc:PayableAmount></cac:LegalMonetaryTotal>
+          <cac:InvoiceLine><cbc:ID>1</cbc:ID><cbc:InvoicedQuantity>1</cbc:InvoicedQuantity>
+          <cbc:LineExtensionAmount currencyID="USD">100</cbc:LineExtensionAmount>
+          <cac:TaxTotal><cbc:TaxAmount currencyID="USD">18</cbc:TaxAmount><cac:TaxSubtotal>
+          <cbc:Percent>20</cbc:Percent></cac:TaxSubtotal></cac:TaxTotal>
+          <cac:Item><cbc:Name>Test</cbc:Name><cac:SellersItemIdentification>
+          <cbc:ID>SKU-42</cbc:ID></cac:SellersItemIdentification></cac:Item>
+          <cac:Price><cbc:PriceAmount currencyID="USD">100</cbc:PriceAmount></cac:Price></cac:InvoiceLine>
+          </Invoice>"""
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            path = os.path.join(tmpdir, "invoice.xml")
+            with open(path, "w", encoding="utf-8") as handle:
+                handle.write(xml)
+            data = parse_xml_invoice(path)
+
+        self.assertEqual(data["currency"], "USD")
+        self.assertEqual(data["exchange_rate"], "53.5")
+        self.assertEqual(data["discount_amount"], "10")
+        self.assertEqual(data["notes"], "Test note")
+        self.assertEqual(data["items"][0]["code"], "SKU-42")
+        self.assertEqual(data["items"][0]["tax_rate"], "20")
+
+    def test_ubl_rejects_invalid_customer_tax_id(self):
+        with self.assertRaises(ValueError):
+            build_ubl_invoice(
+                {
+                    "date": "10.07.2026",
+                    "customer_tax_id": "invalid",
+                    "items": [],
+                }
+            )
+
     def test_build_ubl_invoice_is_valid_xml(self):
         data = parse_xml_invoice(os.path.join(ROOT, "ornek.xml"))
 
@@ -270,11 +384,15 @@ class PipelineTests(unittest.TestCase):
         )
         self.assertLess(
             top_level.index("AccountingCustomerParty"),
+            top_level.index("AllowanceCharge"),
+        )
+        self.assertLess(
+            top_level.index("AllowanceCharge"),
             top_level.index("PricingExchangeRate"),
         )
         self.assertLess(
             top_level.index("PricingExchangeRate"),
-            top_level.index("AllowanceCharge"),
+            top_level.index("TaxTotal"),
         )
 
         legal_total = next(

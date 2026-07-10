@@ -36,6 +36,27 @@ def _as_text(value):
     return str(value).strip()
 
 
+def _normalize_currency_value(value):
+    text = _as_text(value)
+    if not text:
+        return None
+
+    normalized = _normalize_header(text)
+    mapping = {
+        "tl": "TRY",
+        "try": "TRY",
+        "turk lirasi": "TRY",
+        "usd": "USD",
+        "dolar": "USD",
+        "amerikan dolari": "USD",
+        "eur": "EUR",
+        "euro": "EUR",
+        "gbp": "GBP",
+        "sterlin": "GBP",
+    }
+    return mapping.get(normalized, text.upper())
+
+
 def _read_table(file_path):
     ext = os.path.splitext(file_path)[1].lower()
     if ext == ".csv":
@@ -108,6 +129,25 @@ def parse_excel_invoice(file_path: str) -> dict:
             "subtotal": ["fatura ara toplam", "ara toplam", "subtotal"],
             "tax_amount": ["fatura kdv", "kdv", "tax amount"],
             "total_amount": ["fatura genel toplam", "genel toplam", "total amount"],
+            "currency": ["para birimi", "doviz cinsi", "doviz turu", "currency"],
+            "exchange_rate": ["doviz kuru", "kur", "exchange rate"],
+            "discount_amount": [
+                "fatura iskonto",
+                "iskonto tutari",
+                "iskonto",
+                "indirim",
+                "discount amount",
+                "discount",
+            ],
+            "notes": [
+                "fatura notu",
+                "fatura aciklamasi",
+                "genel aciklama",
+                "invoice note",
+                "notes",
+                "not",
+            ],
+            "tax_rate": ["kdv orani", "vergi orani", "tax rate", "vat rate"],
         }
 
         first = df.iloc[0]
@@ -119,12 +159,24 @@ def parse_excel_invoice(file_path: str) -> dict:
         data["subtotal"] = _as_text(_first_present(first, column_sets["subtotal"]))
         data["tax_amount"] = _as_text(_first_present(first, column_sets["tax_amount"]))
         data["total_amount"] = _as_text(_first_present(first, column_sets["total_amount"]))
+        data["currency"] = (
+            _normalize_currency_value(_first_present(first, column_sets["currency"]))
+            or "TRY"
+        )
+        data["exchange_rate"] = _as_text(
+            _first_present(first, column_sets["exchange_rate"])
+        )
+        data["discount_amount"] = _as_text(
+            _first_present(first, column_sets["discount_amount"])
+        )
+        data["notes"] = _as_text(_first_present(first, column_sets["notes"])) or ""
 
         for _, row in df.iterrows():
             description = _as_text(_first_present(row, column_sets["item_description"]))
             quantity = _as_text(_first_present(row, column_sets["quantity"]))
             unit_price = _as_text(_first_present(row, column_sets["unit_price"]))
             line_total = _as_text(_first_present(row, column_sets["line_total"]))
+            tax_rate = _as_text(_first_present(row, column_sets["tax_rate"]))
 
             if not any([description, quantity, unit_price, line_total]):
                 continue
@@ -135,6 +187,7 @@ def parse_excel_invoice(file_path: str) -> dict:
                 "quantity": quantity,
                 "unit_price": unit_price,
                 "total_price": line_total,
+                "tax_rate": tax_rate,
             })
 
         print("Successfully read Excel file.")

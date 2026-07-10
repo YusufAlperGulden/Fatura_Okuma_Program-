@@ -221,7 +221,7 @@ def build_ubl_invoice(invoice: dict[str, Any]) -> str:
     customer_tax_id_raw = str(invoice.get("customer_tax_id") or "").strip()
     customer_tax_id = "".join(filter(str.isdigit, customer_tax_id_raw))
     if len(customer_tax_id) not in (10, 11):
-        customer_tax_id = "0000000000"
+        raise ValueError("customer_tax_id must contain 10 or 11 digits")
         
     customer_name = _customer_display_name(invoice, customer_tax_id)
 
@@ -385,8 +385,8 @@ def build_ubl_invoice(invoice: dict[str, Any]) -> str:
       <cac:PartyIdentification><cbc:ID schemeID="{customer_scheme}">{escape(customer_tax_id)}</cbc:ID></cac:PartyIdentification>
       {f'<cac:Person><cbc:FirstName>{escape(customer_name)}</cbc:FirstName><cbc:FamilyName>{escape(customer_name)}</cbc:FamilyName></cac:Person>' if customer_scheme == 'TCKN' else f'<cac:PartyName><cbc:Name>{escape(customer_name)}</cbc:Name></cac:PartyName>'}
     </cac:Party>
-  </cac:AccountingCustomerParty>{pricing_exchange_rate_xml}
-  {allowance_charge_xml}
+  </cac:AccountingCustomerParty>
+  {allowance_charge_xml}{pricing_exchange_rate_xml}
   <cac:TaxTotal>
     <cbc:TaxAmount currencyID="{currency}">{_fmt_money(tax_amount)}</cbc:TaxAmount>
     {doc_tax_subtotal_str}
@@ -637,7 +637,7 @@ def build_invoice_info_body(operation: str, invoice: dict[str, Any]) -> str:
     target_vkn_raw = str(invoice.get("customer_tax_id") or "").strip()
     target_vkn = "".join(filter(str.isdigit, target_vkn_raw))
     if len(target_vkn) not in (10, 11):
-        target_vkn = "0000000000"
+        raise ValueError("customer_tax_id must contain 10 or 11 digits")
     target_vkn = escape(target_vkn)
     
     target_title = escape(_customer_display_name(invoice, target_vkn))
