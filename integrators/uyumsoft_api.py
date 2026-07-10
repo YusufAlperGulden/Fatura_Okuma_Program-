@@ -330,6 +330,8 @@ def build_ubl_invoice(invoice: dict[str, Any]) -> str:
     </cac:TaxSubtotal>""")
     doc_tax_subtotal_str = "".join(doc_tax_subtotals_xml)
 
+    allowance_total_xml = f'\n    <cbc:AllowanceTotalAmount currencyID="{currency}">{_fmt_money(discount_amount)}</cbc:AllowanceTotalAmount>' if discount_amount > Decimal("0.00") else ""
+
     pricing_exchange_rate_xml = ""
     if currency != "TRY":
         rate_val = invoice.get("exchange_rate") or get_tcmb_rate(currency, issue_date)
@@ -385,7 +387,7 @@ def build_ubl_invoice(invoice: dict[str, Any]) -> str:
   </cac:TaxTotal>
   <cac:LegalMonetaryTotal>
     <cbc:LineExtensionAmount currencyID="{currency}">{_fmt_money(subtotal)}</cbc:LineExtensionAmount>
-    <cbc:TaxExclusiveAmount currencyID="{currency}">{_fmt_money(taxable_amount)}</cbc:TaxExclusiveAmount>
+    <cbc:TaxExclusiveAmount currencyID="{currency}">{_fmt_money(taxable_amount)}</cbc:TaxExclusiveAmount>{allowance_total_xml}
     <cbc:TaxInclusiveAmount currencyID="{currency}">{_fmt_money(total_amount)}</cbc:TaxInclusiveAmount>
     <cbc:PayableAmount currencyID="{currency}">{_fmt_money(total_amount)}</cbc:PayableAmount>
   </cac:LegalMonetaryTotal>
