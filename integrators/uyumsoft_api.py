@@ -378,7 +378,14 @@ def build_ubl_invoice(invoice: dict[str, Any]) -> str:
 
     pricing_exchange_rate_xml = ""
     if currency != "TRY":
-        rate_val = invoice.get("exchange_rate") or get_tcmb_rate(currency, issue_date)
+        rate_val = invoice.get("exchange_rate")
+        if rate_val:
+            try:
+                if float(rate_val) == 1.0:
+                    rate_val = None
+            except Exception:
+                pass
+        rate_val = rate_val or get_tcmb_rate(currency, issue_date)
         if rate_val:
             try:
                 rate_val_fmt = f"{float(rate_val):.4f}"
