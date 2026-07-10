@@ -9,7 +9,45 @@ from typing import Any
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 from xml.etree import ElementTree as ET
+
 from xml.sax.saxutils import escape
+import urllib.request
+from datetime import datetime, timedelta
+
+def get_tcmb_rate(currency_code, date_str):
+    try:
+        date_obj = datetime.strptime(date_str, '%Y-%m-%d')
+    except ValueError:
+        date_obj = datetime.now()
+
+    max_days_back = 10
+    for _ in range(max_days_back):
+        url_date = date_obj.strftime("%Y%m/%d%m%Y")
+        url = f"https://www.tcmb.gov.tr/kurlar/{url_date}.xml"
+        if date_obj.date() == datetime.now().date():
+            url = "https://www.tcmb.gov.tr/kurlar/today.xml"
+        
+        try:
+            req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
+            with urllib.request.urlopen(req, timeout=5) as response:
+                xml_data = response.read()
+            tree = ET.fromstring(xml_data)
+            
+            for currency in tree.findall('Currency'):
+                if currency.get('CurrencyCode') == currency_code:
+                    forex_selling = currency.find('ForexSelling')
+                    if forex_selling is not None and forex_selling.text:
+                        return forex_selling.text
+        except HTTPError as e:
+            if e.code == 404:
+                date_obj -= timedelta(days=1)
+                continue
+        except Exception:
+            pass
+        date_obj -= timedelta(days=1)
+    
+    return "1.0000"
+
 
 
 TEST_ENDPOINT = "https://efatura-test.uyumsoft.com.tr/Services/Integration"
@@ -292,6 +330,26 @@ def build_ubl_invoice(invoice: dict[str, Any]) -> str:
     </cac:TaxSubtotal>""")
     doc_tax_subtotal_str = "".join(doc_tax_subtotals_xml)
 
+    pricing_exchange_rate_xml = ""
+    if currency != "TRY":
+        rate_val = invoice.get("exchange_rate") or get_tcmb_rate(currency, issue_date)
+        if rate_val:
+            try:
+                rate_val_fmt = f"{float(rate_val):.4f}"
+            except (ValueError, TypeError):
+                rate_val_fmt = "1.0000"
+        else:
+            rate_val_fmt = "1.0000"
+            
+        pricing_exchange_rate_xml = f'''
+  <cac:PricingExchangeRate>
+    <cbc:SourceCurrencyCode>{currency}</cbc:SourceCurrencyCode>
+    <cbc:TargetCurrencyCode>TRY</cbc:TargetCurrencyCode>
+    <cbc:CalculationRate>{rate_val_fmt}</cbc:CalculationRate>
+    <cbc:Date>{issue_date}</cbc:Date>
+  </cac:PricingExchangeRate>'''
+
+
     return f"""<Invoice xmlns="{UBL_INVOICE_NS}" xmlns:cac="{CAC_NS}" xmlns:cbc="{CBC_NS}">
   <cbc:UBLVersionID>2.1</cbc:UBLVersionID>
   <cbc:CustomizationID>TR1.2</cbc:CustomizationID>
@@ -303,7 +361,7 @@ def build_ubl_invoice(invoice: dict[str, Any]) -> str:
   <cbc:IssueTime>{issue_time}</cbc:IssueTime>
   <cbc:InvoiceTypeCode>{escape(invoice_type)}</cbc:InvoiceTypeCode>
   <cbc:DocumentCurrencyCode>{currency}</cbc:DocumentCurrencyCode>
-  <cbc:LineCountNumeric>{len(items)}</cbc:LineCountNumeric>
+  <cbc:LineCountNumeric>{len(items)}</cbc:LineCountNumeric>{pricing_exchange_rate_xml}
   <cac:AccountingSupplierParty>
     <cac:Party>
       <cac:PartyIdentification><cbc:ID schemeID="{supplier_scheme}">{escape(supplier_tax_id)}</cbc:ID></cac:PartyIdentification>
