@@ -310,7 +310,7 @@ def build_ubl_invoice(invoice: dict[str, Any]) -> str:
 
     allowance_charge_xml = ""
     
-    if discount_amount > Decimal("0.00"):
+    if discount_amount >= Decimal("0.00"):
         allowance_charge_xml = f"""
   <cac:AllowanceCharge>
     <cbc:ChargeIndicator>false</cbc:ChargeIndicator>
@@ -339,7 +339,7 @@ def build_ubl_invoice(invoice: dict[str, Any]) -> str:
     </cac:TaxSubtotal>""")
     doc_tax_subtotal_str = "".join(doc_tax_subtotals_xml)
 
-    allowance_total_xml = f'\n    <cbc:AllowanceTotalAmount currencyID="{currency}">{_fmt_money(discount_amount)}</cbc:AllowanceTotalAmount>' if discount_amount > Decimal("0.00") else ""
+    allowance_total_xml = f'\n    <cbc:AllowanceTotalAmount currencyID="{currency}">{_fmt_money(discount_amount)}</cbc:AllowanceTotalAmount>' if discount_amount >= Decimal("0.00") else ""
 
     pricing_exchange_rate_xml = ""
     if currency != "TRY":
