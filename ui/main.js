@@ -92,6 +92,10 @@ document.addEventListener('DOMContentLoaded', () => {
             document.getElementById('res-tax-breakdown').innerHTML = '-';
         }
         document.getElementById('res-total').textContent = '-';
+        if (document.getElementById('notes-card')) {
+            document.getElementById('notes-card').classList.add('hidden');
+            document.getElementById('res-notes').textContent = '-';
+        }
         document.querySelector('#items-table tbody').innerHTML = '';
         
         const formData = new FormData();
@@ -296,6 +300,14 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         document.getElementById('res-total').textContent = data.total_amount ? `${sym}${data.total_amount}` : '-';
+        
+        const notesCard = document.getElementById('notes-card');
+        if (notesCard && data.notes && data.notes.trim() !== '') {
+            document.getElementById('res-notes').textContent = data.notes.trim();
+            notesCard.classList.remove('hidden');
+        } else if (notesCard) {
+            notesCard.classList.add('hidden');
+        }
         
         // Render items
         const tbody = document.querySelector('#items-table tbody');
