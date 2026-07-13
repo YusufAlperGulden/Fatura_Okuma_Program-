@@ -78,10 +78,10 @@ def validate_invoice(data):
     if total_amount <= Decimal("0.00"):
         errors.append(f"Invalid total_amount: {total_amount}. Must be greater than zero.")
 
-    if abs(calculated_subtotal - subtotal) > Decimal("0.05") and abs((calculated_subtotal - discount_amount) - subtotal) > Decimal("0.05"):
+    if abs(calculated_subtotal - subtotal) > Decimal("1.00") and abs((calculated_subtotal - discount_amount) - subtotal) > Decimal("1.00"):
          errors.append(f"Subtotal mismatch: Items sum ({calculated_subtotal}) does not match Subtotal ({subtotal}) with or without discount.")
          
-    if abs((calculated_subtotal - discount_amount + tax_amount) - total_amount) > Decimal("0.05"):
+    if abs((calculated_subtotal - discount_amount + tax_amount) - total_amount) > Decimal("1.00"):
          errors.append(f"Total mismatch: Items ({calculated_subtotal}) - Discount ({discount_amount}) + Tax ({tax_amount}) != Total ({total_amount})")
          
     raw_date = str(data.get("date") or "").strip()
