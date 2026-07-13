@@ -13,6 +13,7 @@ from xml.etree import ElementTree as ET
 from xml.sax.saxutils import escape
 import urllib.request
 from datetime import datetime, timedelta
+from utils.money_to_text import amount_to_turkish_text
 
 def get_tcmb_rate(currency_code, date_str):
     try:
@@ -307,6 +308,9 @@ def build_ubl_invoice(invoice: dict[str, Any]) -> str:
 
     supplier_scheme = _scheme_id(supplier_tax_id)
     customer_scheme = _scheme_id(customer_tax_id)
+
+    text_amount = amount_to_turkish_text(total_amount, currency)
+    notes_xml += f"\n  <cbc:Note>{escape(text_amount)}</cbc:Note>"
 
     allowance_charge_xml = ""
     
