@@ -55,6 +55,14 @@ def validate_invoice(data):
     if not tax_id or not (len(tax_id) in (10, 11) and tax_id.isdigit()):
         errors.append(f"Invalid customer_tax_id: '{tax_id}'. Must be 10 or 11 digits.")
         
+    customer_name = str(data.get("customer_name") or "").strip()
+    if not customer_name or customer_name == "-":
+        errors.append("Missing customer_name.")
+
+    invoice_no = str(data.get("invoice_no") or "").strip()
+    if not invoice_no or invoice_no == "-":
+        errors.append("Missing invoice_no.")
+        
     if not data.get("items"):
         errors.append("No items found.")
         

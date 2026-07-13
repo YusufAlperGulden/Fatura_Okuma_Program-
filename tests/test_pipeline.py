@@ -34,6 +34,8 @@ class PipelineTests(unittest.TestCase):
         self.assertEqual(data["total_amount"], "480,00")
         self.assertEqual(len(data["items"]), 1)
         self.assertEqual(data["items"][0]["description"], "NFC Silver Kart")
+        data["customer_name"] = "Mock Customer"
+        data["invoice_no"] = "INV-123"
         self.assertEqual(validate_invoice(data), (True, []))
 
     def test_parse_pdf_buyer_name_and_tax_id_from_buyer_section(self):
@@ -158,6 +160,8 @@ class PipelineTests(unittest.TestCase):
         self.assertEqual(data["subtotal"], "120,00")
         self.assertEqual(data["tax_amount"], "24,00")
         self.assertEqual(data["total_amount"], "144,00")
+        data["customer_name"] = "Mock Customer"
+        data["invoice_no"] = "INV-123"
         self.assertEqual(validate_invoice(data), (True, []))
 
     def test_export_to_excel_creates_file(self):
@@ -183,6 +187,8 @@ class PipelineTests(unittest.TestCase):
         self.assertEqual(data["customer_tax_id"], "11111111111")
         self.assertEqual(len(data["items"]), 1)
         self.assertEqual(data["items"][0]["description"], "NFC Silver Kart")
+        data["customer_name"] = "Mock Customer"
+        data["invoice_no"] = "INV-123"
         self.assertEqual(validate_invoice(data), (True, []))
 
     def test_parse_numeric_amounts_from_excel(self):
@@ -337,6 +343,8 @@ class PipelineTests(unittest.TestCase):
                     ],
                 }
 
+                data["customer_name"] = "Mock Customer"
+                data["invoice_no"] = "INV-123"
                 self.assertEqual(validate_invoice(data), (True, []))
 
                 root = ET.fromstring(build_ubl_invoice(data))
