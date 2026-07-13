@@ -285,7 +285,6 @@ def build_ubl_invoice(invoice: dict[str, Any]) -> str:
     </cac:TaxTotal>
     <cac:Item>
       <cbc:Name>{description}</cbc:Name>
-      <cac:BuyersItemIdentification><cbc:ID>{code}</cbc:ID></cac:BuyersItemIdentification>
       <cac:SellersItemIdentification><cbc:ID>{code}</cbc:ID></cac:SellersItemIdentification>
     </cac:Item>
     <cac:Price>
