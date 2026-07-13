@@ -321,11 +321,47 @@ document.addEventListener('DOMContentLoaded', () => {
         } else {
             items.forEach(item => {
                 const tr = document.createElement('tr');
+                let rate = item.tax_rate !== undefined && item.tax_rate !== null && String(item.tax_rate).trim() !== "" ? String(item.tax_rate).replace('%', '').trim() : Math.round(globalRate);
+                let formattedRate = `%${rate}`;
+                
+                let parseVal = (val) => {
+                    if (!val) return 0;
+                    let str = String(val).replace(/[^0-9.,-]/g, '');
+                    if (str.includes(',') && str.includes('.')) {
+                        if (str.lastIndexOf(',') > str.lastIndexOf('.')) {
+                            str = str.replace(/\./g, '').replace(',', '.');
+                        } else {
+                            str = str.replace(/,/g, '');
+                        }
+                    } else if (str.includes(',')) {
+                        const pts = str.split(',');
+                        if (pts.length === 2 && pts[1].length !== 3) {
+                            str = str.replace(',', '.');
+                        } else if (pts.length > 1 && pts.slice(1).every(p => p.length === 3)) {
+                            str = str.replace(/,/g, '');
+                        } else {
+                            str = str.replace(',', '.');
+                        }
+                    } else if (str.includes('.')) {
+                        const pts = str.split('.');
+                        if (pts.length > 1 && pts.slice(1).every(p => p.length === 3)) {
+                            str = str.replace(/\./g, '');
+                        }
+                    }
+                    return parseFloat(str) || 0;
+                };
+
+                let lineTotal = item.total_price ? parseVal(item.total_price) : (item.unit_price && item.quantity ? parseVal(item.unit_price) * parseVal(item.quantity) : 0);
+                let lineTax = (lineTotal * parseFloat(rate) / 100);
+                let formattedTax = lineTax > 0 ? `${sym}${lineTax.toLocaleString('tr-TR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}` : '-';
+
                 tr.innerHTML = `
                     <td>${item.code || '-'}</td>
                     <td>${item.description || '-'}</td>
                     <td>${item.quantity || '-'}</td>
                     <td>${item.unit_price ? `${sym}${item.unit_price}` : '-'}</td>
+                    <td>${formattedRate}</td>
+                    <td>${formattedTax}</td>
                     <td>${item.total_price ? `${sym}${item.total_price}` : '-'}</td>
                 `;
                 tbody.appendChild(tr);
