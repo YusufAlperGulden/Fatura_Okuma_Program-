@@ -246,11 +246,13 @@ tr:hover {
     display: flex;
     align-items: center;
     gap: 0.5rem;
-    transition: background-color 0.2s;
+    transition: background-color 0.2s, transform 0.2s cubic-bezier(0.25, 0.8, 0.25, 1), box-shadow 0.2s ease;
 }
 
 .primary-btn:hover {
     background-color: var(--accent-hover);
+    transform: scale(1.15);
+    box-shadow: 0 8px 24px rgba(16, 185, 129, 0.3);
 }
 
 .primary-btn svg {
