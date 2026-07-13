@@ -142,8 +142,10 @@ def extract_invoice_with_ai(file_bytes: bytes, mime_type: str = "application/pdf
 Sen uzman bir muhasebe asistanisin. Ekli fatura belgesini dikkatlice analiz et
 ve sadece gecerli JSON dondur. Markdown, aciklama, kod blogu veya ek metin yazma.
 
-DİKKAT: Faturadaki TÜM KALEMLERİ (satırları) eksiksiz olarak 'items' dizisine ekle. Sadece ilk satırı okuyup bırakma!
+DİKKAT: Faturadaki TÜM KALEMLERİ (satırları) eksiksiz olarak 'items' dizisine ekle.
 DİKKAT: Eğer faturada İskonto (Discount) varsa "discount_amount" alanına yazmayı unutma!
+DİKKAT: JSON formatının KESİNLİKLE GEÇERLİ (VALID) olduğundan emin ol. Özellikle 'items' dizisi içindeki objelerde süslü parantez '{}' kapatmayı ve aralardaki virgülleri kesinlikle unutma.
+DİKKAT: "notes" alanına yazacağın metin uzunsa veya satır atlamaları (enter) içeriyorsa JSON'ı bozmaması için tüm satır atlamalarını boşluk karakteri ile değiştir (tek satır yap) ve tırnak işaretlerini '\\"' şeklinde düzgünce kaçış (escape) karakteriyle yaz.
 
 Beklenen JSON alani:
 {
@@ -158,7 +160,7 @@ Beklenen JSON alani:
   "total_amount": 0.0,
   "currency": "TRY veya USD veya EUR veya GBP",
   "exchange_rate": "faturada acikca yazan doviz kuru; yoksa null",
-  "notes": "faturadaki aciklama, genel not veya aciklama metni; yoksa bos string",
+  "notes": "faturadaki aciklama veya not (JSON formatini bozmayacak sekilde ozel karakterlerden arindirilmis tek satir)",
   "items": [
     {
       "code": "urun/stok kodu veya bos string",
@@ -173,7 +175,7 @@ Beklenen JSON alani:
 
 Tum satir kalemlerini eksiksiz oku. Miktar * birim fiyat = satir toplami ve
 subtotal - discount_amount + tax_amount = total_amount tutarliligini kontrol et.
-Ondalikli degerleri JSON number olarak ver.
+Ondalikli degerleri JSON number olarak ver. JSON formatini asla bozma!
 """.strip()
 
     input_data = [
