@@ -62,6 +62,10 @@ class PipelineTests(unittest.TestCase):
         text_invalid_8 = "Parça Listesi\nSeri No: A123\nFiyat: 100"
         data = parse_invoice_text(text_invalid_8, top_text=text_invalid_8)
         self.assertIsNone(data.get("invoice_series"))
+        
+        text_invalid_9 = "Parca Listesi\nSeri No: A123\nFiyat: 100"
+        data = parse_invoice_text(text_invalid_9, top_text=text_invalid_9)
+        self.assertIsNone(data.get("invoice_series"))
 
         text_valid_5 = "Açıklama: Genel bilgi\nSeri No: A123"
         data = parse_invoice_text(text_valid_5)
@@ -200,6 +204,15 @@ class PipelineTests(unittest.TestCase):
 
         tcmb_lookup.assert_not_called()
         self.assertIn("<cbc:CalculationRate>53.5844</cbc:CalculationRate>", ubl)
+
+    def test_parse_fixture_pdf_for_series(self):
+        pdf_path = os.path.join(os.path.dirname(__file__), "..", "test_invoice_fixture.pdf")
+        if os.path.exists(pdf_path):
+            data = parse_pdf_invoice(pdf_path)
+            self.assertIsNotNone(data)
+            self.assertEqual(data.get("invoice_series"), "TOPRIGHT99")
+        else:
+            self.skipTest(f"Fixture PDF not found at {pdf_path}")
 
     def test_parse_sample_xml(self):
         data = parse_xml_invoice(os.path.join(ROOT, "ornek.xml"))

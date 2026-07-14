@@ -446,13 +446,24 @@ def parse_invoice_text(text: str, top_text: str = None) -> dict:
     )
     search_text = top_text if top_text is not None else text
 
+    # Ultimate safeguard: Find exact product items and slice before them
+    try:
+        items = _find_items(search_text)
+        if items and items[0].get("code"):
+            idx = search_text.find(items[0]["code"])
+            if idx != -1:
+                last_newline = search_text.rfind('\n', 0, idx)
+                search_text = search_text[:last_newline] if last_newline != -1 else search_text[:idx]
+    except Exception:
+        pass
+
     # Safely cut off at the start of product tables to avoid product serials
     # 'Açıklama' is removed because it can appear at the top.
-    header_end_match = re.search(r"(?i)\b(?:Mal[ \t/]+Hizmet|Cinsi|Ürün(?:ler)?|Urun(?:ler)?|Miktar|Birim Fiyat|Stoklar|Parça[ \t]+Listesi)\b", search_text)
+    header_end_match = re.search(r"(?i)\b(?:Mal[ \t/]+Hizmet|Cinsi|Ürün(?:ler)?|Urun(?:ler)?|Miktar|Birim[ \t]+Fiyat|Stoklar?|Par[çc]a[ \t]+Listesi|Hizmetler|Stok[ \t]+Listesi)\b", search_text)
     if header_end_match:
         search_text = search_text[:header_end_match.start()]
     elif top_text is None:
-        search_text = "\n".join(search_text.splitlines()[:30])
+        search_text = "\n".join(search_text.splitlines()[:60])
 
     # Find all potential matches
     series_regex = r"(?i)(?:Fatura[ \t]+)?(?:Seri(?:[ \t]+No|[ \t]+Numarası|[ \t]+Numarasi)?)[ \t]*[:=-][ \t]*([A-Za-z0-9_./-]+)"
