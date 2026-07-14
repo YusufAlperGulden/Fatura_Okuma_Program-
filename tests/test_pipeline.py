@@ -99,6 +99,11 @@ class PipelineTests(unittest.TestCase):
         data = parse_invoice_text(text_valid_5)
         self.assertEqual(data.get("invoice_series"), "A123")
 
+        # Regression test: Ensure broad words followed by prices aren't parsed as items
+        text_regression_product = "Ödeme: Plan 1 Ay 100,00 20% 120,00"
+        data = parse_invoice_text(text_regression_product)
+        self.assertEqual(len(data.get("items", [])), 0)
+
         text_valid_3 = "Seri No: XYZ789"
         data = parse_invoice_text(text_valid_3)
         self.assertEqual(data.get("invoice_series"), "XYZ789")
