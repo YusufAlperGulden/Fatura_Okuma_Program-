@@ -446,10 +446,10 @@ def parse_invoice_text(text: str) -> dict:
     )
     data["invoice_series"] = _first_match(
         [
-            r"(?<!ürün )(?<!urun )(?<!ürün)(?<!urun)\b(?:Fatura[ \t]+)?(?:Seri(?: No| Numarası| Numarasi)?)[ \t]*[:=-][ \t]*([A-Za-z0-9-]+)",
-            r"(?<!ürün )(?<!urun )(?<!ürün)(?<!urun)\b(?:Fatura[ \t]+)?(?:Seri(?: No| Numarası| Numarasi)?)[ \t]+(?!(?:No|Numarası|Numarasi)\b)([A-Za-z0-9-]+)",
+            r"(?:^|\n|[ \t]{2,})(?:Fatura[ \t]+)?(?:Seri(?: No| Numarası| Numarasi)?)[ \t]*[:=-][ \t]*([A-Za-z0-9_./-]+)",
+            r"(?:^|\n|[ \t]{2,})(?:Fatura[ \t]+)?(?:Seri(?: No| Numarası| Numarasi)?)[ \t]+(?!(?:No|Numarası|Numarasi)\b)([A-Za-z]{1,3})\b",
         ],
-        text,
+        text[:1500],
         re.IGNORECASE,
     )
     data["date"] = _first_match([r"\b(\d{1,2}\.\d{2}\.\d{4})\b"], text)

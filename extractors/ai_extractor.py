@@ -150,7 +150,7 @@ DİKKAT: "notes" alanına yazacağın metin uzunsa veya satır atlamaları (ente
 Beklenen JSON alani:
 {
   "invoice_no": "string veya null",
-  "invoice_series": "Faturanin sag ust kosesinde 'Seri:' veya 'Seri No:' yazan seri numarasi string veya null",
+  "invoice_series": "Faturanin sag ust kosesinde 'Seri:' veya 'Seri No:' yazan seri numarasi string (Örn: A, GİB, AB). Faturada acikca seri numarasi yoksa KESINLIKLE null dondur, asla tahmin etme veya fatura numarasindan turetme.",
   "date": "YYYY-MM-DD veya DD.MM.YYYY",
   "time": "HH:MM veya HH:MM:SS",
   "customer_tax_id": "10 veya 11 haneli VKN/TCKN; belgede yoksa bos string",
