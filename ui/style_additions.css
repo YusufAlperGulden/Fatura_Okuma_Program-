@@ -68,19 +68,3 @@
 .admin-panel .actions-panel {
     margin-top: 1.5rem;
 }
-
-/* Universal Scale Animations */
-.glass-panel { transition: transform 0.3s cubic-bezier(0.25, 0.8, 0.25, 1), box-shadow 0.3s ease, border-color 0.3s ease !important; }
-.glass-panel:hover { transform: scale(1.02) !important; box-shadow: 0 10px 40px rgba(56, 189, 248, 0.3), 0 0 20px rgba(56, 189, 248, 0.2) !important; border-color: rgba(56, 189, 248, 0.8) !important; z-index: 5 !important; position: relative !important; }
-
-tr { transition: transform 0.2s cubic-bezier(0.25, 0.8, 0.25, 1), background-color 0.2s ease, box-shadow 0.2s ease !important; }
-tr:hover { background-color: rgba(30, 41, 59, 0.8) !important; transform: scale(1.03) translateY(-2px) !important; box-shadow: 0 8px 24px rgba(56, 189, 248, 0.25), 0 0 15px rgba(56, 189, 248, 0.15) !important; position: relative !important; z-index: 10 !important; }
-
-.workflow-panel { transition: transform 0.3s cubic-bezier(0.25, 0.8, 0.25, 1), box-shadow 0.3s ease !important; }
-.workflow-panel:hover { transform: scale(1.02) !important; box-shadow: 0 12px 35px rgba(56, 189, 248, 0.25), 0 0 20px rgba(56, 189, 248, 0.15) !important; border-color: rgba(56, 189, 248, 0.6) !important; }
-
-.checklist li { transition: transform 0.2s ease, background-color 0.2s ease, padding-left 0.2s ease !important; border-radius: 6px !important; }
-.checklist li:hover { transform: scale(1.02) !important; background-color: var(--card-bg) !important; padding-left: 1rem !important; }
-
-#cancel-btn { transition: transform 0.2s cubic-bezier(0.25, 0.8, 0.25, 1), box-shadow 0.2s ease, background-color 0.2s !important; }
-#cancel-btn:hover { transform: scale(1.1) !important; background-color: rgba(239, 68, 68, 0.2) !important; }
