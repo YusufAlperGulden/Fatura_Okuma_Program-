@@ -87,6 +87,14 @@ class PipelineTests(unittest.TestCase):
         data = parse_invoice_text(text_valid_9)
         self.assertEqual(data.get("invoice_series"), "A123")
 
+        text_invalid_11 = "ABC/123 Parça Seri No: DEVICE42 1 Adet 100.00 20% 120.00"
+        data = parse_invoice_text(text_invalid_11, top_text=text_invalid_11)
+        self.assertIsNone(data.get("invoice_series"))
+
+        text_invalid_12 = "SKU:123 Parça Seri No: DEVICE42 1 Adet 100.00 20% 120.00"
+        data = parse_invoice_text(text_invalid_12, top_text=text_invalid_12)
+        self.assertIsNone(data.get("invoice_series"))
+
         text_valid_5 = "Açıklama: Genel bilgi\nSeri No: A123"
         data = parse_invoice_text(text_valid_5)
         self.assertEqual(data.get("invoice_series"), "A123")
@@ -226,13 +234,12 @@ class PipelineTests(unittest.TestCase):
         self.assertIn("<cbc:CalculationRate>53.5844</cbc:CalculationRate>", ubl)
 
     def test_parse_fixture_pdf_for_series(self):
-        pdf_path = os.path.join(os.path.dirname(__file__), "..", "test_invoice_fixture.pdf")
-        if os.path.exists(pdf_path):
-            data = parse_pdf_invoice(pdf_path)
-            self.assertIsNotNone(data)
-            self.assertEqual(data.get("invoice_series"), "TOPRIGHT99")
-        else:
-            self.skipTest(f"Fixture PDF not found at {pdf_path}")
+        fixture_path = os.path.join(os.path.dirname(__file__), "..", "test_invoice_fixture.pdf")
+        if not os.path.exists(fixture_path):
+            self.fail("PDF fixture not generated. Run python generate_pdf_fixture.py to create it.")
+
+        data = parse_pdf_invoice(fixture_path)
+        self.assertEqual(data.get("invoice_series"), "TOPRIGHT99")
 
     def test_parse_sample_xml(self):
         data = parse_xml_invoice(os.path.join(ROOT, "ornek.xml"))
