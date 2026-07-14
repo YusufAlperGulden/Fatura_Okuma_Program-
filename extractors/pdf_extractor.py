@@ -403,7 +403,7 @@ def _score_data(data):
     return score
 
 
-def parse_invoice_text(text: str) -> dict:
+def parse_invoice_text(text: str, top_text: str = None) -> dict:
     text = _normalize_extracted_text(text)
     data = {
         "invoice_no": None,
@@ -444,12 +444,20 @@ def parse_invoice_text(text: str) -> dict:
         text,
         re.IGNORECASE,
     )
-    header_text = "\n".join(text.splitlines()[:50])
+    if top_text is not None:
+        search_text = top_text
+    else:
+        header_end_match = re.search(r"(?i)\b(?:Mal Hizmet|Açıklama|Cinsi|Ürün(?:ler)?|Miktar|Birim Fiyat)\b", text)
+        if header_end_match:
+            search_text = text[:header_end_match.start()]
+        else:
+            search_text = "\n".join(text.splitlines()[:50])
+
     data["invoice_series"] = _first_match(
         [
-            r"(?i)(?<![A-Za-zÇĞİÖŞÜçğıöşü])(?<![A-Za-zÇĞİÖŞÜçğıöşü][ \t])(?:Fatura[ \t]+)?(?:Seri(?:[ \t]+No|[ \t]+Numarası|[ \t]+Numarasi)?)[ \t]*[:=-][ \t]*([A-Za-z0-9]{1,4}(?:[./_-]\d{2,4})?)\b"
+            r"(?i)(?<![A-Za-zÇĞİÖŞÜçğıöşü])(?<![A-Za-zÇĞİÖŞÜçğıöşü][ \t])(?:Fatura[ \t]+)?(?:Seri(?:[ \t]+No|[ \t]+Numarası|[ \t]+Numarasi)?)[ \t]*[:=-][ \t]*([A-Za-z0-9_./-]+)"
         ],
-        header_text,
+        search_text,
         re.IGNORECASE,
     )
     data["date"] = _first_match([r"\b(\d{1,2}\.\d{2}\.\d{4})\b"], text)
@@ -498,6 +506,15 @@ def parse_pdf_invoice(file_path: str) -> dict:
 
             plain_text = ""
             layout_text = ""
+            top_text = None
+            if pdf.pages:
+                first_page = pdf.pages[0]
+                try:
+                    top_bbox = (0, 0, first_page.width, first_page.height * 0.4)
+                    top_text = first_page.crop(top_bbox).extract_text()
+                except Exception:
+                    pass
+
             for page in pdf.pages:
                 plain_extracted = page.extract_text()
                 layout_extracted = page.extract_text(layout=True)
@@ -515,7 +532,7 @@ def parse_pdf_invoice(file_path: str) -> dict:
 
             candidates = []
             for text in candidate_texts:
-                parsed = parse_invoice_text(text)
+                parsed = parse_invoice_text(text, top_text=top_text)
                 parsed["_raw_text"] = text
                 candidates.append(parsed)
             data = max(candidates, key=_score_data)
