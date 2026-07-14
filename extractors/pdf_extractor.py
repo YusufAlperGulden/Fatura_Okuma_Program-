@@ -445,19 +445,32 @@ def parse_invoice_text(text: str, top_text: str = None) -> dict:
         re.IGNORECASE,
     )
     search_text = top_text if top_text is not None else text
-    header_end_match = re.search(r"(?i)\b(?:Mal Hizmet|Açıklama|Cinsi|Ürün(?:ler)?|Miktar|Birim Fiyat)\b", search_text)
+    
+    # Safely cut off at the start of product tables to avoid product serials
+    # 'Açıklama' is removed because it can appear at the top.
+    header_end_match = re.search(r"(?i)\b(?:Mal/?Hizmet|Cinsi|Ürün(?:ler)?|Urun(?:ler)?|Miktar|Birim Fiyat|Stoklar)\b", search_text)
     if header_end_match:
         search_text = search_text[:header_end_match.start()]
     elif top_text is None:
         search_text = "\n".join(search_text.splitlines()[:50])
 
-    data["invoice_series"] = _first_match(
-        [
-            r"(?i)(?<![A-Za-zÇĞİÖŞÜçğıöşü])(?<![A-Za-zÇĞİÖŞÜçğıöşü][ \t])(?<![A-Za-zÇĞİÖŞÜçğıöşü][ \t]{2})(?:Fatura[ \t]+)?(?:Seri(?:[ \t]+No|[ \t]+Numarası|[ \t]+Numarasi)?)[ \t]*[:=-][ \t]*([A-Za-z0-9_./-]+(?<!\.))"
-        ],
-        search_text,
-        re.IGNORECASE,
-    )
+    # Find all potential matches
+    series_regex = r"(?i)(?:Fatura[ \t]+)?(?:Seri(?:[ \t]+No|[ \t]+Numarası|[ \t]+Numarasi)?)[ \t]*[:=-][ \t]*([A-Za-z0-9_./-]+)"
+    valid_series = None
+    for line in search_text.splitlines():
+        # Reject lines that clearly belong to products
+        if re.search(r"(?i)\b(?:Yazıcı|Yazici|Cihaz|Ürün|Urun|Model)\b", line):
+            continue
+            
+        matches = re.findall(series_regex, line)
+        if matches:
+            # Strip trailing punctuation (., -, /, _)
+            val = matches[0].rstrip('.-_/')
+            if val:
+                valid_series = val
+                break
+                
+    data["invoice_series"] = valid_series
     data["date"] = _first_match([r"\b(\d{1,2}\.\d{2}\.\d{4})\b"], text)
     data["time"] = _first_match([r"\b(\d{2}:\d{2}(?::\d{2})?)\b"], text)
     data["customer_tax_id"] = _extract_customer_tax_id(text)
