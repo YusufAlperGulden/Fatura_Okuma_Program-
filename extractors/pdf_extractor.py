@@ -378,7 +378,7 @@ def _sum_tax_lines(text):
                 if norm_part in seen_tax_parts:
                     continue
                 seen_tax_parts.add(norm_part)
-                
+
                 found = True
                 total += _parse_money_number(matches[-1].group(1))
 
@@ -445,14 +445,14 @@ def parse_invoice_text(text: str, top_text: str = None) -> dict:
         re.IGNORECASE,
     )
     search_text = top_text if top_text is not None else text
-    
+
     # Safely cut off at the start of product tables to avoid product serials
     # 'Açıklama' is removed because it can appear at the top.
-    header_end_match = re.search(r"(?i)\b(?:Mal/?Hizmet|Cinsi|Ürün(?:ler)?|Urun(?:ler)?|Miktar|Birim Fiyat|Stoklar)\b", search_text)
+    header_end_match = re.search(r"(?i)\b(?:Mal[ \t/]+Hizmet|Cinsi|Ürün(?:ler)?|Urun(?:ler)?|Miktar|Birim Fiyat|Stoklar|Parça[ \t]+Listesi)\b", search_text)
     if header_end_match:
         search_text = search_text[:header_end_match.start()]
     elif top_text is None:
-        search_text = "\n".join(search_text.splitlines()[:50])
+        search_text = "\n".join(search_text.splitlines()[:30])
 
     # Find all potential matches
     series_regex = r"(?i)(?:Fatura[ \t]+)?(?:Seri(?:[ \t]+No|[ \t]+Numarası|[ \t]+Numarasi)?)[ \t]*[:=-][ \t]*([A-Za-z0-9_./-]+)"
@@ -461,7 +461,7 @@ def parse_invoice_text(text: str, top_text: str = None) -> dict:
         # Reject lines that clearly belong to products
         if re.search(r"(?i)\b(?:Yazıcı|Yazici|Cihaz|Ürün|Urun|Model)\b", line):
             continue
-            
+
         matches = re.findall(series_regex, line)
         if matches:
             # Strip trailing punctuation (., -, /, _)
@@ -469,7 +469,7 @@ def parse_invoice_text(text: str, top_text: str = None) -> dict:
             if val:
                 valid_series = val
                 break
-                
+
     data["invoice_series"] = valid_series
     data["date"] = _first_match([r"\b(\d{1,2}\.\d{2}\.\d{4})\b"], text)
     data["time"] = _first_match([r"\b(\d{2}:\d{2}(?::\d{2})?)\b"], text)

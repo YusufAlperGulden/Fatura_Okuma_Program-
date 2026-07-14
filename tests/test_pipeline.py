@@ -38,7 +38,7 @@ class PipelineTests(unittest.TestCase):
         text_invalid_1 = "Seri bir üretim yaklaşımıdır.\nSeri Model ABC"
         data = parse_invoice_text(text_invalid_1)
         self.assertIsNone(data.get("invoice_series"))
-        
+
         text_invalid_2 = "Fatura No: A123\nÜrünler\nSeri No: A123\nBirim Fiyat: 100"
         data = parse_invoice_text(text_invalid_2, top_text=text_invalid_2)
         self.assertIsNone(data.get("invoice_series"))
@@ -46,15 +46,23 @@ class PipelineTests(unittest.TestCase):
         text_invalid_3 = "Fatura Tarihi: 12.04.2026 Ürün açıklaması: Yazıcı   Seri No: DEVICE42"
         data = parse_invoice_text(text_invalid_3)
         self.assertIsNone(data.get("invoice_series"))
-        
+
         text_invalid_5 = "Urunler\nSeri No: A123"
         data = parse_invoice_text(text_invalid_5, top_text=text_invalid_5)
         self.assertIsNone(data.get("invoice_series"))
-        
+
         text_invalid_6 = "Stoklar\nSeri No: A123"
         data = parse_invoice_text(text_invalid_6, top_text=text_invalid_6)
         self.assertIsNone(data.get("invoice_series"))
-        
+
+        text_invalid_7 = "Mal Hizmet\nSeri No: A123"
+        data = parse_invoice_text(text_invalid_7, top_text=text_invalid_7)
+        self.assertIsNone(data.get("invoice_series"))
+
+        text_invalid_8 = "Parça Listesi\nSeri No: A123\nFiyat: 100"
+        data = parse_invoice_text(text_invalid_8, top_text=text_invalid_8)
+        self.assertIsNone(data.get("invoice_series"))
+
         text_valid_5 = "Açıklama: Genel bilgi\nSeri No: A123"
         data = parse_invoice_text(text_valid_5)
         self.assertEqual(data.get("invoice_series"), "A123")
