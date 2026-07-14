@@ -84,16 +84,3 @@ tr:hover { background-color: rgba(30, 41, 59, 0.8) !important; transform: scale(
 
 #cancel-btn { transition: transform 0.2s cubic-bezier(0.25, 0.8, 0.25, 1), box-shadow 0.2s ease, background-color 0.2s !important; }
 #cancel-btn:hover { transform: scale(1.1) !important; background-color: rgba(239, 68, 68, 0.2) !important; }
-
-/* Dashboard Styles */
-#dashboard {
-  padding: 2rem;
-  animation: slideUp 0.5s ease;
-}
-.card-label {
-  font-size: 0.85rem;
-  font-weight: 600;
-  color: var(--text-secondary);
-  letter-spacing: 0.05em;
-  text-transform: uppercase;
-}

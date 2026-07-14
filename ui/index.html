@@ -10,8 +10,6 @@
     <!-- Toastify for in-app notifications -->
     <link rel="stylesheet" type="text/css" href="https://cdn.jsdelivr.net/npm/toastify-js/src/toastify.min.css">
     <script type="text/javascript" src="https://cdn.jsdelivr.net/npm/toastify-js"></script>
-    <!-- Chart.js for Dashboard -->
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 <body>
     <div class="app-container">
@@ -144,23 +142,6 @@
                     <span> kullanılarak okundu.</span>
                 </div>
 
-            </section>
-
-            <!-- Dashboard Section -->
-            <section id="dashboard" class="glass-panel" style="margin-top: 3rem;">
-                <h2 style="margin-bottom: 1.5rem; text-align: center; color: var(--accent-color);">Analitik & Geçmiş (Dashboard) 📊</h2>
-                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 2rem;">
-                    <!-- Total Processed Amount -->
-                    <div class="card" style="display: flex; flex-direction: column; justify-content: center; align-items: center; text-align: center;">
-                        <span class="card-label">BU AY OKUNAN TOPLAM TUTAR</span>
-                        <h3 id="dash-total-amount" style="font-size: 2.5rem; color: #10b981; margin-top: 0.5rem;">0.00 TL</h3>
-                    </div>
-                    <!-- Top Suppliers Chart -->
-                    <div class="card" style="height: 300px; display: flex; flex-direction: column; align-items: center;">
-                        <span class="card-label" style="align-self: flex-start;">EN ÇOK FATURA KESİLEN FİRMALAR</span>
-                        <canvas id="suppliersChart" style="width: 100%; height: 100%;"></canvas>
-                    </div>
-                </div>
             </section>
         </main>
     </div>

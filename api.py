@@ -13,13 +13,8 @@ from extractors.pdf_extractor import parse_pdf_invoice
 from extractors.xml_extractor import parse_xml_invoice
 from validators.invoice_validator import validate_invoice
 from integrators.uyumsoft_api import enrich_invoice_customer_from_uyumsoft, send_invoice_to_uyumsoft
-from db.database import init_db, insert_invoice, get_dashboard_stats
 
 app = FastAPI(title="Invoice Pipeline API")
-
-@app.on_event("startup")
-def startup_event():
-    init_db()
 
 # Serve the static UI files
 app.mount("/ui", StaticFiles(directory="ui", html=True), name="ui")
@@ -27,10 +22,6 @@ app.mount("/ui", StaticFiles(directory="ui", html=True), name="ui")
 @app.get("/")
 def read_root():
     return RedirectResponse(url="/ui/")
-
-@app.get("/api/dashboard-stats")
-def dashboard_stats():
-    return get_dashboard_stats()
 
 # Allow CORS for frontend
 app.add_middleware(
@@ -203,15 +194,6 @@ async def upload_invoice(file: UploadFile = File(...)):
             errors.extend(validation_errors)
             if is_valid:
                 data = enrich_invoice_customer_from_uyumsoft(data)
-                try:
-                    insert_invoice(
-                        filename=file.filename,
-                        supplier_name=data.get("supplier_name", "Bilinmiyor"),
-                        total_amount=float(data.get("total_amount", 0.0)),
-                        currency=data.get("currency", "TRY")
-                    )
-                except Exception as db_err:
-                    print(f"DB Insert Error: {db_err}")
         elif local_errors:
             errors.extend(local_errors)
 
