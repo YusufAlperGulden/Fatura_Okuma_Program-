@@ -340,7 +340,7 @@ def _find_items(text):
 
     items = []
     seen = set()
-    for raw_line in text.splitlines():
+    for line_idx, raw_line in enumerate(text.splitlines()):
         line = _clean_pdf_line(raw_line).strip()
         for segment in split_repeated_item_line(line):
             match = item_line_pattern.match(segment)
@@ -354,6 +354,7 @@ def _find_items(text):
                 "unit_price": _format_amount(_parse_money_number(match.group("unit_price"))),
                 "tax_rate": match.group("tax_rate"),
                 "total_price": _format_amount(_parse_money_number(match.group("total_price"))),
+                "_line_idx": line_idx,
             }
             key = (item["code"], item["description"], item["quantity"], item["unit_price"], item["total_price"])
             if key not in seen:
@@ -449,22 +450,10 @@ def parse_invoice_text(text: str, top_text: str = None) -> dict:
     # Ultimate safeguard: Find exact product items and slice before them
     try:
         items = _find_items(search_text)
-        if items and items[0].get("code") and items[0].get("description"):
-            target_code = items[0]["code"]
-            target_desc = items[0]["description"]
-            target_price = items[0].get("unit_price", "")
-            target_total = items[0].get("total_price", "")
-
+        if items and "_line_idx" in items[0]:
+            first_item_line_idx = items[0]["_line_idx"]
             lines = search_text.split('\n')
-            for i, raw_line in enumerate(lines):
-                cleaned_line = _clean_pdf_line(raw_line)
-                normalized_line = re.sub(r"\s+", " ", cleaned_line).strip()
-                if (target_code in normalized_line and
-                    target_desc in normalized_line and
-                    target_price in normalized_line and
-                    target_total in normalized_line):
-                    search_text = '\n'.join(lines[:i])
-                    break
+            search_text = '\n'.join(lines[:first_item_line_idx])
     except Exception:
         pass
 
@@ -502,6 +491,9 @@ def parse_invoice_text(text: str, top_text: str = None) -> dict:
     data["notes"] = _extract_invoice_notes(text)
 
     data["items"] = _find_items(text)
+    for item in data["items"]:
+        item.pop("_line_idx", None)
+
     data["subtotal"] = _first_match([rf"Ara\s*Toplam\s+{MONEY_RE}"], text, re.IGNORECASE)
     data["discount_amount"] = (
         _first_match(
