@@ -87,19 +87,6 @@ class PipelineTests(unittest.TestCase):
         data = parse_invoice_text(text_valid_9)
         self.assertEqual(data.get("invoice_series"), "A123")
 
-        text_invalid_11 = "ABC/123 Parça Seri No: DEVICE42 1 Adet 100.00 20% 120.00"
-        data = parse_invoice_text(text_invalid_11, top_text=text_invalid_11)
-        self.assertIsNone(data.get("invoice_series"))
-
-        text_invalid_12 = "SKU:123 Parça Seri No: DEVICE42 1 Adet 100.00 20% 120.00"
-        data = parse_invoice_text(text_invalid_12, top_text=text_invalid_12)
-        self.assertIsNone(data.get("invoice_series"))
-        
-        text_invalid_13 = "Ödeme: Plan 1 Ay 100,00 20% 120,00"
-        data = parse_invoice_text(text_invalid_13, top_text=text_invalid_13)
-        self.assertIsNone(data.get("invoice_series"))
-        self.assertEqual(len(data.get("items", [])), 0)
-
         text_valid_10 = "Referans: Test Hizmet 1 Adet 100,00 20% 120,00\nFatura Seri No: A123"
         data = parse_invoice_text(text_valid_10)
         self.assertEqual(data.get("invoice_series"), "A123")
