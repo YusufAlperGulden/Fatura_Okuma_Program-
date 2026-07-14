@@ -40,10 +40,10 @@ class PipelineTests(unittest.TestCase):
         self.assertIsNone(data.get("invoice_series"))
         
         text_invalid_2 = "Fatura No: A123\nÜrünler\nSeri No: A123\nBirim Fiyat: 100"
-        data = parse_invoice_text(text_invalid_2)
+        data = parse_invoice_text(text_invalid_2, top_text=text_invalid_2)
         self.assertIsNone(data.get("invoice_series"))
 
-        text_invalid_3 = "Fatura Tarihi: 12.04.2026 Ürün açıklaması: Yazıcı Seri No: DEVICE42"
+        text_invalid_3 = "Fatura Tarihi: 12.04.2026 Ürün açıklaması: Yazıcı  Seri No: DEVICE42"
         data = parse_invoice_text(text_invalid_3)
         self.assertIsNone(data.get("invoice_series"))
 
@@ -51,9 +51,9 @@ class PipelineTests(unittest.TestCase):
         data = parse_invoice_text(text_valid_3)
         self.assertEqual(data.get("invoice_series"), "XYZ789")
 
-        text_valid_4 = "Seri No: AB-1234"
+        text_valid_4 = "Seri No: A123."
         data = parse_invoice_text(text_valid_4)
-        self.assertEqual(data.get("invoice_series"), "AB-1234")
+        self.assertEqual(data.get("invoice_series"), "A123")
 
     def test_parse_sample_pdf(self):
         data = parse_pdf_invoice(os.path.join(ROOT, "ornek.pdf"))

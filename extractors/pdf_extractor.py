@@ -444,18 +444,16 @@ def parse_invoice_text(text: str, top_text: str = None) -> dict:
         text,
         re.IGNORECASE,
     )
-    if top_text is not None:
-        search_text = top_text
-    else:
-        header_end_match = re.search(r"(?i)\b(?:Mal Hizmet|Açıklama|Cinsi|Ürün(?:ler)?|Miktar|Birim Fiyat)\b", text)
-        if header_end_match:
-            search_text = text[:header_end_match.start()]
-        else:
-            search_text = "\n".join(text.splitlines()[:50])
+    search_text = top_text if top_text is not None else text
+    header_end_match = re.search(r"(?i)\b(?:Mal Hizmet|Açıklama|Cinsi|Ürün(?:ler)?|Miktar|Birim Fiyat)\b", search_text)
+    if header_end_match:
+        search_text = search_text[:header_end_match.start()]
+    elif top_text is None:
+        search_text = "\n".join(search_text.splitlines()[:50])
 
     data["invoice_series"] = _first_match(
         [
-            r"(?i)(?<![A-Za-zÇĞİÖŞÜçğıöşü])(?<![A-Za-zÇĞİÖŞÜçğıöşü][ \t])(?:Fatura[ \t]+)?(?:Seri(?:[ \t]+No|[ \t]+Numarası|[ \t]+Numarasi)?)[ \t]*[:=-][ \t]*([A-Za-z0-9_./-]+)"
+            r"(?i)(?<![A-Za-zÇĞİÖŞÜçğıöşü])(?<![A-Za-zÇĞİÖŞÜçğıöşü][ \t])(?<![A-Za-zÇĞİÖŞÜçğıöşü][ \t]{2})(?:Fatura[ \t]+)?(?:Seri(?:[ \t]+No|[ \t]+Numarası|[ \t]+Numarasi)?)[ \t]*[:=-][ \t]*([A-Za-z0-9_./-]+(?<!\.))"
         ],
         search_text,
         re.IGNORECASE,
@@ -510,7 +508,7 @@ def parse_pdf_invoice(file_path: str) -> dict:
             if pdf.pages:
                 first_page = pdf.pages[0]
                 try:
-                    top_bbox = (0, 0, first_page.width, first_page.height * 0.4)
+                    top_bbox = (first_page.width * 0.5, 0, first_page.width, first_page.height * 0.4)
                     top_text = first_page.crop(top_bbox).extract_text()
                 except Exception:
                     pass
