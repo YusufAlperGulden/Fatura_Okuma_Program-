@@ -52,8 +52,8 @@ def validate_invoice(data):
         errors.append("Missing date.")
         
     tax_id = str(data.get("customer_tax_id") or "").strip()
-    if not tax_id or not (len(tax_id) in (10, 11) and tax_id.isdigit()):
-        errors.append(f"Invalid customer_tax_id: '{tax_id}'. Must be 10 or 11 digits.")
+    if not tax_id or not (len(tax_id) in (10, 11, 12) and tax_id.isdigit()):
+        errors.append(f"Invalid customer_tax_id: '{tax_id}'. Must be 10, 11 or 12 digits.")
         
     customer_name = str(data.get("customer_name") or "").strip()
     if not customer_name or customer_name == "-":

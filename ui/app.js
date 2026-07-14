@@ -147,6 +147,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     
                     checklist.innerHTML += `<li class="pending">Uyumsoft islemi otomatik baslatildi.</li>`;
                     runUyumsoftAction();
+                    if (window.refreshDashboard) window.refreshDashboard();
                 } else {
                     checklist.innerHTML += `<li class="success"><svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg> Fatura okundu</li>`;
                     checklist.innerHTML += `<li class="error"><svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg> Fatura okundu ancak aktarım durduruldu.</li>`;
@@ -443,4 +444,65 @@ document.addEventListener('DOMContentLoaded', () => {
         errorBox.classList.remove('hidden');
         resultsSection.classList.remove('hidden');
     }
+
+    let dashboardChart = null;
+
+    async function loadDashboard() {
+        try {
+            const response = await fetch('/api/dashboard-stats');
+            if (!response.ok) return;
+            const data = await response.json();
+            
+            // Format currency
+            const formatter = new Intl.NumberFormat('tr-TR', {
+                style: 'currency',
+                currency: 'TRY'
+            });
+            document.getElementById('dash-total-amount').innerText = formatter.format(data.total_amount);
+
+            // Chart setup
+            const ctx = document.getElementById('suppliersChart');
+            if (!ctx) return;
+            
+            if (dashboardChart) {
+                dashboardChart.destroy();
+            }
+
+            const labels = data.top_suppliers.map(s => s.supplier_name.substring(0, 20) + (s.supplier_name.length > 20 ? '...' : ''));
+            const values = data.top_suppliers.map(s => s.total_amount);
+
+            dashboardChart = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: 'Toplam Tutar (TL)',
+                        data: values,
+                        backgroundColor: 'rgba(56, 189, 248, 0.6)',
+                        borderColor: 'rgba(56, 189, 248, 1)',
+                        borderWidth: 1,
+                        borderRadius: 4
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { display: false }
+                    },
+                    scales: {
+                        y: { beginAtZero: true }
+                    }
+                }
+            });
+        } catch (e) {
+            console.error("Dashboard yuklenirken hata:", e);
+        }
+    }
+
+    // Load initial dashboard
+    loadDashboard();
+    
+    // Also export it or attach to window if we need to call it from inside upload success
+    window.refreshDashboard = loadDashboard;
 });
