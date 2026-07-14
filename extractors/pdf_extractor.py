@@ -449,17 +449,22 @@ def parse_invoice_text(text: str, top_text: str = None) -> dict:
     # Ultimate safeguard: Find exact product items and slice before them
     try:
         items = _find_items(search_text)
-        if items and items[0].get("code"):
-            idx = search_text.find(items[0]["code"])
-            if idx != -1:
-                last_newline = search_text.rfind('\n', 0, idx)
-                search_text = search_text[:last_newline] if last_newline != -1 else search_text[:idx]
+        if items and items[0].get("code") and items[0].get("description"):
+            code = items[0]["code"]
+            # Description might have been cleaned, take a safe chunk
+            desc_chunk = items[0]["description"][:8] 
+            
+            lines = search_text.split('\n')
+            for i, line in enumerate(lines):
+                if code in line and desc_chunk in line:
+                    search_text = '\n'.join(lines[:i])
+                    break
     except Exception:
         pass
 
     # Safely cut off at the start of product tables to avoid product serials
     # 'Açıklama' is removed because it can appear at the top.
-    header_end_match = re.search(r"(?i)\b(?:Mal[ \t/]+Hizmet|Cinsi|Ürün(?:ler)?|Urun(?:ler)?|Miktar|Birim[ \t]+Fiyat|Stoklar?|Par[çc]a[ \t]+Listesi|Hizmetler|Stok[ \t]+Listesi)\b", search_text)
+    header_end_match = re.search(r"(?i)\b(?:Mal[ \t/]+Hizmet|Cinsi|Ürün(?:ler)?|Urun(?:ler)?|Miktar|Birim[ \t]+Fiyat|Stoklar?|Par[çc]a(?:lar)?[ \t]*(?:Listesi)?|Hizmetler|Stok[ \t]+Listesi)\b", search_text)
     if header_end_match:
         search_text = search_text[:header_end_match.start()]
     elif top_text is None:
