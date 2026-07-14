@@ -393,13 +393,193 @@ def _score_data(data):
     subtotal = _parse_money_number(data.get("subtotal"))
     discount = _parse_money_number(data.get("discount_amount"))
     item_sum = _items_subtotal(data)
+    line = _fix_mojibake_currency(line)
+    line = line.replace("\xa0", " ")
+    line = re.sub(r"\bAdeTt\b", "Adet", line)
+
+    # Vertical watermark letters sometimes land inside codes, units, or amounts.
+    line = re.sub(rf"(\d{{4}})[{WATERMARK_CHARS}]\.(\d{{3}})", r"\1.\2", line)
+    line = re.sub(rf"(\d{{4}}\.\d{{3}})[{WATERMARK_CHARS}](?=[A-Za-zÇĞİÖŞÜçğıöşü])", r"\1 ", line)
+    line = re.sub(rf"(?<=\s)[{WATERMARK_CHARS}]+([{re.escape(CURRENCY_SYMBOLS)}])(?=\d)", r"\1", line)
+    line = re.sub(rf"([{re.escape(CURRENCY_SYMBOLS)}])[ \t]*[{WATERMARK_CHARS}]+[ \t]*(?=\d)", r"\1", line)
+    line = re.sub(rf"([.,])[ \t]*[{WATERMARK_CHARS}]+[ \t]*(?=\d{{2,3}}\b)", r"\1", line)
+    line = re.sub(
+        rf"(%[ \t]*\d+(?:[.,]\d+)?)[ \t]*[{WATERMARK_CHARS}]+[ \t]*([{re.escape(CURRENCY_SYMBOLS)}])",
+        r"\1 \2",
+        line,
+    )
+    line = re.sub(rf"\bK[{WATERMARK_CHARS}]*D[{WATERMARK_CHARS}]*V\b", "KDV", line, flags=re.IGNORECASE)
+    line = re.sub(rf"(?<=\s)[{WATERMARK_CHARS}]+({UNIT_RE})\b", r"\1", line, flags=re.IGNORECASE)
+    line = re.sub(rf"(\d+(?:[.,]\d+)?)[ \t]*[{WATERMARK_CHARS}]+({UNIT_RE})\b", r"\1 \2", line, flags=re.IGNORECASE)
+    line = re.sub(
+        rf"(?<=\s)[{WATERMARK_CHARS}]+(\d+(?:[.,]\d+)?)[ \t]+({UNIT_RE})\b",
+        r"\1 \2",
+        line,
+        flags=re.IGNORECASE,
+    )
+    return line
+
+
+def _normalize_extracted_text(text):
+    cleaned = "\n".join(_clean_pdf_line(line) for line in text.splitlines())
+    return re.sub(r"(?i)\b(?:ÖRNEKTİR|RESMİ FATURA DEĞİLDİR|ARA FATURASI)\b", "", cleaned)
+
+
+def clean_table_cell(value):
+    if value is None:
+        return ""
+
+    text = str(value).replace("\n", " ").replace("\xa0", " ").strip()
+    text = re.sub(r"\b[A-ZÇĞİÖŞÜ]\b", "", text)
+    text = re.sub(
+        r"(\d+(?:[.,]\d+)?)[A-ZÇĞİÖŞÜ]+(Adet|Saat|Hizmet|Kg|Lt|Paket|Kutu)",
+        r"\1 \2",
+        text,
+        flags=re.IGNORECASE,
+    )
+    text = re.sub(
+        r"\b[A-ZÇĞİÖŞÜ]+(Adet|Saat|Hizmet|Kg|Lt|Paket|Kutu)\b",
+        r"\1",
+        text,
+        flags=re.IGNORECASE,
+    )
+    text = re.sub(r"([€$₺£]\d+[.,])[A-ZÇĞİÖŞÜ]+(?=\d)", r"\1", text)
+    return re.sub(r"\s+", " ", text).strip()
+
+def extract_items_from_tables(pdf):
+    items = []
+
+    for page in pdf.pages:
+        tables = page.extract_tables() or []
+
+        for table in tables:
+            if not table or len(table) < 2:
+                continue
+
+            header = [clean_table_cell(c).lower() for c in table[0]]
+
+            if not any("kodu" in h for h in header):
+                continue
+            if not any("toplam" in h for h in header):
+                continue
+
+            for row in table[1:]:
+                if not row or len(row) < 7:
+                    continue
+
+                code = clean_table_cell(row[0])
+                description = clean_table_cell(row[1])
+                quantity = clean_table_cell(row[2])
+                unit = clean_table_cell(row[3])
+                unit_price = clean_table_cell(row[4])
+                tax_rate = clean_table_cell(row[5])
+                total_price = clean_table_cell(row[6])
+
+                quantity_match = re.search(r"\d+(?:[.,]\d+)?", quantity)
+                tax_match = re.search(r"\d+(?:[.,]\d+)?", tax_rate)
+
+                if not quantity_match or not _parse_money_number(total_price):
+                    continue
+
+                items.append({
+                    "code": code,
+                    "description": description,
+                    "quantity": quantity_match.group(0).replace(".", ",") if quantity_match else quantity.replace(".", ","),
+                    "unit_price": _format_amount(_parse_money_number(unit_price)),
+                    "tax_rate": tax_match.group(0) if tax_match else tax_rate,
+                    "total_price": _format_amount(_parse_money_number(total_price)),
+                })
+
+    return items
+
+
+def _find_items(text):
+    item_line_pattern = re.compile(
+        rf"^[ \t]*(?P<code>(?:\d{{4}}\.\d{{3}}|[A-Z]{{2,4}}-\d{{3}}|[-\w][\w.-]*))[ \t]+"
+        rf"(?P<description>.+?)[ \t]+"
+        rf"(?P<quantity>\d+(?:[.,]\d+)?)[ \t]+"
+        rf"(?:(?P<unit>{UNIT_RE})[ \t]+)?"
+        rf"(?P<unit_price>{MONEY_TOKEN_RE})[ \t]+"
+        rf"(?:%?[ \t]*(?P<tax_rate>\d+(?:[.,]\d+)?)[ \t]*%?[ \t]+)?"
+        rf"(?P<total_price>{MONEY_TOKEN_RE})(?:[ \t]+.*)?$",
+        re.IGNORECASE,
+    )
+
+    code_start_pattern = re.compile(r"(?=(?:\d{4}\.\d{3}|[A-Z]{2,4}-\d{3})[ \t]+)")
+
+    def split_repeated_item_line(line):
+        starts = [match.start() for match in code_start_pattern.finditer(line)]
+        if len(starts) <= 1:
+            return [line]
+
+        segments = []
+        for index, start in enumerate(starts):
+            end = starts[index + 1] if index + 1 < len(starts) else len(line)
+            segment = line[start:end].strip()
+            if segment:
+                segments.append(segment)
+        return segments
+
+    items = []
+    seen = set()
+    for raw_line in text.splitlines():
+        line = _clean_pdf_line(raw_line).strip()
+        for segment in split_repeated_item_line(line):
+            match = item_line_pattern.match(segment)
+            if not match:
+                continue
+
+            item = {
+                "code": match.group("code"),
+                "description": re.sub(r"\s+", " ", match.group("description")).strip(),
+                "quantity": match.group("quantity").replace(".", ","),
+                "unit_price": _format_amount(_parse_money_number(match.group("unit_price"))),
+                "tax_rate": match.group("tax_rate"),
+                "total_price": _format_amount(_parse_money_number(match.group("total_price"))),
+            }
+            key = (item["code"], item["description"], item["quantity"], item["unit_price"], item["total_price"])
+            if key not in seen:
+                seen.add(key)
+                items.append(item)
+
+    return items
+
+
+def _sum_tax_lines(text):
+    total = 0.0
+    found = False
+    seen_tax_parts = set()
+    for line in text.splitlines():
+        if "KDV" not in line.upper() and "K.D.V" not in line.upper():
+            continue
+        parts = re.split(r'(?i)\bK\.?D\.?V\.?\b', line)
+        for part in parts[1:]:
+            matches = list(re.finditer(MONEY_RE, part, re.IGNORECASE))
+            if matches:
+                norm_part = re.sub(r'\s+', '', part).upper()
+                if norm_part in seen_tax_parts:
+                    continue
+                seen_tax_parts.add(norm_part)
+                
+                found = True
+                total += _parse_money_number(matches[-1].group(1))
+
+    return _format_amount(total) if found else None
+
+
+def _items_subtotal(data):
+    return sum(_parse_money_number(item.get("total_price")) for item in data.get("items", []))
+
+
+def _score_data(data):
+    subtotal = _parse_money_number(data.get("subtotal"))
+    discount = _parse_money_number(data.get("discount_amount"))
+    item_sum = _items_subtotal(data)
     subtotal_gap = min(abs(item_sum - subtotal), abs((item_sum - discount) - subtotal))
 
     score = len(data.get("items", [])) * 10
     if subtotal and subtotal_gap <= 0.05:
         score += 1000
-    elif subtotal:
-        score -= min(subtotal_gap, 100000) / 1000
     return score
 
 
@@ -407,18 +587,19 @@ def parse_invoice_text(text: str) -> dict:
     text = _normalize_extracted_text(text)
     data = {
         "invoice_no": None,
+        "invoice_series": None,
         "date": None,
         "time": None,
         "customer_tax_id": None,
         "customer_name": None,
         "customer_title": None,
         "items": [],
-        "subtotal": None,
         "discount_amount": 0.0,
         "tax_amount": None,
         "total_amount": None,
         "currency": "TRY",
         "exchange_rate": None,
+        "subtotal": None,
         "notes": "",
         "_extraction_method": "Yerel Okuyucu (PDF)",
     }
@@ -443,6 +624,7 @@ def parse_invoice_text(text: str) -> dict:
         text,
         re.IGNORECASE,
     )
+    data["invoice_series"] = _first_match([r"(?:Seri|Seri No)[ \t]*[:=-]?[ \t]*([A-Za-z0-9]+)"], text, re.IGNORECASE)
     data["date"] = _first_match([r"\b(\d{1,2}\.\d{2}\.\d{4})\b"], text)
     data["time"] = _first_match([r"\b(\d{2}:\d{2}(?::\d{2})?)\b"], text)
     data["customer_tax_id"] = _extract_customer_tax_id(text)
