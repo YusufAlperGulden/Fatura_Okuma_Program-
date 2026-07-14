@@ -450,13 +450,19 @@ def parse_invoice_text(text: str, top_text: str = None) -> dict:
     try:
         items = _find_items(search_text)
         if items and items[0].get("code") and items[0].get("description"):
-            code = items[0]["code"]
-            # Description might have been cleaned, take a safe chunk
-            desc_chunk = items[0]["description"][:8] 
-            
+            target_code = items[0]["code"]
+            target_desc = items[0]["description"]
+            target_price = items[0].get("unit_price", "")
+            target_total = items[0].get("total_price", "")
+
             lines = search_text.split('\n')
-            for i, line in enumerate(lines):
-                if code in line and desc_chunk in line:
+            for i, raw_line in enumerate(lines):
+                cleaned_line = _clean_pdf_line(raw_line)
+                normalized_line = re.sub(r"\s+", " ", cleaned_line).strip()
+                if (target_code in normalized_line and
+                    target_desc in normalized_line and
+                    target_price in normalized_line and
+                    target_total in normalized_line):
                     search_text = '\n'.join(lines[:i])
                     break
     except Exception:
@@ -464,7 +470,7 @@ def parse_invoice_text(text: str, top_text: str = None) -> dict:
 
     # Safely cut off at the start of product tables to avoid product serials
     # 'Açıklama' is removed because it can appear at the top.
-    header_end_match = re.search(r"(?i)\b(?:Mal[ \t/]+Hizmet|Cinsi|Ürün(?:ler)?|Urun(?:ler)?|Miktar|Birim[ \t]+Fiyat|Stoklar?|Par[çc]a(?:lar)?[ \t]*(?:Listesi)?|Hizmetler|Stok[ \t]+Listesi)\b", search_text)
+    header_end_match = re.search(r"(?i)\b(?:Mal[ \t/]+Hizmet|Cinsi|Ürünler|Urunler|(?:Ürün|Urun)[ \t/]+(?:Kodu|Ad[ıi]|Açıklaması|Aciklamasi|Cinsi|Tan[ıi]m[ıi]|Detay[ıi]|Listesi|Hizmet)|Miktar|Birim[ \t]+Fiyat|Stoklar|Par[çc]alar|Par[çc]a[ \t]+Listesi|Hizmetler|Stok[ \t]+Listesi)\b", search_text)
     if header_end_match:
         search_text = search_text[:header_end_match.start()]
     elif top_text is None:
