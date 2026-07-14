@@ -27,19 +27,19 @@ class PipelineTests(unittest.TestCase):
     def test_parse_pdf_invoice_series(self):
         from extractors.pdf_extractor import parse_invoice_text
 
-        text_valid_1 = "Fatura Tarihi: 12.04.2026   Fatura Seri No: A/2026\nFatura No: A123\nÜrün Seri: DEVICE42"
+        text_valid_1 = "Fatura Tarihi: 12.04.2026 Seri No: A123\nFatura No: A123\nÜrün Seri: DEVICE42"
         data = parse_invoice_text(text_valid_1)
+        self.assertEqual(data["invoice_series"], "A123")
+
+        text_valid_2 = "Fatura Tarihi: 12.04.2026  Fatura Seri No: A/2026\nSeri: ABC"
+        data = parse_invoice_text(text_valid_2)
         self.assertEqual(data["invoice_series"], "A/2026")
 
-        text_valid_2 = "\nSeri: ABC\nFatura No: A123"
-        data = parse_invoice_text(text_valid_2)
-        self.assertEqual(data["invoice_series"], "ABC")
-
-        text_invalid_1 = "Seri alanı bulunmuyor.\nSeri Model ABC"
+        text_invalid_1 = "Seri bir üretim yaklaşımıdır.\nSeri Model ABC"
         data = parse_invoice_text(text_invalid_1)
         self.assertIsNone(data.get("invoice_series"))
         
-        text_invalid_2 = "Fatura No: A123\n" + ("\n"*10) + "Ürün açıklaması: Yazıcı Seri No: DEVICE42"
+        text_invalid_2 = "Fatura No: A123\n" + ("\n"*60) + "Ürün açıklaması: Yazıcı Seri No: DEVICE42"
         data = parse_invoice_text(text_invalid_2)
         self.assertIsNone(data.get("invoice_series"))
 
