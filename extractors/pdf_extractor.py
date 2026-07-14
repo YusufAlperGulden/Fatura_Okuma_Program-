@@ -313,7 +313,7 @@ def extract_items_from_tables(pdf):
 
 def _find_items(text):
     item_line_pattern = re.compile(
-        rf"^[ \t]*(?P<code>(?:\d{{4}}\.\d{{3}}|[A-Z]{{2,4}}-\d{{3}}|[-\w][\w.:/-]*))[ \t]+"
+        rf"^[ \t]*(?P<code>(?:\d{{4}}\.\d{{3}}|[A-Z]{{2,4}}-\d{{3}}|[-\w][\w./-]*(?::[\w./-]+)*))[ \t]+"
         rf"(?P<description>.+?)[ \t]+"
         rf"(?P<quantity>\d+(?:[.,]\d+)?)[ \t]+"
         rf"(?:(?P<unit>{UNIT_RE})[ \t]+)?"
@@ -471,10 +471,6 @@ def parse_invoice_text(text: str, top_text: str = None) -> dict:
     for line in search_text.splitlines():
         # Reject lines that clearly belong to products
         if re.search(r"(?i)\b(?:Yazıcı|Yazici|Cihaz|Ürün|Urun|Model)\b", line):
-            continue
-
-        # Reject lines that contain typical item table signatures (e.g. Quantity + Price + Price)
-        if re.search(rf"\d+(?:[.,]\d+)?[ \t]+(?:(?:{UNIT_RE})[ \t]+)?(?:{MONEY_TOKEN_RE})[ \t]+(?:%?[ \t]*\d+(?:[.,]\d+)?[ \t]*%?[ \t]+)?(?:{MONEY_TOKEN_RE})", line, re.IGNORECASE):
             continue
 
         matches = re.findall(series_regex, line)
