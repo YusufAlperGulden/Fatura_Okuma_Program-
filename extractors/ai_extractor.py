@@ -4,6 +4,8 @@ import os
 
 import google.generativeai as genai
 
+from utils.serial_numbers import normalize_invoice_serial_numbers
+
 
 DEFAULT_GEMINI_MODEL = "gemini-2.5-flash"
 FALLBACK_GEMINI_MODELS = (
@@ -102,7 +104,7 @@ def _stringify_amount_fields(data: dict) -> dict:
             if key in item and item[key] is not None:
                 item[key] = str(item[key])
 
-    return data
+    return normalize_invoice_serial_numbers(data)
 
 
 def extract_invoice_with_ai(file_bytes: bytes, mime_type: str = "application/pdf") -> dict:
@@ -170,7 +172,7 @@ Beklenen JSON alani:
       "unit_price": 0.0,
       "total_price": 0.0,
       "tax_rate": 20.0,
-      "serial_numbers": ["Varsa bu kaleme ait fatura aciklamasinda yer alan cihaz seri numaralarini (DBJ... gibi) ayri ayri bu diziye ekle. Miktar veya fiyati buraya yazma. Yoksa [] dondur."]
+      "serial_numbers": ["bu urun kalemine ait, faturada acikca yazan seri numaralarini karakterlerini degistirmeden tek tek ekle; tilda (~), virgul, noktali virgul veya satir sonuyla ayrilanlari ayri eleman yap; fatura seri numarasi, fatura numarasi, miktar, fiyat veya urun kodunu buraya yazma; yoksa bos dizi []"]
     }
   ]
 }
