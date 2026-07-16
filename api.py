@@ -5,8 +5,7 @@ import uuid
 from fastapi import FastAPI, UploadFile, File
 from fastapi.responses import RedirectResponse
 from fastapi.staticfiles import StaticFiles
-from pydantic import BaseModel, Field, ConfigDict
-from typing import Optional, List, Any
+from pydantic import BaseModel
 
 # Import our pipeline modules
 from extractors.excel_extractor import parse_excel_invoice
@@ -32,34 +31,6 @@ def health_check():
 UPLOAD_DIR = "uploads"
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 
-class InvoiceItem(BaseModel):
-    code: Optional[str] = None
-    description: Optional[str] = None
-    quantity: Any = None
-    unit_price: Any = None
-    total_price: Any = None
-    tax_rate: Any = None
-    serial_numbers: Optional[List[str]] = []
-
-class InvoiceData(BaseModel):
-    model_config = ConfigDict(extra="allow")
-    
-    invoice_no: Optional[str] = None
-    invoice_series: Optional[str] = None
-    date: Optional[str] = None
-    time: Optional[str] = None
-    customer_tax_id: Optional[str] = None
-    customer_name: Optional[str] = None
-    customer_title: Optional[str] = None
-    subtotal: Any = None
-    discount_amount: Any = None
-    tax_amount: Any = None
-    total_amount: Any = None
-    currency: Optional[str] = None
-    exchange_rate: Any = None
-    notes: Optional[str] = None
-    items: Optional[List[InvoiceItem]] = []
-    
 class ProcessResponse(BaseModel):
     filename: str
     is_valid: bool
@@ -67,16 +38,8 @@ class ProcessResponse(BaseModel):
     errors: list[str]
 
 class SendUyumsoftRequest(BaseModel):
-    invoice_data: InvoiceData
-    action: str | None = None
-
-class ValidateRequest(BaseModel):
-    invoice_data: InvoiceData
-
-class ValidateResponse(BaseModel):
-    is_valid: bool
-    errors: list[str]
     invoice_data: dict
+    action: str | None = None
 
 def _is_image_extension(ext: str) -> bool:
     return ext in [".jpg", ".jpeg", ".png", ".webp"]
@@ -270,28 +233,12 @@ async def upload_invoice(file: UploadFile = File(...)):
             },
         )
 
-@app.post("/api/validate", response_model=ValidateResponse)
-async def validate_invoice_api(request: ValidateRequest):
-    data = request.invoice_data.model_dump(exclude_unset=True)
-    is_valid, errors = validate_invoice(data)
-    
-    if is_valid and _env_enabled("UYUMSOFT_CUSTOMER_LOOKUP"):
-        data = enrich_invoice_customer_from_uyumsoft(data)
-        is_valid, errors = validate_invoice(data)
-        
-    return ValidateResponse(
-        is_valid=is_valid,
-        errors=errors,
-        invoice_data=data
-    )
-
 @app.post("/send-uyumsoft")
 async def send_uyumsoft_api(request: SendUyumsoftRequest):
     """
     Receives invoice data from the UI and forwards it to the Uyumsoft API.
     """
-    data = request.invoice_data.model_dump(exclude_unset=True)
-    is_valid, errors = validate_invoice(data)
+    is_valid, errors = validate_invoice(request.invoice_data or {})
     if not is_valid:
         return {
             "success": False,
@@ -300,6 +247,6 @@ async def send_uyumsoft_api(request: SendUyumsoftRequest):
             "response_code": 400,
         }
 
-    data = enrich_invoice_customer_from_uyumsoft(data)
-    result = send_invoice_to_uyumsoft(data, action="draft")
+    request.invoice_data = enrich_invoice_customer_from_uyumsoft(request.invoice_data)
+    result = send_invoice_to_uyumsoft(request.invoice_data, action="draft")
     return result

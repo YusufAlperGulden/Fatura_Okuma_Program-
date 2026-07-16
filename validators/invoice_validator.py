@@ -55,7 +55,7 @@ def validate_invoice(data):
     if not tax_id or not (len(tax_id) in (10, 11) and tax_id.isdigit()):
         errors.append(f"Alıcı VKN/TCKN bilgisi hatalı veya eksik. (Okunan: '{tax_id}')")
         
-    customer_name = str(data.get("customer_name") or data.get("customer_title") or "").strip()
+    customer_name = str(data.get("customer_name") or "").strip()
     if not customer_name or customer_name == "-":
         errors.append("Alıcı ünvanı (müşteri adı) bulunamadı.")
         
