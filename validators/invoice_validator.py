@@ -49,18 +49,18 @@ def validate_invoice(data):
     errors = []
     
     if not data.get("date"):
-        errors.append("Missing date.")
+        errors.append("Fatura tarihi bulunamadı.")
         
     tax_id = str(data.get("customer_tax_id") or "").strip()
     if not tax_id or not (len(tax_id) in (10, 11) and tax_id.isdigit()):
-        errors.append(f"Invalid customer_tax_id: '{tax_id}'. Must be 10 or 11 digits.")
+        errors.append(f"Alıcı VKN/TCKN bilgisi hatalı veya eksik. (Okunan: '{tax_id}')")
         
     customer_name = str(data.get("customer_name") or "").strip()
     if not customer_name or customer_name == "-":
-        errors.append("Missing customer_name.")
+        errors.append("Alıcı ünvanı (müşteri adı) bulunamadı.")
         
     if not data.get("items"):
-        errors.append("No items found.")
+        errors.append("Fatura üzerinde herhangi bir kalem (ürün/hizmet) satırı bulunamadı.")
         
     calculated_subtotal = Decimal("0.00")
     
@@ -72,7 +72,7 @@ def validate_invoice(data):
         calculated_subtotal += total_price
         
         if abs((quantity * unit_price) - total_price) > Decimal("0.05"):
-            errors.append(f"Matematik Hatası veya Hatalı Okuma: {item.get('description')} (Miktar: {quantity}, Fiyat: {unit_price}, Toplam: {total_price})")
+            errors.append(f"Kalem Matematik Hatası: '{item.get('description')}' satırında (Miktar: {quantity} x Fiyat: {unit_price} = {total_price}) tutmuyor.")
 
     subtotal = to_decimal(data.get("subtotal"))
     discount_amount = to_decimal(data.get("discount_amount"))
@@ -80,13 +80,13 @@ def validate_invoice(data):
     total_amount = to_decimal(data.get("total_amount"))
     
     if total_amount <= Decimal("0.00"):
-        errors.append(f"Invalid total_amount: {total_amount}. Must be greater than zero.")
+        errors.append(f"Fatura Genel Toplamı sıfır veya geçersiz. (Okunan: {total_amount})")
 
     if abs(calculated_subtotal - subtotal) > Decimal("1.00") and abs((calculated_subtotal - discount_amount) - subtotal) > Decimal("1.00"):
-         errors.append(f"Subtotal mismatch: Items sum ({calculated_subtotal}) does not match Subtotal ({subtotal}) with or without discount.")
+         errors.append(f"Matematik Hatası: Kalemlerin tutar toplamı ({calculated_subtotal}) ile faturanın Ara Toplamı ({subtotal}) uyuşmuyor.")
          
     if abs((calculated_subtotal - discount_amount + tax_amount) - total_amount) > Decimal("1.00"):
-         errors.append(f"Total mismatch: Items ({calculated_subtotal}) - Discount ({discount_amount}) + Tax ({tax_amount}) != Total ({total_amount})")
+         errors.append(f"Matematik Hatası: KDV ve İndirim hesaplaması sonucu Genel Toplam ile uyuşmuyor. (Hesaplanan: {(calculated_subtotal - discount_amount + tax_amount)}, Faturada Yazan: {total_amount})")
          
     raw_date = str(data.get("date") or "").strip()
     if raw_date:
@@ -100,7 +100,7 @@ def validate_invoice(data):
             except ValueError:
                 pass
         if not parsed_successfully:
-            errors.append(f"Invalid date format: {raw_date}")
+            errors.append(f"Fatura tarihi geçersiz veya anlaşılamayan bir formatta (Okunan: '{raw_date}').")
 
     is_valid = len(errors) == 0
                 

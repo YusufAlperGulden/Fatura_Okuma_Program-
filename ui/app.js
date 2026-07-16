@@ -166,9 +166,12 @@ document.addEventListener('DOMContentLoaded', () => {
                     checklist.innerHTML += `<li class="success"><svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg> Fatura okundu</li>`;
                     checklist.innerHTML += `<li class="error"><svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg> Fatura okundu ancak aktarım durduruldu.</li>`;
                     
+                  if (!result.is_valid && result.errors && result.errors.length > 0) {
                     const errorBox = document.getElementById('error-box');
-                    errorBox.innerHTML = '<strong>Eksikler:</strong><br>' + result.errors.map(e => `- ${e}`).join('<br>');
+                    errorBox.innerHTML = '<div style="display: flex; align-items: center; margin-bottom: 0.5rem;"><svg style="width: 24px; height: 24px; margin-right: 8px; color: #f87171;" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg><strong style="font-size: 1.1rem;">Lütfen faturadaki şu eksik veya hataları giderin:</strong></div>' + 
+                    '<ul style="margin-left: 2rem; list-style-type: disc;">' + result.errors.map(e => `<li style="margin-bottom: 0.25rem;">${e}</li>`).join('') + '</ul>';
                     errorBox.classList.remove('hidden');
+                }
                 }
             } else {
                 showError("Sunucu Hatası: " + (result.detail || "Bilinmeyen hata"));
