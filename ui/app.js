@@ -47,7 +47,9 @@ document.addEventListener('DOMContentLoaded', () => {
         handleEdit(-1, 'customer_name', e.target.value);
     });
 
+
     const dropZone = document.getElementById('drop-zone');
+
 
     const fileInput = document.getElementById('file-input');
     const loading = document.getElementById('loading');
