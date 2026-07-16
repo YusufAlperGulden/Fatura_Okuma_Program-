@@ -1,46 +1,59 @@
-# Kapsamlı Mimari Revizyon, Güvenlik ve Ekranda Veri Düzenleme Planı
+# Public Invoice Application Roadmap
 
-## Faz 0 — Acil Kilit (Hotfix) - [TAMAMLANDI]
-* Otomatik Uyumsoft gönderimi UI üzerinden kaldırıldı.
-* `/api/history` endpoint'i kapatıldı.
-* Tüm API ve statik site HTTP Basic Auth altına alındı.
-* Backend Uyumsoft endpoint'i (`/send-uyumsoft`) yalnızca `draft` işlemi kabul edecek şekilde kilitlendi.
-* API'den wildcard CORS kısıtlaması kaldırıldı (aynı origin üzerinden güvenli iletişim).
+## Product access decision
 
-## Faz 1 — Backend Sözleşmesi (Contract & Validation)
-* FastAPI üzerinde katı Pydantic modellerinin uygulanması.
-* Saf ve yan etkisiz (side-effect free) `/validate` uç noktasının oluşturulması.
-* Dosya boyutu ve tür sınırı (upload limits) eklenmesi.
-* Yanıtlarda HTTP durum kodlarının (200, 400, 413, 429 vs.) doğru kullanılması.
-* Rate Limiting için `slowapi==0.1.10` entegrasyonu (başlangıçta in-memory deposu ile).
+- The website, static UI, API documentation, `/upload`, and `/send-uyumsoft` are intentionally public.
+- Anonymous visitors may upload invoices and create Uyumsoft drafts.
+- The project will not require login, Basic Auth, API keys, CAPTCHA, IP allowlists, or request rate limits.
+- Third-party service credentials such as `GEMINI_API_KEY` and Uyumsoft credentials remain server-side because those services require them; visitors do not provide credentials.
+- Uyumsoft operations remain limited to `draft`, matching the product requirement that visitors create drafts rather than finalize invoices.
+- Invoice validation, XSS escaping, CSV formula escaping, supported-file checks, and duplicate-click protection remain data-integrity safeguards rather than access restrictions.
 
-## Faz 2 — Edit Before Send (Ekranda Veri Düzenleme)
-* Arayüzde `originalInvoice` ve `draftInvoice` (düzenlenen) ayrımının yapılması.
-* Sonuç kartları ve tablo hücrelerinin (VKN, isim, tutarlar) editable (düzenlenebilir) hale getirilmesi.
-* Her değişiklikte 350–500 ms debounce ile backend `/validate` uç noktasına istek atılarak "HATALI" / "GEÇERLİ" rozetinin yerel olarak güncellenmesi.
-* Değişiklik anında "Gönder" butonunun deaktif edilmesi ve ancak geçerli bir validasyon döndüğünde tekrar aktifleşmesi.
-* Kullanıcıya açık bir "Taslak Olarak Gönder" butonu sunulması ve native `confirm()` ile onay istenmesi.
+## Phase 0 — Public application foundation — Completed
 
-## Faz 3 — DOM Güvenliği
-* `ui/app.js` içerisindeki tüm fatura kaynaklı `innerHTML` kullanımlarının tamamen temizlenip `textContent` ve `createElement` ile değiştirilmesi.
-* CSP (Content Security Policy) ve üçüncü taraf script kontrollerinin sıkılaştırılması.
-* CSV Güvenliğinin (Excel Formül Enjeksiyonu koruması ve RFC 4180 kaçış karakterleri) eksiksiz uygulanması.
+- Removed server-side SQLite history storage and `/api/history`.
+- Removed site-wide Basic Auth and ADMIN environment requirements.
+- Kept the UI and API publicly accessible without user credentials.
+- Removed automatic Uyumsoft submission; visitors explicitly confirm draft creation.
+- Forced the backend Uyumsoft action to `draft` regardless of client input.
 
-## Faz 4 — IndexedDB (Yerel Geçmiş ve Kalıcılık)
-* Tüm güvenlik aşamaları tamamlandıktan sonra, IndexedDB tabanlı geçmiş yapısının kurulması.
-* `autoIncrement + invoiceNo` yerine, kimlik olarak `id: crypto.randomUUID()` ve unique anahtar olarak `dedupeKey: issuerVkn|invoiceNo` kullanılması.
-* `navigator.storage.persist()` için izin istenmesi (ancak reddedilme veya silinme ihtimaline karşı bilgilendirme yapılması).
-* Mevcut (güvensiz ve formsuz) SQLite verilerinin otomatik migration *yapılmaması* (temiz başlangıç).
-* İsteyen yöneticiler için çevrimdışı JSON Export/Import (Yedekleme ve Geri Yükleme) fonksiyonlarının eklenmesi.
+## Phase 1 — Backend contract and validation
 
-## Faz 5 — Üretim Testleri (Production Tests)
-* Basic Auth, 413 (Payload Too Large), 429 (Too Many Requests) HTTP yanıtlarının testi.
-* Fatura içerisine yerleştirilmiş XSS payload'larının test edilmesi.
-* Çift tıklama (Double click) ve Idempotency testleri.
-* Sisteme dışarıdan sahte `action:"send"` isteği atılarak backend kilidinin aşılamadığının test edilmesi.
+- Introduce explicit Pydantic request and response models.
+- Add a side-effect-free `/validate` endpoint.
+- Return accurate HTTP status codes and stable error payloads.
+- Keep all application endpoints anonymously accessible.
+- Do not add authentication, authorization, CAPTCHA, IP restrictions, or rate limiting.
 
-## User Review Required
+## Phase 2 — Edit before draft creation
 
-> [!NOTE]
-> Faz 0 (Acil Kilit) onayınız üzerine derhal kodlanmış ve yayına alınmıştır.
-> Aşağıdaki adımlar sırasıyla Faz 1, 2, 3, 4 ve 5 olarak işletilecektir. Bu plan hem `brain` klasöründe hem de doğrudan repoda `docs/implementation_plan.md` olarak kaydedilmiştir.
+- Separate `originalInvoice` from the user-edited `draftInvoice`.
+- Make invoice summary fields and item rows editable.
+- Revalidate edits through `/validate` with a short debounce.
+- Update the valid/invalid badge after every validation response.
+- Keep the public “Taslak Olarak Gönder” action with an explicit confirmation dialog.
+
+## Phase 3 — Data rendering and export correctness
+
+- Render invoice-derived text with `textContent` and `createElement`.
+- Preserve spreadsheet-formula escaping and RFC 4180 CSV quoting.
+- Preserve the PDF/JPEG/PNG/WebP preview allowlist.
+
+## Phase 4 — Browser-local history
+
+- Store optional history in IndexedDB in each visitor's browser profile.
+- Use `crypto.randomUUID()` for record identifiers and `issuerVkn|invoiceNo` as a deduplication key.
+- Support optional JSON export and import for browser-local backups.
+- Do not migrate legacy server-side SQLite history.
+
+## Phase 5 — Production tests
+
+- Verify anonymous access to the UI, upload flow, validation, and Uyumsoft draft endpoint.
+- Test malformed invoice payloads and stable validation errors.
+- Test invoice-derived XSS payload rendering and CSV formula escaping.
+- Test concurrent uploads, cancellation, double-click protection, and stale-response handling.
+- Verify that client-supplied actions cannot change the backend operation from `draft` to final submission.
+
+## Confirmed scope
+
+This roadmap intentionally permits unrestricted anonymous access and anonymous Uyumsoft draft creation. Future phases must not add user authentication or traffic limits unless the product owner explicitly changes this requirement.
