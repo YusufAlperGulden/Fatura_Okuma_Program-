@@ -90,9 +90,12 @@
                         <span class="card-label">FATURA NO</span>
                         <input type="text" id="res-invoice-no" class="edit-input-top" value="" placeholder="-">
                     </div>
-                    <div class="card">
+                    <div class="card" style="display: flex; flex-direction: column;">
                         <span class="card-label">TARİH & SAAT</span>
-                        <input type="text" id="res-date-time" class="edit-input-top" value="" placeholder="-">
+                        <div style="display: flex; flex-direction: column; gap: 4px;">
+                            <input type="text" id="res-date" class="edit-input-top" value="" placeholder="Tarih">
+                            <input type="text" id="res-time" class="edit-input-top" value="" placeholder="Saat">
+                        </div>
                     </div>
                     <div class="card">
                         <span class="card-label">MÜŞTERİ VKN</span>

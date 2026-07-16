@@ -32,11 +32,12 @@ document.addEventListener('DOMContentLoaded', () => {
         handleEdit(-1, 'invoice_no', e.target.value);
     });
     
-    document.getElementById('res-date-time').addEventListener('input', (e) => {
-        const val = e.target.value.trim();
-        const parts = val.split(' ');
-        handleEdit(-1, 'date', parts[0] || '');
-        handleEdit(-1, 'time', parts.length > 1 ? parts.slice(1).join(' ') : '');
+    document.getElementById('res-date').addEventListener('input', (e) => {
+        handleEdit(-1, 'date', e.target.value);
+    });
+    
+    document.getElementById('res-time').addEventListener('input', (e) => {
+        handleEdit(-1, 'time', e.target.value);
     });
 
     document.getElementById('res-vkn').addEventListener('input', (e) => {
@@ -245,7 +246,8 @@ let currentUploadId = null;
 
         // Clear old results data visually
         document.getElementById('res-invoice-no').value = '';
-        document.getElementById('res-date-time').value = '';
+                document.getElementById('res-date').value = '';
+        document.getElementById('res-time').value = '';
         document.getElementById('res-vkn').value = '';
         document.getElementById('res-customer-name').value = '';
         document.getElementById('res-method').textContent = '-';
@@ -491,11 +493,8 @@ let currentUploadId = null;
 
         updateInputIfNotFocused('res-invoice-no', data.invoice_no);
         
-        let dateTimeStr = data.date || '';
-        if (data.time && data.time.trim() !== '') {
-            dateTimeStr += ` ${data.time}`;
-        }
-        updateInputIfNotFocused('res-date-time', dateTimeStr);
+        updateInputIfNotFocused('res-date', data.date);
+        updateInputIfNotFocused('res-time', data.time);
         updateInputIfNotFocused('res-vkn', data.customer_tax_id);
         const customerName = data.customer_name || data.customer_title || data.customer || '';
         updateInputIfNotFocused('res-customer-name', customerName);
