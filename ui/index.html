@@ -73,13 +73,19 @@
                 <section id="results-section" class="results-section">
                 
                 <div class="results-header">
-                    <div style="display: flex; align-items: center; gap: 12px;">
-                        <button id="toggle-pdf-btn" class="icon-btn" title="PDF Önizlemesini Gizle/Göster" style="background: var(--card-bg); border: 1px solid var(--border-color); color: var(--text-secondary); cursor: pointer; border-radius: 8px; padding: 6px; display: flex; align-items: center; justify-content: center; transition: all 0.2s;">
-                            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" width="20" height="20">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path>
-                            </svg>
+                    <div style="display: flex; align-items: center; gap: 1rem;">
+                        <div style="display: flex; align-items: center; gap: 12px;">
+                            <button id="toggle-pdf-btn" class="icon-btn" title="PDF Önizlemesini Gizle/Göster" style="background: var(--card-bg); border: 1px solid var(--border-color); color: var(--text-secondary); cursor: pointer; border-radius: 8px; padding: 6px; display: flex; align-items: center; justify-content: center; transition: all 0.2s;">
+                                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" width="20" height="20">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path>
+                                </svg>
+                            </button>
+                            <h2 style="margin: 0;">Çıkarım Sonuçları</h2>
+                        </div>
+                        <button id="toggle-edit-btn" class="action-btn-small" style="display: flex; align-items: center; gap: 0.25rem;">
+                            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" style="width: 16px; height: 16px;"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"></path></svg>
+                            Düzenle
                         </button>
-                        <h2 style="margin: 0;">Çıkarım Sonuçları</h2>
                     </div>
                     <span id="validation-badge" class="badge">DURUM</span>
                 </div>
@@ -88,19 +94,19 @@
                 <div class="summary-cards">
                     <div class="card">
                         <span class="card-label">FATURA NO</span>
-                        <h3 id="res-invoice-no">-</h3>
+                        <input type="text" id="res-invoice-no" class="edit-input-top" value="" readonly placeholder="-">
                     </div>
                     <div class="card">
                         <span class="card-label">TARİH & SAAT</span>
-                        <h3 id="res-date-time">-</h3>
+                        <input type="text" id="res-date-time" class="edit-input-top" value="" readonly placeholder="-">
                     </div>
                     <div class="card">
                         <span class="card-label">MÜŞTERİ VKN</span>
-                        <h3 id="res-vkn">-</h3>
+                        <input type="text" id="res-vkn" class="edit-input-top" value="" readonly placeholder="-">
                     </div>
                     <div id="customer-name-card" class="card wide-card">
                         <span class="card-label">MÜŞTERİ ADI</span>
-                        <h3 id="res-customer-name">-</h3>
+                        <input type="text" id="res-customer-name" class="edit-input-top" value="" readonly placeholder="-">
                     </div>
                     <div class="card">
                         <span class="card-label">ARA TOPLAM</span>

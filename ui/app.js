@@ -27,7 +27,28 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
 
+
+    document.getElementById('res-invoice-no').addEventListener('input', (e) => {
+        handleEdit(-1, 'invoice_no', e.target.value);
+    });
+    
+    document.getElementById('res-date-time').addEventListener('input', (e) => {
+        const val = e.target.value.trim();
+        const parts = val.split(' ');
+        handleEdit(-1, 'date', parts[0] || '');
+        handleEdit(-1, 'time', parts.length > 1 ? parts.slice(1).join(' ') : '');
+    });
+
+    document.getElementById('res-vkn').addEventListener('input', (e) => {
+        handleEdit(-1, 'customer_tax_id', e.target.value);
+    });
+
+    document.getElementById('res-customer-name').addEventListener('input', (e) => {
+        handleEdit(-1, 'customer_name', e.target.value);
+    });
+
     const dropZone = document.getElementById('drop-zone');
+
     const fileInput = document.getElementById('file-input');
     const loading = document.getElementById('loading');
     const resultsSection = document.getElementById('results-section');
@@ -219,12 +240,14 @@ let currentUploadId = null;
         document.getElementById('api-status-box').classList.add('hidden');
         document.getElementById('loading-text').textContent = 'Fatura işleniyor...';
         
+
         // Clear old results data visually
-        document.getElementById('res-invoice-no').textContent = '-';
-        document.getElementById('res-date-time').textContent = '-';
-        document.getElementById('res-vkn').textContent = '-';
-        document.getElementById('res-customer-name').textContent = '-';
+        document.getElementById('res-invoice-no').value = '';
+        document.getElementById('res-date-time').value = '';
+        document.getElementById('res-vkn').value = '';
+        document.getElementById('res-customer-name').value = '';
         document.getElementById('res-method').textContent = '-';
+
         document.getElementById('res-subtotal').textContent = '-';
         if (document.getElementById('res-tax-breakdown')) {
             document.getElementById('res-tax-breakdown').innerHTML = '-';
@@ -457,19 +480,23 @@ let currentUploadId = null;
         const globalRate = globalSubtotal && globalTax ? (globalTax / globalSubtotal * 100) : 0;
 
         // Update summary cards
-        document.getElementById('res-invoice-no').textContent = data.invoice_no || '-';
-        let dateTimeStr = data.date || '-';
-        if (data.time) {
+        function updateInputIfNotFocused(id, value) {
+            const el = document.getElementById(id);
+            if (document.activeElement !== el) {
+                el.value = value || '';
+            }
+        }
+
+        updateInputIfNotFocused('res-invoice-no', data.invoice_no);
+        
+        let dateTimeStr = data.date || '';
+        if (data.time && data.time.trim() !== '') {
             dateTimeStr += ` ${data.time}`;
         }
-        document.getElementById('res-date-time').textContent = dateTimeStr;
-        document.getElementById('res-vkn').textContent = data.customer_tax_id || '-';
-        const customerName = data.customer_title || data.customer_name || data.customer || '';
-        if (customerName) {
-            document.getElementById('res-customer-name').textContent = customerName;
-        } else {
-            document.getElementById('res-customer-name').textContent = '-';
-        }
+        updateInputIfNotFocused('res-date-time', dateTimeStr);
+        updateInputIfNotFocused('res-vkn', data.customer_tax_id);
+        const customerName = data.customer_name || data.customer_title || data.customer || '';
+        updateInputIfNotFocused('res-customer-name', customerName);
         document.getElementById('res-method').textContent = data._extraction_method || '-';
         document.getElementById('res-subtotal').textContent = data.subtotal ? `${sym}${data.subtotal}` : '-';
 

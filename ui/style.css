@@ -219,12 +219,36 @@ header p {
     margin-bottom: 0.5rem;
 }
 
+
 .card h3 {
     font-size: 1.25rem;
     font-weight: 600;
     line-height: 1.35;
     overflow-wrap: anywhere;
 }
+
+.edit-input-top {
+    font-size: 1.25rem;
+    font-weight: 600;
+    line-height: 1.35;
+    color: var(--text-primary);
+    background: transparent;
+    border: 1px dashed transparent;
+    border-radius: 4px;
+    width: 100%;
+    padding: 2px 4px;
+    margin-left: -4px;
+    transition: all 0.2s;
+    font-family: inherit;
+}
+
+.edit-input-top:hover, .edit-input-top:focus {
+    border-color: var(--border-color);
+    background: var(--card-bg);
+    outline: none;
+    box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.3);
+}
+
 
 .wide-card {
     grid-column: span 2;
