@@ -101,10 +101,12 @@ document.addEventListener('DOMContentLoaded', () => {
             document.getElementById('pdf-viewer-section').classList.remove('hidden');
             document.getElementById('split-container').classList.add('split-active');
             document.querySelector('.app-container').classList.add('wide-mode');
+            document.getElementById('toggle-pdf-btn').style.display = 'flex';
         } else {
             document.getElementById('pdf-viewer-section').classList.add('hidden');
             document.getElementById('split-container').classList.remove('split-active');
             document.querySelector('.app-container').classList.remove('wide-mode');
+            document.getElementById('toggle-pdf-btn').style.display = 'none';
         }
 
         dropZone.classList.add('hidden');
