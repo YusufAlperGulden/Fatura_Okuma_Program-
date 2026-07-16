@@ -15,6 +15,42 @@
     --error-border: #ef4444;
 }
 
+[data-theme="light"] {
+    --bg-color: #f1f5f9;
+    --panel-bg: #ffffff;
+    --card-bg: #f8fafc;
+    --text-primary: #0f172a;
+    --text-secondary: #475569;
+    --border-color: #cbd5e1;
+    --accent-color: #0284c7;
+    --accent-hover: #0369a1;
+    --success-bg: #d1fae5;
+    --success-text: #065f46;
+    --success-border: #34d399;
+    --error-bg: #fee2e2;
+    --error-text: #991b1b;
+    --error-border: #fca5a5;
+}
+
+.theme-btn {
+    position: absolute;
+    right: 0;
+    top: 0;
+    background: transparent;
+    border: none;
+    color: var(--text-secondary);
+    cursor: pointer;
+    padding: 8px;
+    border-radius: 50%;
+    transition: background-color 0.3s, color 0.3s;
+}
+
+.theme-btn:hover {
+    background-color: var(--card-bg);
+    color: var(--accent-color);
+}
+
+
 * {
     box-sizing: border-box;
     margin: 0;
