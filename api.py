@@ -1,8 +1,9 @@
 import os
-from fastapi import FastAPI, UploadFile, File
-from fastapi.middleware.cors import CORSMiddleware
+import secrets
+from fastapi import FastAPI, UploadFile, File, Depends, HTTPException, status
 from fastapi.responses import RedirectResponse
 from fastapi.staticfiles import StaticFiles
+from fastapi.security import HTTPBasic, HTTPBasicCredentials
 from pydantic import BaseModel
 import shutil
 import uuid
@@ -19,7 +20,20 @@ from utils.serial_numbers import merge_invoice_serial_numbers
 # Initialize the SQLite database
 init_db()
 
-app = FastAPI(title="Invoice Pipeline API")
+security = HTTPBasic()
+
+def verify_credentials(credentials: HTTPBasicCredentials = Depends(security)):
+    correct_username = secrets.compare_digest(credentials.username, os.getenv("ADMIN_USERNAME", "admin"))
+    correct_password = secrets.compare_digest(credentials.password, os.getenv("ADMIN_PASSWORD", "secret"))
+    if not (correct_username and correct_password):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Incorrect username or password",
+            headers={"WWW-Authenticate": "Basic"},
+        )
+    return credentials.username
+
+app = FastAPI(title="Invoice Pipeline API", dependencies=[Depends(verify_credentials)])
 
 # Serve the static UI files
 app.mount("/ui", StaticFiles(directory="ui", html=True), name="ui")
@@ -27,15 +41,6 @@ app.mount("/ui", StaticFiles(directory="ui", html=True), name="ui")
 @app.get("/")
 def read_root():
     return RedirectResponse(url="/ui/")
-
-# Allow CORS for frontend
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
 
 UPLOAD_DIR = "uploads"
 os.makedirs(UPLOAD_DIR, exist_ok=True)
@@ -262,13 +267,5 @@ async def send_uyumsoft_api(request: SendUyumsoftRequest):
         }
 
     request.invoice_data = enrich_invoice_customer_from_uyumsoft(request.invoice_data)
-    result = send_invoice_to_uyumsoft(request.invoice_data, action=request.action)
+    result = send_invoice_to_uyumsoft(request.invoice_data, action="draft")
     return result
-
-@app.get("/api/history")
-def api_history(search: str = None):
-    try:
-        invoices = get_invoices(search)
-        return {"success": True, "data": invoices}
-    except Exception as e:
-        return {"success": False, "error": str(e)}

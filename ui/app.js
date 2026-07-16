@@ -264,8 +264,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         checklist.innerHTML += `<li class="success"><svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg> Müşteri adı Uyumsoft mükellef listesinden eşleştirildi</li>`;
                     }
                     
-                    checklist.innerHTML += `<li class="pending">Uyumsoft islemi otomatik baslatildi.</li>`;
-                    runUyumsoftAction();
+                    checklist.innerHTML += `<li class="pending">Fatura geçerli. Lütfen Gönder butonunu kullanın.</li>`;
                 } else {
                     checklist.innerHTML += `<li class="success"><svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg> Fatura okundu</li>`;
                     checklist.innerHTML += `<li class="error"><svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg> Fatura okundu ancak aktarım durduruldu.</li>`;
