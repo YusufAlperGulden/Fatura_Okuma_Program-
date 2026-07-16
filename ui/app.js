@@ -201,6 +201,7 @@ document.addEventListener('DOMContentLoaded', () => {
             badge.textContent = 'HATALI';
             badge.className = 'badge error';
         }
+        document.getElementById('csv-btn').classList.remove('hidden');
         
         // Ensure data exists before accessing properties
         const data = result.data || {};
@@ -451,6 +452,39 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     document.getElementById('portal-btn').addEventListener('click', openUyumsoftPortal);
+
+    document.getElementById('csv-btn').addEventListener('click', () => {
+        if (!currentInvoiceData || !currentInvoiceData.items) return;
+        
+        const headers = ['Urun Kodu', 'Urun Aciklamasi', 'Miktar', 'Birim Fiyat', 'KDV Orani', 'KDV Tutari', 'Satir Toplami'];
+        const rows = [headers.join(',')];
+        
+        const tbody = document.querySelector('#items-table tbody');
+        for (const tr of tbody.rows) {
+            if (tr.cells.length === 1) continue; // Skip empty message
+            const rowData = [];
+            for (const cell of tr.cells) {
+                let text = cell.textContent.replace(/"/g, '""');
+                rowData.push(`"${text}"`);
+            }
+            rows.push(rowData.join(','));
+        }
+        
+        rows.push('');
+        rows.push(`"Ara Toplam",,"","","","","${document.getElementById('res-subtotal').textContent}"`);
+        rows.push(`"Genel Toplam",,"","","","","${document.getElementById('res-total').textContent}"`);
+        
+        const csvContent = "\uFEFF" + rows.join('\n');
+        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.setAttribute('href', url);
+        const fileName = currentInvoiceData.invoice_no ? `fatura_${currentInvoiceData.invoice_no}.csv` : 'fatura_sonuclari.csv';
+        link.setAttribute('download', fileName);
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+    });
 
     function showError(msg) {
         const errorBox = document.getElementById('error-box');
