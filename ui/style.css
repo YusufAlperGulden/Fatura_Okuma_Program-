@@ -454,7 +454,7 @@ tr:hover {
     display: grid;
     grid-template-columns: 1.2fr 1fr;
     gap: 1.5rem;
-    align-items: stretch;
+    align-items: start;
 }
 
 @media (max-width: 1024px) {
@@ -469,8 +469,6 @@ tr:hover {
     border-radius: 8px;
     display: flex;
     flex-direction: column;
-    height: 100%;
-    min-height: 400px; /* Sadece çok kısa sonuçlar için güvenlik payı */
     box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
 }
 
@@ -485,10 +483,11 @@ tr:hover {
 }
 
 .pdf-content {
-    flex: 1;
-    background-color: #fff; /* PDFs are usually white, so keep iframe bg white */
+    background-color: #fff;
     border-radius: 0 0 8px 8px;
     overflow: hidden;
+    aspect-ratio: 1 / 1.414; /* A4 Paper ratio */
+    width: 100%;
 }
 
 .icon-btn:hover {
