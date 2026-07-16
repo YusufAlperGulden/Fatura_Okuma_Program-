@@ -26,6 +26,11 @@
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z" />
                 </svg>
             </button>
+            <button id="history-btn" class="theme-btn" style="right: 60px;" title="Geçmiş İşlemler">
+                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" width="24" height="24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                </svg>
+            </button>
             <h1 class="gradient-text">Fatura İşleme Sistemi</h1>
             <p>Uyumsoft entegrasyonu için faturalarınızı (PDF/XML/Excel) yükleyin ve doğrulayın.</p>
         </header>
@@ -180,6 +185,36 @@
             </div>
         </main>
     </div>
-    <script src="app.js?v=1"></script>
+    <div id="history-modal" class="modal hidden">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Geçmiş İşlemler</h2>
+                <button id="close-history-btn" class="icon-btn">&times;</button>
+            </div>
+            <div class="modal-search">
+                <input type="text" id="history-search" placeholder="Müşteri Adı veya Fatura No Ara..." class="search-input">
+            </div>
+            <div class="table-responsive" style="max-height: 60vh; overflow-y: auto;">
+                <table class="items-table" id="history-table">
+                    <thead>
+                        <tr>
+                            <th>Tarih</th>
+                            <th>Fatura No</th>
+                            <th>Müşteri</th>
+                            <th>Tutar</th>
+                            <th>Durum</th>
+                            <th>İşlemler</th>
+                        </tr>
+                    </thead>
+                    <tbody id="history-list">
+                        <!-- Filled by JS -->
+                    </tbody>
+                </table>
+            </div>
+            <div id="history-loading" class="hidden" style="text-align: center; padding: 2rem;">Yükleniyor...</div>
+        </div>
+    </div>
+
+    <script src="app.js?v=6"></script>
 </body>
 </html>

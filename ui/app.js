@@ -539,4 +539,192 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         if (icon) icon.style.transition = 'transform 0.3s ease';
     });
+
+    // --- History Modal Logic ---
+    const historyBtn = document.getElementById('history-btn');
+    const historyModal = document.getElementById('history-modal');
+    const closeHistoryBtn = document.getElementById('close-history-btn');
+    const historySearch = document.getElementById('history-search');
+    const historyList = document.getElementById('history-list');
+    const historyLoading = document.getElementById('history-loading');
+    let historyData = [];
+
+    function showToastMessage(msg, type="error") {
+        Toastify({
+            text: msg,
+            duration: 3000,
+            close: true,
+            gravity: "top",
+            position: "right",
+            backgroundColor: type === "error" ? "#ef4444" : "#10b981",
+        }).showToast();
+    }
+
+    if (historyBtn) {
+        historyBtn.addEventListener('click', () => {
+            historyModal.classList.remove('hidden');
+            loadHistory();
+        });
+    }
+
+    if (closeHistoryBtn) {
+        closeHistoryBtn.addEventListener('click', () => {
+            historyModal.classList.add('hidden');
+        });
+    }
+
+    let searchTimeout;
+    if (historySearch) {
+        historySearch.addEventListener('input', (e) => {
+            clearTimeout(searchTimeout);
+            searchTimeout = setTimeout(() => {
+                loadHistory(e.target.value);
+            }, 500);
+        });
+    }
+
+    async function loadHistory(query = '') {
+        historyList.innerHTML = '';
+        historyLoading.classList.remove('hidden');
+        
+        try {
+            const url = query ? `/api/history?search=${encodeURIComponent(query)}` : '/api/history';
+            const res = await fetch(url);
+            const json = await res.json();
+            
+            historyLoading.classList.add('hidden');
+            
+            if (json.success) {
+                historyData = json.data;
+                renderHistoryTable();
+            } else {
+                showToastMessage("Geçmiş yüklenemedi: " + json.error, "error");
+            }
+        } catch (e) {
+            historyLoading.classList.add('hidden');
+            showToastMessage("Bağlantı hatası: " + e.message, "error");
+        }
+    }
+    
+    function renderHistoryTable() {
+        historyList.innerHTML = '';
+        if (historyData.length === 0) {
+            historyList.innerHTML = '<tr><td colspan="6" style="text-align:center;">Kayıt bulunamadı.</td></tr>';
+            return;
+        }
+        
+        historyData.forEach((item, index) => {
+            const tr = document.createElement('tr');
+            
+            // Format currency
+            const getSymbol = (currency) => {
+                if (currency === 'USD') return '$';
+                if (currency === 'EUR') return '€';
+                if (currency === 'GBP') return '£';
+                return '₺';
+            };
+            const sym = getSymbol(item.currency);
+            const formattedTotal = new Intl.NumberFormat('tr-TR', { minimumFractionDigits: 2 }).format(item.total_amount) + ' ' + sym;
+            
+            // Format Date
+            const dt = new Date(item.created_at);
+            const formattedDate = dt.toLocaleDateString('tr-TR') + ' ' + dt.toLocaleTimeString('tr-TR', {hour: '2-digit', minute:'2-digit'});
+            
+            const badgeClass = item.status === 'GEÇERLİ' ? 'valid' : 'error';
+            
+            tr.innerHTML = `
+                <td>${formattedDate}</td>
+                <td>${item.invoice_no || '-'}</td>
+                <td>${item.customer_name || '-'}</td>
+                <td>${formattedTotal}</td>
+                <td><span class="badge ${badgeClass}">${item.status}</span></td>
+                <td>
+                    <button class="action-btn-small btn-csv" data-idx="${index}">CSV</button>
+                    <button class="action-btn-small btn-uyumsoft" data-idx="${index}">Uyumsoft</button>
+                </td>
+            `;
+            historyList.appendChild(tr);
+        });
+        
+        // Bind buttons
+        document.querySelectorAll('.btn-csv').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                const idx = e.target.getAttribute('data-idx');
+                downloadHistoryCSV(historyData[idx]);
+            });
+        });
+        
+        document.querySelectorAll('.btn-uyumsoft').forEach(btn => {
+            btn.addEventListener('click', async (e) => {
+                const idx = e.target.getAttribute('data-idx');
+                const btnEl = e.target;
+                const originalText = btnEl.textContent;
+                btnEl.textContent = 'Gönderiliyor...';
+                btnEl.disabled = true;
+                
+                try {
+                    const res = await fetch('/send-uyumsoft', {
+                        method: 'POST',
+                        headers: {'Content-Type': 'application/json'},
+                        body: JSON.stringify({
+                            invoice_data: historyData[idx].raw_json,
+                            action: 'save'
+                        })
+                    });
+                    const json = await res.json();
+                    if(json.success || json.response_code === 200) {
+                        showToastMessage("Fatura Uyumsoft'a başarıyla aktarıldı!", "success");
+                    } else {
+                        showToastMessage("Aktarım hatası: " + (json.message || "Bilinmeyen hata"), "error");
+                    }
+                } catch(err) {
+                    showToastMessage("Bağlantı hatası: " + err.message, "error");
+                } finally {
+                    btnEl.textContent = originalText;
+                    btnEl.disabled = false;
+                }
+            });
+        });
+    }
+
+    function downloadHistoryCSV(item) {
+        const data = item.raw_json || {};
+        if (!data.items || data.items.length === 0) {
+            showToastMessage("İndirilecek fatura kalemi bulunamadı.", "error");
+            return;
+        }
+        
+        const headers = ["Ürün Kodu", "Ürün Açıklaması", "Miktar", "Birim Fiyat", "KDV Oranı", "KDV Tutarı", "Satır Toplamı"];
+        const rows = [headers.join(",")];
+        
+        data.items.forEach(row => {
+            const clean = (val) => {
+                if (val === null || val === undefined) return "";
+                let str = String(val).replace(/"/g, '""');
+                if (str.includes(',') || str.includes('\n')) str = `"${str}"`;
+                return str;
+            };
+            
+            const r = [
+                clean(row.item_code),
+                clean(row.item_name),
+                clean(row.quantity),
+                clean(row.unit_price),
+                clean(row.tax_rate),
+                clean(row.tax_amount),
+                clean(row.total_amount)
+            ];
+            rows.push(r.join(","));
+        });
+        
+        const csvContent = "\uFEFF" + rows.join("\n");
+        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        link.setAttribute("href", url);
+        link.setAttribute("download", `Fatura_${data.invoice_no || 'Gecmis'}.csv`);
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+    }
 });

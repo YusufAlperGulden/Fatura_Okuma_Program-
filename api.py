@@ -13,6 +13,10 @@ from extractors.pdf_extractor import parse_pdf_invoice
 from extractors.xml_extractor import parse_xml_invoice
 from validators.invoice_validator import validate_invoice
 from integrators.uyumsoft_api import enrich_invoice_customer_from_uyumsoft, send_invoice_to_uyumsoft
+from database import init_db, save_invoice, get_invoices
+
+# Initialize the SQLite database
+init_db()
 
 app = FastAPI(title="Invoice Pipeline API")
 
@@ -208,6 +212,13 @@ async def upload_invoice(file: UploadFile = File(...)):
             os.remove(file_path)
         except:
             pass
+
+        # Save to database
+        if data:
+            try:
+                save_invoice(data, is_valid)
+            except Exception as e:
+                print(f"Failed to save invoice to DB: {e}")
             
         return ProcessResponse(
             filename=file.filename,
@@ -247,3 +258,11 @@ async def send_uyumsoft_api(request: SendUyumsoftRequest):
     request.invoice_data = enrich_invoice_customer_from_uyumsoft(request.invoice_data)
     result = send_invoice_to_uyumsoft(request.invoice_data, action=request.action)
     return result
+
+@app.get("/api/history")
+def api_history(search: str = None):
+    try:
+        invoices = get_invoices(search)
+        return {"success": True, "data": invoices}
+    except Exception as e:
+        return {"success": False, "error": str(e)}
