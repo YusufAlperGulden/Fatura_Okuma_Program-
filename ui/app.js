@@ -267,7 +267,8 @@ let currentUploadId = null;
             
             if (response.ok) {
                 currentInvoiceData = result.data;
-                showResults(result);
+                renderInvoice(result);
+                updateValidationUI(result);
                 
                 // Automated UI Checklist Flow
                 document.getElementById('send-draft-btn').classList.add('hidden');
@@ -318,7 +319,112 @@ let currentUploadId = null;
         }
     }
 
-    function showResults(result) {
+
+    function appendInputCell(row, value, fieldName, itemIndex, className = '') {
+        const cell = document.createElement('td');
+        if (className) cell.className = className;
+        const input = document.createElement('input');
+        input.type = 'text';
+        input.value = value == null ? '' : value;
+        input.className = 'edit-input';
+        input.style.width = '100%';
+        input.style.boxSizing = 'border-box';
+        input.style.padding = '4px';
+        input.style.border = '1px solid var(--border-color)';
+        input.style.borderRadius = '4px';
+        input.style.background = 'var(--card-bg)';
+        input.style.color = 'var(--text-primary)';
+        
+        input.addEventListener('input', (e) => {
+            handleEdit(itemIndex, fieldName, e.target.value);
+        });
+
+        cell.appendChild(input);
+        row.appendChild(cell);
+        return cell;
+    }
+
+    let validationTimeout = null;
+    let validationAbortController = null;
+
+    function handleEdit(itemIndex, fieldName, newValue) {
+        if (!currentInvoiceData || !currentInvoiceData.items) return;
+        
+        if (itemIndex === -1) {
+            currentInvoiceData[fieldName] = newValue;
+        } else {
+            currentInvoiceData.items[itemIndex][fieldName] = newValue;
+        }
+        
+        document.getElementById('send-draft-btn').disabled = true;
+        const badge = document.getElementById('validation-badge');
+        badge.textContent = 'Doğrulanıyor...';
+        badge.className = 'badge';
+
+        clearTimeout(validationTimeout);
+        validationTimeout = setTimeout(() => {
+            validateCurrentData();
+        }, 500);
+    }
+
+    async function validateCurrentData() {
+        if (!currentInvoiceData) return;
+        
+        if (validationAbortController) {
+            validationAbortController.abort();
+        }
+        validationAbortController = new AbortController();
+        
+        try {
+            const response = await fetch('/validate', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(currentInvoiceData),
+                signal: validationAbortController.signal
+            });
+            const result = await readJsonResponse(response);
+            if (response.ok) {
+                updateValidationUI(result);
+            }
+        } catch (err) {
+            if (err.name !== 'AbortError') {
+                console.error("Validasyon hatası:", err);
+            }
+        }
+    }
+
+    function renderInvoice(result) {
+        const data = result.data || {};
+        const tbody = document.querySelector('#items-table tbody');
+        tbody.innerHTML = '';
+        
+        const items = data.items || [];
+        if (items.length === 0) {
+            const tr = document.createElement('tr');
+            const td = document.createElement('td');
+            td.colSpan = 8;
+            td.className = 'empty-items-cell';
+            td.textContent = 'Herhangi bir kalem bulunamadı.';
+            tr.appendChild(td);
+            tbody.appendChild(tr);
+        } else {
+            items.forEach((item, index) => {
+                const tr = document.createElement('tr');
+                appendInputCell(tr, item.code, 'code', index);
+                appendInputCell(tr, item.description, 'description', index, 'item-description-cell');
+                appendSerialNumbersCell(tr, item.serial_numbers); // Serial numbers are currently complex to input inline, keep as cell
+                appendInputCell(tr, item.quantity, 'quantity', index);
+                appendInputCell(tr, item.unit_price, 'unit_price', index);
+                appendInputCell(tr, item.tax_rate, 'tax_rate', index);
+                appendTextCell(tr, item.tax_amount || '-'); // Tax amount is computed
+                appendInputCell(tr, item.total_price, 'total_price', index);
+                tbody.appendChild(tr);
+            });
+        }
+    }
+
+    function updateValidationUI(result) {
+
         resultsSection.classList.remove('hidden');
         document.getElementById('split-container').classList.remove('hidden');
 
@@ -328,9 +434,11 @@ let currentUploadId = null;
             badge.textContent = 'GEÇERLİ';
             badge.className = 'badge valid';
             document.getElementById('portal-btn').classList.remove('hidden');
+            document.getElementById('send-draft-btn').disabled = false;
         } else {
             badge.textContent = 'HATALI';
             badge.className = 'badge error';
+            document.getElementById('send-draft-btn').disabled = true;
         }
         document.getElementById('csv-btn').classList.remove('hidden');
 
@@ -428,40 +536,7 @@ let currentUploadId = null;
             notesCard.classList.add('hidden');
         }
         
-        // Render items
-        const tbody = document.querySelector('#items-table tbody');
-        tbody.innerHTML = '';
-        
-        const items = data.items || [];
-        if (items.length === 0) {
-            const tr = document.createElement('tr');
-            const td = document.createElement('td');
-            td.colSpan = 8;
-            td.className = 'empty-items-cell';
-            td.textContent = 'Herhangi bir kalem bulunamadı.';
-            tr.appendChild(td);
-            tbody.appendChild(tr);
-        } else {
-            items.forEach(item => {
-                const tr = document.createElement('tr');
-                const hasItemRate = item.tax_rate !== undefined && item.tax_rate !== null && String(item.tax_rate).trim() !== '';
-                const rate = hasItemRate ? parseMoney(item.tax_rate) : Math.round(globalRate);
-                const formattedRate = `%${rate}`;
-                let lineTotal = item.total_price ? parseMoney(item.total_price) : (item.unit_price && item.quantity ? parseMoney(item.unit_price) * parseMoney(item.quantity) : 0);
-                let lineTax = (lineTotal * parseFloat(rate) / 100);
-                let formattedTax = lineTax > 0 ? `${sym}${lineTax.toLocaleString('tr-TR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}` : '-';
 
-                appendTextCell(tr, item.code);
-                appendTextCell(tr, item.description, 'item-description-cell');
-                appendSerialNumbersCell(tr, item.serial_numbers);
-                appendTextCell(tr, item.quantity);
-                appendTextCell(tr, item.unit_price ? `${sym}${item.unit_price}` : null);
-                appendTextCell(tr, formattedRate);
-                appendTextCell(tr, formattedTax);
-                appendTextCell(tr, item.total_price ? `${sym}${item.total_price}` : null);
-                tbody.appendChild(tr);
-            });
-        }
     }
     
     // Uyumsoft send logic: used automatically after validation.
@@ -550,9 +625,11 @@ let currentUploadId = null;
         const tbody = document.querySelector('#items-table tbody');
         for (const tr of tbody.rows) {
             if (tr.cells.length === 1) continue; // Skip empty message
-            const rowData = Array.from(tr.cells, cell =>
-                csvCell(cell.dataset.csvValue !== undefined ? cell.dataset.csvValue : cell.textContent)
-            );
+            const rowData = Array.from(tr.cells, cell => {
+                const input = cell.querySelector('input');
+                const val = input ? input.value : (cell.dataset.csvValue !== undefined ? cell.dataset.csvValue : cell.textContent);
+                return csvCell(val);
+            });
             rows.push(rowData.join(','));
         }
         

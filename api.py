@@ -233,6 +233,20 @@ async def upload_invoice(file: UploadFile = File(...)):
             },
         )
 
+@app.post("/validate")
+async def api_validate(invoice_data: dict):
+    from validators.invoice_validator import validate_invoice
+    import copy
+    
+    data_copy = copy.deepcopy(invoice_data)
+    is_valid, errors = validate_invoice(data_copy)
+    
+    return {
+        "is_valid": is_valid,
+        "errors": errors,
+        "data": data_copy
+    }
+
 @app.post("/send-uyumsoft")
 async def send_uyumsoft_api(request: SendUyumsoftRequest):
     """

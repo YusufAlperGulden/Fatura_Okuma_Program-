@@ -25,13 +25,24 @@
 - Keep all application endpoints anonymously accessible.
 - Do not add authentication, authorization, CAPTCHA, IP restrictions, or rate limiting.
 
-## Phase 2 — Edit before draft creation
+## Phase 2: "Edit Before Send" Implementation (Simple)
 
-- Separate `originalInvoice` from the user-edited `draftInvoice`.
-- Make invoice summary fields and item rows editable.
-- Revalidate edits through `/validate` with a short debounce.
-- Update the valid/invalid badge after every validation response.
-- Keep the public “Taslak Olarak Gönder” action with an explicit confirmation dialog.
+We will implement the "Edit Before Send" feature using a standard, straightforward approach. We will drop the overly strict architectural rules (like complex Pydantic models and AbortControllers) but will still fix the critical bugs that caused the previous crash.
+
+### 1. Fix UI Crash & DOM Focus
+- Implement the missing `appendInputCell()` function so the table renders correctly.
+- Split `showResults()` into two parts: one to build the inputs initially, and one to update the validation badges/totals. This prevents the inputs from being rebuilt while the user is typing, solving the "cursor focus loss" bug.
+
+### 2. State & Send Button
+- Bind the input fields to update `currentInvoiceData` immediately when typed.
+- Wait 500ms after typing to call the `/api/validate` endpoint in the background.
+- Keep the "Send" button disabled while the validation is loading to prevent sending stale data.
+
+### 3. CSV Export
+- Fix the CSV exporter so it reads the `.value` from the active input fields, rather than reading empty text content.
+
+### 4. Simple Backend Validation
+- Keep the backend validation simple as it currently is. We will not force strict nested Pydantic models, but we will ensure the `/api/validate` endpoint safely handles edits without returning 500 errors.
 
 ## Phase 3 — Data rendering and export correctness
 
