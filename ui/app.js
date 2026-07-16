@@ -207,10 +207,11 @@ let currentUploadId = null;
         currentUploadId = crypto.randomUUID();
         const capturedUploadId = currentUploadId;
         currentInvoiceData = null;
-        document.getElementById('csv-btn').classList.add('hidden');
+                document.getElementById('csv-btn').classList.add('hidden');
         document.getElementById('workflow-progress').classList.add('hidden');
-        document.getElementById('status-badge').className = 'badge';
-        document.getElementById('status-badge').textContent = 'Bekliyor';
+        document.getElementById('validation-badge').className = 'badge';
+        document.getElementById('validation-badge').textContent = 'Bekliyor';
+        document.getElementById('discount-card').classList.add('hidden');
         resultsSection.classList.add('hidden');
         document.getElementById('split-container').classList.add('hidden');
         document.getElementById('error-box').classList.add('hidden');
@@ -247,7 +248,7 @@ let currentUploadId = null;
         
         document.getElementById('cancel-btn').onclick = () => {
             if (currentAbortController) {
-                currentAbortController.abort('user_cancelled');
+                currentAbortController.abort();
             }
         };
         
@@ -305,7 +306,7 @@ let currentUploadId = null;
             loading.classList.add('hidden');
             dropZone.classList.remove('hidden');
             
-            if (error.name === 'AbortError') {
+            if (error.name === 'AbortError' || (currentAbortController && currentAbortController.signal.aborted)) {
                 showError("İşlem sizin tarafınızdan iptal edildi.");
             } else {
                 showError("Bağlantı hatası: " + error.message);
@@ -600,13 +601,13 @@ let currentUploadId = null;
     });
 
     // --- History Modal Logic ---
-    const historyBtn = document.getElementById('history-btn');
-    const historyModal = document.getElementById('history-modal');
-    const closeHistoryBtn = document.getElementById('close-history-btn');
-    const historySearch = document.getElementById('history-search');
-    const historyList = document.getElementById('history-list');
-    const historyLoading = document.getElementById('history-loading');
-    let historyData = [];
+    
+    
+    
+    
+    
+    
+    
 
     function showToastMessage(msg, type="error") {
         Toastify({
