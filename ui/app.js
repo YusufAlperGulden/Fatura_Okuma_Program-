@@ -312,7 +312,7 @@ let currentUploadId = null;
                         checklist.innerHTML += `<li class="success"><svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg> Müşteri adı Uyumsoft mükellef listesinden eşleştirildi</li>`;
                     }
                     
-                    checklist.innerHTML += `<li class="pending">Fatura geçerli. Lütfen Taslak Olarak Gönder butonunu kullanın.</li>`;
+                    checklist.innerHTML += `<li class="pending">Fatura geçerli. Uyumsoft'a göndermek için "Taslak Olarak Gönder" butonunu kullanın.</li>`;
                     document.getElementById('send-draft-btn').classList.remove('hidden');
                 } else {
                     checklist.innerHTML += `<li class="success"><svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg> Fatura okundu</li>`;
