@@ -10,10 +10,9 @@ import shutil
 import uuid
 
 # Check essential env vars
-ADMIN_USERNAME = os.getenv("ADMIN_USERNAME", "admin")
-ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "secret")
-if not ADMIN_USERNAME:
-    print("WARNING: ADMIN_USERNAME not set. Defaulting to admin:secret.")
+if not os.getenv("ADMIN_USERNAME") or not os.getenv("ADMIN_PASSWORD"):
+    print("FATAL: ADMIN_USERNAME and ADMIN_PASSWORD environment variables are required.")
+    sys.exit(1)
 
 # Import our pipeline modules
 from extractors.excel_extractor import parse_excel_invoice
@@ -37,8 +36,8 @@ async def basic_auth_middleware(request: Request, call_next):
     try:
         decoded = base64.b64decode(auth_header[6:]).decode("utf-8")
         username, password = decoded.split(":", 1)
-        correct_username = secrets.compare_digest(username, ADMIN_USERNAME)
-        correct_password = secrets.compare_digest(password, ADMIN_PASSWORD)
+        correct_username = secrets.compare_digest(username, os.getenv("ADMIN_USERNAME"))
+        correct_password = secrets.compare_digest(password, os.getenv("ADMIN_PASSWORD"))
         if not (correct_username and correct_password):
             raise Exception()
     except Exception:

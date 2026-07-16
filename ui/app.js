@@ -186,7 +186,7 @@ let currentUploadId = null;
         }
         document.getElementById('pdf-iframe').src = '';
         
-        if (file.type === 'application/pdf' || file.type.startsWith('image/')) {
+        if (file.type === 'application/pdf' || ['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) {
             pdfObjectUrl = URL.createObjectURL(file);
             document.getElementById('pdf-iframe').src = pdfObjectUrl;
             document.getElementById('pdf-viewer-section').classList.remove('hidden');
@@ -201,9 +201,12 @@ let currentUploadId = null;
         }
 
         dropZone.classList.add('hidden');
-                loading.classList.remove('hidden');
+        loading.classList.remove('hidden');
         document.getElementById('send-draft-btn').classList.add('hidden');
         document.getElementById('send-draft-btn').disabled = false;
+        currentUploadId = crypto.randomUUID();
+        currentInvoiceData = null;
+        document.getElementById('csv-btn').classList.add('hidden');
         resultsSection.classList.add('hidden');
         document.getElementById('split-container').classList.add('hidden');
         document.getElementById('error-box').classList.add('hidden');
@@ -521,6 +524,7 @@ let currentUploadId = null;
                 sendBtn.disabled = false;
             }
         } catch (error) {
+            if (currentUploadId !== capturedUploadId) return;
             statusBox.style.backgroundColor = '#dc2626';
             statusBox.innerHTML = `❌ Bağlantı Hatası: ${error.message}`;
             sendBtn.disabled = false;
