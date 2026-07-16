@@ -26,7 +26,7 @@
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z" />
                 </svg>
             </button>
-            <button id="history-btn" class="theme-btn" style="right: 60px;" title="Geçmiş İşlemler">
+            <button id="history-btn" class="theme-btn" style="right: 60px; display: none;" title="Geçmiş İşlemler">
                 <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" width="24" height="24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
                 </svg>
@@ -163,6 +163,10 @@
                 <!-- Action Buttons -->
                 <div class="actions-panel">
                     <div style="display: flex; flex-wrap: wrap; gap: 1rem; width: 100%; justify-content: center;">
+                        <button id="send-draft-btn" class="primary-btn hidden" style="background-color: #f59e0b;" onclick="runUyumsoftAction()">
+                            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" style="width: 20px; height: 20px;"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"></path></svg>
+                            Taslak Olarak Gönder
+                        </button>
                         <button id="portal-btn" class="primary-btn hidden" style="background-color: #10b981;">
                             <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" style="width: 20px; height: 20px;"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.5 6H18m0 0v4.5M18 6l-7.5 7.5M6 8.25v9.75h9.75"></path></svg>
                             Uyumsoft'a Git

@@ -1,12 +1,18 @@
 import os
+import sys
 import secrets
-from fastapi import FastAPI, UploadFile, File, Depends, HTTPException, status
+import base64
+from fastapi import FastAPI, UploadFile, File, Request, Response
 from fastapi.responses import RedirectResponse
 from fastapi.staticfiles import StaticFiles
-from fastapi.security import HTTPBasic, HTTPBasicCredentials
 from pydantic import BaseModel
 import shutil
 import uuid
+
+# Check essential env vars
+if not os.getenv("ADMIN_USERNAME") or not os.getenv("ADMIN_PASSWORD"):
+    print("FATAL: ADMIN_USERNAME and ADMIN_PASSWORD environment variables are required.")
+    sys.exit(1)
 
 # Import our pipeline modules
 from extractors.excel_extractor import parse_excel_invoice
@@ -14,26 +20,30 @@ from extractors.pdf_extractor import parse_pdf_invoice
 from extractors.xml_extractor import parse_xml_invoice
 from validators.invoice_validator import validate_invoice
 from integrators.uyumsoft_api import enrich_invoice_customer_from_uyumsoft, send_invoice_to_uyumsoft
-from database import init_db, save_invoice, get_invoices
 from utils.serial_numbers import merge_invoice_serial_numbers
 
-# Initialize the SQLite database
-init_db()
+app = FastAPI(title="Invoice Pipeline API")
 
-security = HTTPBasic()
-
-def verify_credentials(credentials: HTTPBasicCredentials = Depends(security)):
-    correct_username = secrets.compare_digest(credentials.username, os.getenv("ADMIN_USERNAME", "admin"))
-    correct_password = secrets.compare_digest(credentials.password, os.getenv("ADMIN_PASSWORD", "secret"))
-    if not (correct_username and correct_password):
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Incorrect username or password",
-            headers={"WWW-Authenticate": "Basic"},
-        )
-    return credentials.username
-
-app = FastAPI(title="Invoice Pipeline API", dependencies=[Depends(verify_credentials)])
+@app.middleware("http")
+async def basic_auth_middleware(request: Request, call_next):
+    if request.url.path == "/health":
+        return await call_next(request)
+        
+    auth_header = request.headers.get("Authorization")
+    if not auth_header or not auth_header.startswith("Basic "):
+        return Response(status_code=401, headers={"WWW-Authenticate": "Basic"})
+    
+    try:
+        decoded = base64.b64decode(auth_header[6:]).decode("utf-8")
+        username, password = decoded.split(":", 1)
+        correct_username = secrets.compare_digest(username, os.getenv("ADMIN_USERNAME"))
+        correct_password = secrets.compare_digest(password, os.getenv("ADMIN_PASSWORD"))
+        if not (correct_username and correct_password):
+            raise Exception()
+    except Exception:
+        return Response(status_code=401, headers={"WWW-Authenticate": "Basic"})
+        
+    return await call_next(request)
 
 # Serve the static UI files
 app.mount("/ui", StaticFiles(directory="ui", html=True), name="ui")
@@ -41,6 +51,10 @@ app.mount("/ui", StaticFiles(directory="ui", html=True), name="ui")
 @app.get("/")
 def read_root():
     return RedirectResponse(url="/ui/")
+
+@app.get("/health")
+def health_check():
+    return {"status": "ok"}
 
 UPLOAD_DIR = "uploads"
 os.makedirs(UPLOAD_DIR, exist_ok=True)
@@ -224,12 +238,7 @@ async def upload_invoice(file: UploadFile = File(...)):
         except:
             pass
 
-        # Save to database
-        if data:
-            try:
-                save_invoice(data, is_valid)
-            except Exception as e:
-                print(f"Failed to save invoice to DB: {e}")
+        # Database save removed
             
         return ProcessResponse(
             filename=file.filename,
