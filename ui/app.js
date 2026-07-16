@@ -600,23 +600,5 @@ let currentUploadId = null;
         if (icon) icon.style.transition = 'transform 0.3s ease';
     });
 
-    // --- History Modal Logic ---
-    
-    
-    
-    
-    
-    
-    
-
-    function showToastMessage(msg, type="error") {
-        Toastify({
-            text: msg,
-            duration: 3000,
-            close: true,
-            gravity: "top",
-            position: "right",
-            backgroundColor: type === "error" ? "#ef4444" : "#10b981",
-        }).showToast();
-    }
+    // UI event listeners initialized.
 });
