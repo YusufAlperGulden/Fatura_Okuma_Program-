@@ -400,6 +400,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 tr.innerHTML = `
                     <td>${item.code || '-'}</td>
                     <td>${item.description || '-'}</td>
+                    <td>${item.serial_numbers ? item.serial_numbers.join(', ') : '-'}</td>
                     <td>${item.quantity || '-'}</td>
                     <td>${item.unit_price ? `${sym}${item.unit_price}` : '-'}</td>
                     <td>${formattedRate}</td>
@@ -482,7 +483,7 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('csv-btn').addEventListener('click', () => {
         if (!currentInvoiceData || !currentInvoiceData.items) return;
         
-        const headers = ['Urun Kodu', 'Urun Aciklamasi', 'Miktar', 'Birim Fiyat', 'KDV Orani', 'KDV Tutari', 'Satir Toplami'];
+        const headers = ['Urun Kodu', 'Urun Aciklamasi', 'Seri Numaralari', 'Miktar', 'Birim Fiyat', 'KDV Orani', 'KDV Tutari', 'Satir Toplami'];
         const rows = [headers.join(',')];
         
         const tbody = document.querySelector('#items-table tbody');
@@ -497,8 +498,8 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         
         rows.push('');
-        rows.push(`"Ara Toplam",,"","","","","${document.getElementById('res-subtotal').textContent}"`);
-        rows.push(`"Genel Toplam",,"","","","","${document.getElementById('res-total').textContent}"`);
+        rows.push(`"Ara Toplam",,"","","","","","${document.getElementById('res-subtotal').textContent}"`);
+        rows.push(`"Genel Toplam",,"","","","","","${document.getElementById('res-total').textContent}"`);
         
         const csvContent = "\uFEFF" + rows.join('\n');
         const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
@@ -694,25 +695,27 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
         
-        const headers = ["Ürün Kodu", "Ürün Açıklaması", "Miktar", "Birim Fiyat", "KDV Oranı", "KDV Tutarı", "Satır Toplamı"];
+        const headers = ["Ürün Kodu", "Ürün Açıklaması", "Seri Numaraları", "Miktar", "Birim Fiyat", "KDV Oranı", "KDV Tutarı", "Satır Toplamı"];
         const rows = [headers.join(",")];
         
         data.items.forEach(row => {
             const clean = (val) => {
                 if (val === null || val === undefined) return "";
+                if (Array.isArray(val)) val = val.join(" | ");
                 let str = String(val).replace(/"/g, '""');
                 if (str.includes(',') || str.includes('\n')) str = `"${str}"`;
                 return str;
             };
             
             const r = [
-                clean(row.item_code),
-                clean(row.item_name),
+                clean(row.item_code || row.code),
+                clean(row.item_name || row.description),
+                clean(row.serial_numbers),
                 clean(row.quantity),
                 clean(row.unit_price),
                 clean(row.tax_rate),
                 clean(row.tax_amount),
-                clean(row.total_amount)
+                clean(row.total_amount || row.total_price)
             ];
             rows.push(r.join(","));
         });

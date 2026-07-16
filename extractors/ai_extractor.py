@@ -165,7 +165,8 @@ Beklenen JSON alani:
   "items": [
     {
       "code": "urun/stok kodu veya bos string",
-      "description": "urun veya hizmet adi",
+      "description": "urun veya hizmet adi (seri numaralari haric)",
+      "serial_numbers": ["varsa urun altinda parantez icinde tilda (~) veya virgul ile ayrilmis seri numaralarini tek tek diziye ekle, yoksa bos dizi []"],
       "quantity": 0.0,
       "unit_price": 0.0,
       "total_price": 0.0,
