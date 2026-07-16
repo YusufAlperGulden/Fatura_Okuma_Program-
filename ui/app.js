@@ -201,12 +201,16 @@ let currentUploadId = null;
         }
 
         dropZone.classList.add('hidden');
-        loading.classList.remove('hidden');
+                loading.classList.remove('hidden');
         document.getElementById('send-draft-btn').classList.add('hidden');
         document.getElementById('send-draft-btn').disabled = false;
         currentUploadId = crypto.randomUUID();
+        const capturedUploadId = currentUploadId;
         currentInvoiceData = null;
         document.getElementById('csv-btn').classList.add('hidden');
+        document.getElementById('workflow-progress').classList.add('hidden');
+        document.getElementById('status-badge').className = 'badge';
+        document.getElementById('status-badge').textContent = 'Bekliyor';
         resultsSection.classList.add('hidden');
         document.getElementById('split-container').classList.add('hidden');
         document.getElementById('error-box').classList.add('hidden');
@@ -255,8 +259,8 @@ let currentUploadId = null;
                 signal: signal
             });
             
-            const result = await readJsonResponse(response);
-            
+                        const result = await readJsonResponse(response);
+            if (currentUploadId !== capturedUploadId) return;
             loading.classList.add('hidden');
             dropZone.classList.remove('hidden');
             
@@ -296,7 +300,8 @@ let currentUploadId = null;
                 showError("Sunucu Hatası: " + (result.detail || "Bilinmeyen hata"));
             }
             
-        } catch (error) {
+                } catch (error) {
+            if (currentUploadId !== capturedUploadId) return;
             loading.classList.add('hidden');
             dropZone.classList.remove('hidden');
             
@@ -305,8 +310,10 @@ let currentUploadId = null;
             } else {
                 showError("Bağlantı hatası: " + error.message);
             }
-        } finally {
-            currentAbortController = null;
+                } finally {
+            if (currentUploadId === capturedUploadId) {
+                currentAbortController = null;
+            }
         }
     }
     
