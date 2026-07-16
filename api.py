@@ -1,18 +1,11 @@
 import os
 import sys
-import secrets
-import base64
-from fastapi import FastAPI, UploadFile, File, Request, Response
+import shutil
+import uuid
+from fastapi import FastAPI, UploadFile, File
 from fastapi.responses import RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
-import shutil
-import uuid
-
-# Check essential env vars
-if not os.getenv("ADMIN_USERNAME") or not os.getenv("ADMIN_PASSWORD"):
-    print("FATAL: ADMIN_USERNAME and ADMIN_PASSWORD environment variables are required.")
-    sys.exit(1)
 
 # Import our pipeline modules
 from extractors.excel_extractor import parse_excel_invoice
@@ -23,27 +16,6 @@ from integrators.uyumsoft_api import enrich_invoice_customer_from_uyumsoft, send
 from utils.serial_numbers import merge_invoice_serial_numbers
 
 app = FastAPI(title="Invoice Pipeline API")
-
-@app.middleware("http")
-async def basic_auth_middleware(request: Request, call_next):
-    if request.url.path == "/health":
-        return await call_next(request)
-        
-    auth_header = request.headers.get("Authorization")
-    if not auth_header or not auth_header.startswith("Basic "):
-        return Response(status_code=401, headers={"WWW-Authenticate": "Basic"})
-    
-    try:
-        decoded = base64.b64decode(auth_header[6:]).decode("utf-8")
-        username, password = decoded.split(":", 1)
-        correct_username = secrets.compare_digest(username, os.getenv("ADMIN_USERNAME"))
-        correct_password = secrets.compare_digest(password, os.getenv("ADMIN_PASSWORD"))
-        if not (correct_username and correct_password):
-            raise Exception()
-    except Exception:
-        return Response(status_code=401, headers={"WWW-Authenticate": "Basic"})
-        
-    return await call_next(request)
 
 # Serve the static UI files
 app.mount("/ui", StaticFiles(directory="ui", html=True), name="ui")
