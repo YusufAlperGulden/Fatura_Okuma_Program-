@@ -64,6 +64,65 @@ document.addEventListener('DOMContentLoaded', () => {
         return div.innerHTML;
     }
 
+    function normalizeSerialNumbers(value) {
+        const serials = Array.isArray(value)
+            ? value
+            : (typeof value === 'string' ? value.split(/[~,;\r\n]+/) : []);
+
+        return serials
+            .map(serial => String(serial).trim())
+            .filter(Boolean);
+    }
+
+    function csvCell(value) {
+        let text = value == null ? '' : String(value);
+
+        // Prevent spreadsheet applications from evaluating invoice text as a formula.
+        if (/^[\u0000-\u0020\u007F\u00A0]*[=+\-@]/.test(text)) {
+            text = `'${text}`;
+        }
+
+        return `"${text.replace(/"/g, '""')}"`;
+    }
+
+    function textOrDash(value) {
+        if (value === null || value === undefined || String(value).trim() === '') return '-';
+        return String(value);
+    }
+
+    function appendTextCell(row, value, className = '') {
+        const cell = document.createElement('td');
+        if (className) cell.className = className;
+        cell.textContent = textOrDash(value);
+        row.appendChild(cell);
+        return cell;
+    }
+
+    function appendSerialNumbersCell(row, value) {
+        const cell = document.createElement('td');
+        cell.className = 'serial-numbers-cell';
+        const serials = normalizeSerialNumbers(value);
+        cell.dataset.csvValue = serials.join('~');
+
+        if (serials.length === 0) {
+            cell.textContent = '-';
+        } else {
+            const list = document.createElement('div');
+            list.className = 'serial-number-list';
+
+            serials.forEach(serial => {
+                const chip = document.createElement('span');
+                chip.className = 'serial-number-chip';
+                chip.textContent = serial;
+                list.appendChild(chip);
+            });
+
+            cell.appendChild(list);
+        }
+
+        row.appendChild(cell);
+    }
+
     function formatDetails(details) {
         if (!details) return '';
         if (Array.isArray(details)) return details.join(', ');
@@ -358,7 +417,11 @@ document.addEventListener('DOMContentLoaded', () => {
         const items = data.items || [];
         if (items.length === 0) {
             const tr = document.createElement('tr');
-            tr.innerHTML = `<td colspan="5" style="text-align:center; color: var(--text-secondary)">Herhangi bir kalem bulunamadı.</td>`;
+            const td = document.createElement('td');
+            td.colSpan = 8;
+            td.className = 'empty-items-cell';
+            td.textContent = 'Herhangi bir kalem bulunamadı.';
+            tr.appendChild(td);
             tbody.appendChild(tr);
         } else {
             items.forEach(item => {
@@ -397,16 +460,14 @@ document.addEventListener('DOMContentLoaded', () => {
                 let lineTax = (lineTotal * parseFloat(rate) / 100);
                 let formattedTax = lineTax > 0 ? `${sym}${lineTax.toLocaleString('tr-TR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}` : '-';
 
-                tr.innerHTML = `
-                    <td>${item.code || '-'}</td>
-                    <td>${item.description || '-'}</td>
-                    <td>${item.serial_numbers ? item.serial_numbers.join(', ') : '-'}</td>
-                    <td>${item.quantity || '-'}</td>
-                    <td>${item.unit_price ? `${sym}${item.unit_price}` : '-'}</td>
-                    <td>${formattedRate}</td>
-                    <td>${formattedTax}</td>
-                    <td>${item.total_price ? `${sym}${item.total_price}` : '-'}</td>
-                `;
+                appendTextCell(tr, item.code);
+                appendTextCell(tr, item.description, 'item-description-cell');
+                appendSerialNumbersCell(tr, item.serial_numbers);
+                appendTextCell(tr, item.quantity);
+                appendTextCell(tr, item.unit_price ? `${sym}${item.unit_price}` : null);
+                appendTextCell(tr, formattedRate);
+                appendTextCell(tr, formattedTax);
+                appendTextCell(tr, item.total_price ? `${sym}${item.total_price}` : null);
                 tbody.appendChild(tr);
             });
         }
@@ -484,24 +545,22 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!currentInvoiceData || !currentInvoiceData.items) return;
         
         const headers = ['Urun Kodu', 'Urun Aciklamasi', 'Seri Numaralari', 'Miktar', 'Birim Fiyat', 'KDV Orani', 'KDV Tutari', 'Satir Toplami'];
-        const rows = [headers.join(',')];
+        const rows = [headers.map(csvCell).join(',')];
         
         const tbody = document.querySelector('#items-table tbody');
         for (const tr of tbody.rows) {
             if (tr.cells.length === 1) continue; // Skip empty message
-            const rowData = [];
-            for (const cell of tr.cells) {
-                let text = cell.textContent.replace(/"/g, '""');
-                rowData.push(`"${text}"`);
-            }
+            const rowData = Array.from(tr.cells, cell =>
+                csvCell(cell.dataset.csvValue !== undefined ? cell.dataset.csvValue : cell.textContent)
+            );
             rows.push(rowData.join(','));
         }
         
         rows.push('');
-        rows.push(`"Ara Toplam",,"","","","","","${document.getElementById('res-subtotal').textContent}"`);
-        rows.push(`"Genel Toplam",,"","","","","","${document.getElementById('res-total').textContent}"`);
+        rows.push(['Ara Toplam', '', '', '', '', '', '', document.getElementById('res-subtotal').textContent].map(csvCell).join(','));
+        rows.push(['Genel Toplam', '', '', '', '', '', '', document.getElementById('res-total').textContent].map(csvCell).join(','));
         
-        const csvContent = "\uFEFF" + rows.join('\n');
+        const csvContent = "\uFEFF" + rows.join('\r\n');
         const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
         const url = URL.createObjectURL(blob);
         const link = document.createElement('a');
@@ -696,31 +755,23 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         
         const headers = ["Ürün Kodu", "Ürün Açıklaması", "Seri Numaraları", "Miktar", "Birim Fiyat", "KDV Oranı", "KDV Tutarı", "Satır Toplamı"];
-        const rows = [headers.join(",")];
+        const rows = [headers.map(csvCell).join(",")];
         
         data.items.forEach(row => {
-            const clean = (val) => {
-                if (val === null || val === undefined) return "";
-                if (Array.isArray(val)) val = val.join(" | ");
-                let str = String(val).replace(/"/g, '""');
-                if (str.includes(',') || str.includes('\n')) str = `"${str}"`;
-                return str;
-            };
-            
             const r = [
-                clean(row.item_code || row.code),
-                clean(row.item_name || row.description),
-                clean(row.serial_numbers),
-                clean(row.quantity),
-                clean(row.unit_price),
-                clean(row.tax_rate),
-                clean(row.tax_amount),
-                clean(row.total_amount || row.total_price)
+                row.item_code ?? row.code,
+                row.item_name ?? row.description,
+                normalizeSerialNumbers(row.serial_numbers).join('~'),
+                row.quantity,
+                row.unit_price,
+                row.tax_rate,
+                row.tax_amount,
+                row.total_amount ?? row.total_price
             ];
-            rows.push(r.join(","));
+            rows.push(r.map(csvCell).join(","));
         });
         
-        const csvContent = "\uFEFF" + rows.join("\n");
+        const csvContent = "\uFEFF" + rows.join("\r\n");
         const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
         const url = URL.createObjectURL(blob);
         const link = document.createElement("a");
