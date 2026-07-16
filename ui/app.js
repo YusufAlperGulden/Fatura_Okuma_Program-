@@ -100,9 +100,11 @@ document.addEventListener('DOMContentLoaded', () => {
             document.getElementById('pdf-iframe').src = pdfObjectUrl;
             document.getElementById('pdf-viewer-section').classList.remove('hidden');
             document.getElementById('split-container').classList.add('split-active');
+            document.querySelector('.app-container').classList.add('wide-mode');
         } else {
             document.getElementById('pdf-viewer-section').classList.add('hidden');
             document.getElementById('split-container').classList.remove('split-active');
+            document.querySelector('.app-container').classList.remove('wide-mode');
         }
 
         dropZone.classList.add('hidden');
@@ -519,12 +521,16 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('toggle-pdf-btn').addEventListener('click', () => {
         const pdfSection = document.getElementById('pdf-viewer-section');
         const splitContainer = document.getElementById('split-container');
+        const appContainer = document.querySelector('.app-container');
+        
         if (pdfSection.classList.contains('hidden')) {
             pdfSection.classList.remove('hidden');
             splitContainer.classList.add('split-active');
+            appContainer.classList.add('wide-mode');
         } else {
             pdfSection.classList.add('hidden');
             splitContainer.classList.remove('split-active');
+            appContainer.classList.remove('wide-mode');
         }
     });
 });

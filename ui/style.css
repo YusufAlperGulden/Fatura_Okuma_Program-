@@ -71,6 +71,11 @@ body {
 .app-container {
     width: 100%;
     max-width: 1000px;
+    transition: max-width 0.3s ease;
+}
+
+.app-container.wide-mode {
+    max-width: 1600px;
 }
 
 header {
@@ -447,7 +452,7 @@ tr:hover {
 
 #split-container.split-active {
     display: grid;
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: 1.2fr 1fr;
     gap: 1.5rem;
     align-items: start;
 }
