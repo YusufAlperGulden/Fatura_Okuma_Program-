@@ -469,6 +469,9 @@ tr:hover {
     border-radius: 8px;
     display: flex;
     flex-direction: column;
+    height: clamp(380px, 62vh, 640px);
+    min-height: 0;
+    align-self: start;
     box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
 }
 
@@ -483,10 +486,11 @@ tr:hover {
 }
 
 .pdf-content {
+    flex: 1;
+    min-height: 0;
     background-color: #fff;
     border-radius: 0 0 8px 8px;
     overflow: hidden;
-    aspect-ratio: 1 / 1.414; /* A4 Paper ratio */
     width: 100%;
 }
 
