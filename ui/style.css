@@ -454,7 +454,7 @@ tr:hover {
     display: grid;
     grid-template-columns: 1.2fr 1fr;
     gap: 1.5rem;
-    align-items: start;
+    align-items: stretch;
 }
 
 @media (max-width: 1024px) {
@@ -470,7 +470,7 @@ tr:hover {
     display: flex;
     flex-direction: column;
     height: 100%;
-    min-height: 800px;
+    min-height: 400px; /* Sadece çok kısa sonuçlar için güvenlik payı */
     box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
 }
 
