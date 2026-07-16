@@ -56,6 +56,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
     
     let currentInvoiceData = null;
+    let pdfObjectUrl = null;
 
     function escapeHtml(value) {
         const div = document.createElement('div');
@@ -88,9 +89,26 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         // Reset UI
+        if (pdfObjectUrl) {
+            URL.revokeObjectURL(pdfObjectUrl);
+            pdfObjectUrl = null;
+        }
+        document.getElementById('pdf-iframe').src = '';
+        
+        if (file.type === 'application/pdf' || file.type.startsWith('image/')) {
+            pdfObjectUrl = URL.createObjectURL(file);
+            document.getElementById('pdf-iframe').src = pdfObjectUrl;
+            document.getElementById('pdf-viewer-section').classList.remove('hidden');
+            document.getElementById('split-container').classList.add('split-active');
+        } else {
+            document.getElementById('pdf-viewer-section').classList.add('hidden');
+            document.getElementById('split-container').classList.remove('split-active');
+        }
+
         dropZone.classList.add('hidden');
         loading.classList.remove('hidden');
         resultsSection.classList.add('hidden');
+        document.getElementById('split-container').classList.add('hidden');
         document.getElementById('error-box').classList.add('hidden');
         document.getElementById('portal-btn').classList.add('hidden');
         document.getElementById('api-status-box').classList.add('hidden');
@@ -193,6 +211,7 @@ document.addEventListener('DOMContentLoaded', () => {
     
     function showResults(result) {
         resultsSection.classList.remove('hidden');
+        document.getElementById('split-container').classList.remove('hidden');
         
         // Badge
         const badge = document.getElementById('validation-badge');
@@ -494,5 +513,18 @@ document.addEventListener('DOMContentLoaded', () => {
         errorBox.textContent = msg;
         errorBox.classList.remove('hidden');
         resultsSection.classList.remove('hidden');
+        document.getElementById('split-container').classList.remove('hidden');
     }
+
+    document.getElementById('toggle-pdf-btn').addEventListener('click', () => {
+        const pdfSection = document.getElementById('pdf-viewer-section');
+        const splitContainer = document.getElementById('split-container');
+        if (pdfSection.classList.contains('hidden')) {
+            pdfSection.classList.remove('hidden');
+            splitContainer.classList.add('split-active');
+        } else {
+            pdfSection.classList.add('hidden');
+            splitContainer.classList.remove('split-active');
+        }
+    });
 });

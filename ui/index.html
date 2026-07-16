@@ -56,8 +56,25 @@
                 </div>
             </section>
 
-            <!-- Results Section (Hidden by default) -->
-            <section id="results-section" class="results-section hidden">
+            <!-- Split Container for Results & PDF -->
+            <div id="split-container" class="hidden">
+                <!-- PDF Viewer Section -->
+                <section id="pdf-viewer-section" class="pdf-viewer-section hidden">
+                    <div class="pdf-header">
+                        <h2 style="font-size: 1.1rem; color: #f8fafc; margin: 0;">Fatura Önizlemesi</h2>
+                        <button id="toggle-pdf-btn" class="icon-btn" title="PDF'i Gizle/Göster" style="background: transparent; border: none; color: #94a3b8; cursor: pointer;">
+                            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" width="20" height="20">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path>
+                            </svg>
+                        </button>
+                    </div>
+                    <div class="pdf-content">
+                        <iframe id="pdf-iframe" style="width: 100%; height: 100%; border: none; border-radius: 0 0 8px 8px;"></iframe>
+                    </div>
+                </section>
+
+                <!-- Results Section -->
+                <section id="results-section" class="results-section">
                 
                 <div class="results-header">
                     <h2>Çıkarım Sonuçları</h2>
@@ -158,7 +175,7 @@
                     <span> kullanılarak okundu.</span>
                 </div>
 
-            </section>
+            </div>
         </main>
     </div>
     <script src="app.js?v=1"></script>
