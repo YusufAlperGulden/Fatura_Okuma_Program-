@@ -64,6 +64,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
     
     let currentInvoiceData = null;
+let currentUploadId = null;
     let pdfObjectUrl = null;
 
     function escapeHtml(value) {
@@ -284,7 +285,7 @@ document.addEventListener('DOMContentLoaded', () => {
                   if (!result.is_valid && result.errors && result.errors.length > 0) {
                     const errorBox = document.getElementById('error-box');
                     errorBox.innerHTML = '<div style="display: flex; align-items: center; margin-bottom: 0.5rem;"><svg style="width: 24px; height: 24px; margin-right: 8px; color: #f87171;" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg><strong style="font-size: 1.1rem;">Lütfen faturadaki şu eksik veya hataları giderin:</strong></div>' + 
-                    '<ul style="margin-left: 2rem; list-style-type: disc;">' + result.errors.map(e => `<li style="margin-bottom: 0.25rem;">${e}</li>`).join('') + '</ul>';
+                    '<ul style="margin-left: 2rem; list-style-type: disc;">' + result.errors.map(e => `<li style="margin-bottom: 0.25rem;">${escapeHtml(e)}</li>`).join('') + '</ul>';
                     errorBox.classList.remove('hidden');
                 }
                 }
@@ -453,9 +454,9 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     
     // Uyumsoft send logic: used automatically after validation.
-        async function runUyumsoftAction() {
+            async function runUyumsoftAction() {
         if (!currentInvoiceData) return;
-        
+        const capturedUploadId = currentUploadId;
         const sendBtn = document.getElementById('send-draft-btn');
         sendBtn.disabled = true;
         
@@ -478,7 +479,8 @@ document.addEventListener('DOMContentLoaded', () => {
             
             const result = await readJsonResponse(response);
             
-            if (result.success) {
+                        if (result.success) {
+                if (currentUploadId !== capturedUploadId) return;
                 document.getElementById('send-draft-btn').classList.add('hidden');
                 statusBox.style.backgroundColor = '#059669';
                 statusBox.innerHTML = `✓  ${escapeHtml(result.message)} (HTTP ${escapeHtml(result.response_code)})`;
@@ -513,7 +515,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             } else {
                 const details = formatDetails(result.details);
-                                statusBox.style.backgroundColor = '#dc2626';
+                if (currentUploadId !== capturedUploadId) return;
+                statusBox.style.backgroundColor = '#dc2626';
                 statusBox.innerHTML = `❌ Hata: ${escapeHtml(result.message)}${details ? ` <br> <small>${escapeHtml(details)}</small>` : ''}`;
                 sendBtn.disabled = false;
             }
