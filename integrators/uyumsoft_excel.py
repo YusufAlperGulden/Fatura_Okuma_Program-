@@ -1,6 +1,8 @@
 import pandas as pd
 import os
 
+from utils.serial_numbers import normalize_serial_numbers
+
 def export_to_uyumsoft_excel(valid_invoices, output_path="Uyumsoft_Aktarim_Taslagi.xlsx"):
     """
     Takes a list of valid invoice data dictionaries and exports them to an Excel file
@@ -15,6 +17,9 @@ def export_to_uyumsoft_excel(valid_invoices, output_path="Uyumsoft_Aktarim_Tasla
                 "Müşteri Adı": invoice.get("customer_title") or invoice.get("customer_name"),
                 "Ürün Kodu": item.get("code"),
                 "Ürün Açıklaması": item.get("description"),
+                "Seri Numaraları": "~".join(
+                    normalize_serial_numbers(item.get("serial_numbers"))
+                ),
                 "Miktar": item.get("quantity"),
                 "Birim Fiyat": item.get("unit_price"),
                 "Satır Toplamı": item.get("total_price"),

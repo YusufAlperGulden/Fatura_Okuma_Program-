@@ -3,6 +3,8 @@ import unicodedata
 
 import pandas as pd
 
+from utils.serial_numbers import normalize_serial_numbers
+
 
 def _normalize_header(value):
     text = "" if value is None else str(value)
@@ -123,6 +125,16 @@ def parse_excel_invoice(file_path: str) -> dict:
                 "aciklama",
                 "description",
             ],
+            "serial_numbers": [
+                "urun seri numaralari",
+                "urun seri no",
+                "seri numaralari",
+                "seri numarasi",
+                "seri no",
+                "serial numbers",
+                "serial number",
+                "serial no",
+            ],
             "quantity": ["miktar", "quantity"],
             "unit_price": ["birim fiyat", "price", "unit price"],
             "line_total": ["satir toplami", "satir toplam", "line total"],
@@ -184,6 +196,9 @@ def parse_excel_invoice(file_path: str) -> dict:
             data["items"].append({
                 "code": _as_text(_first_present(row, column_sets["item_code"])),
                 "description": description or "Unknown Item",
+                "serial_numbers": normalize_serial_numbers(
+                    _first_present(row, column_sets["serial_numbers"])
+                ),
                 "quantity": quantity,
                 "unit_price": unit_price,
                 "total_price": line_total,

@@ -264,6 +264,96 @@ def clean_table_cell(value):
     text = re.sub(r"([€$₺£]\d+[.,])[A-ZÇĞİÖŞÜ]+(?=\d)", r"\1", text)
     return re.sub(r"\s+", " ", text).strip()
 
+
+SERIAL_TOKEN_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._/-]{1,63}$")
+SERIAL_GROUP_RE = re.compile(r"([\(\[])(.*?)([\)\]])", re.DOTALL)
+SERIAL_LABEL_RE = re.compile(
+    r"(?i)\b(?:seri(?:\s*(?:no\.?|numara(?:si|s\u0131)?))?|serial(?:\s*(?:no\.?|number))?|s/n|imei)"
+    r"\s*[:=-]\s*([^\r\n]+)"
+)
+
+
+def _is_serial_token(value):
+    token = re.sub(r"\s+", "", str(value or "")).strip("()[]{}")
+    return (
+        bool(SERIAL_TOKEN_RE.fullmatch(token))
+        and any(char.isdigit() for char in token)
+        and (any(char.isalpha() for char in token) or len(token) >= 4)
+    )
+
+
+def _serials_from_group(value, require_multiple=True):
+    compact = re.sub(r"\s+", "", str(value or "")).strip("()[]{}")
+    parts = [part for part in re.split(r"[~,;]+", compact) if part]
+    if require_multiple and len(parts) < 2:
+        return []
+    if not parts or not all(_is_serial_token(part) for part in parts):
+        return []
+    return parts
+
+
+def _extract_item_serial_numbers(text):
+    """Extract serials only from an individual line-item text block."""
+    source = str(text or "")
+    serials = []
+
+    # PDF text extraction can split one serial in the middle, for example
+    # "DBJ\n251703866". Removing whitespace inside a delimited serial group
+    # reconstructs that value without changing ordinary description text.
+    for match in SERIAL_GROUP_RE.finditer(source):
+        body = match.group(2)
+        if "~" not in body and ";" not in body and "," not in body:
+            continue
+        serials.extend(_serials_from_group(body, require_multiple=True))
+
+    # Explicit item-level labels may contain a single serial number.
+    for match in SERIAL_LABEL_RE.finditer(source):
+        labelled = re.split(
+            rf"\s+(?=\d+(?:[.,]\d+)?\s+(?:{UNIT_RE}\s+)?{MONEY_TOKEN_RE})",
+            match.group(1),
+            maxsplit=1,
+            flags=re.IGNORECASE,
+        )[0]
+        serials.extend(_serials_from_group(labelled, require_multiple=False))
+
+    unique = []
+    seen = set()
+    for serial in serials:
+        if serial not in seen:
+            seen.add(serial)
+            unique.append(serial)
+    return unique
+
+
+def _description_without_serials(text):
+    source = str(text or "")
+
+    def remove_serial_group(match):
+        if _serials_from_group(match.group(2), require_multiple=True):
+            return " "
+        return match.group(0)
+
+    source = SERIAL_GROUP_RE.sub(remove_serial_group, source)
+    source = SERIAL_LABEL_RE.sub(" ", source)
+    return re.sub(r"\s+", " ", source).strip(" :-")
+
+
+def _is_likely_item_description(line):
+    candidate = re.sub(r"\s+", " ", str(line or "")).strip()
+    if not candidate or not re.search(r"[A-Za-z]", candidate):
+        return False
+    if _extract_item_serial_numbers(candidate) or "~" in candidate:
+        return False
+    if re.search(rf"{MONEY_TOKEN_RE}", candidate, re.IGNORECASE):
+        return False
+    if re.match(
+        r"(?i)^(?:kodu|kod\b|aciklama|mal\s*/?\s*hizmet|urun|miktar|birim|ara\s*toplam|kdv|yekun|genel\s*toplam|odenecek)",
+        candidate,
+    ):
+        return False
+    return True
+
+
 def extract_items_from_tables(pdf):
     items = []
 
@@ -286,7 +376,9 @@ def extract_items_from_tables(pdf):
                     continue
 
                 code = clean_table_cell(row[0])
-                description = clean_table_cell(row[1])
+                raw_description = clean_table_cell(row[1])
+                serial_numbers = _extract_item_serial_numbers(raw_description)
+                description = _description_without_serials(raw_description)
                 quantity = clean_table_cell(row[2])
                 unit = clean_table_cell(row[3])
                 unit_price = clean_table_cell(row[4])
@@ -302,6 +394,7 @@ def extract_items_from_tables(pdf):
                 items.append({
                     "code": code,
                     "description": description,
+                    "serial_numbers": serial_numbers,
                     "quantity": quantity_match.group(0).replace(".", ",") if quantity_match else quantity.replace(".", ","),
                     "unit_price": _format_amount(_parse_money_number(unit_price)),
                     "tax_rate": tax_match.group(0) if tax_match else tax_rate,
@@ -338,10 +431,10 @@ def _find_items(text):
                 segments.append(segment)
         return segments
 
+    cleaned_lines = [_clean_pdf_line(line).strip() for line in text.splitlines()]
     items = []
     seen = set()
-    for line_idx, raw_line in enumerate(text.splitlines()):
-        line = _clean_pdf_line(raw_line).strip()
+    for line_idx, line in enumerate(cleaned_lines):
         for segment in split_repeated_item_line(line):
             match = item_line_pattern.match(segment)
             if not match:
@@ -350,6 +443,7 @@ def _find_items(text):
             item = {
                 "code": match.group("code"),
                 "description": re.sub(r"\s+", " ", match.group("description")).strip(),
+                "serial_numbers": [],
                 "quantity": match.group("quantity").replace(".", ","),
                 "unit_price": _format_amount(_parse_money_number(match.group("unit_price"))),
                 "tax_rate": match.group("tax_rate"),
@@ -361,7 +455,85 @@ def _find_items(text):
                 seen.add(key)
                 items.append(item)
 
+    section_stop = re.compile(
+        r"(?i)^(?:ara\s*toplam|kdv|yekun|genel\s*toplam|odenecek|vergi|toplam\s*tutar)\b"
+    )
+
+    for item_index, item in enumerate(items):
+        line_idx = item["_line_idx"]
+        next_line_idx = len(cleaned_lines)
+        for following_item in items[item_index + 1 :]:
+            if following_item["_line_idx"] > line_idx:
+                next_line_idx = following_item["_line_idx"]
+                break
+
+        # The KATLAN-style layout puts the serial group on the item anchor
+        # line, then wraps one serial across the next PDF text line. Only join
+        # lines while an item-level serial construct is visibly continuing.
+        serial_context = [item["description"]]
+        open_group = item["description"].count("(") + item["description"].count("[")
+        open_group -= item["description"].count(")") + item["description"].count("]")
+        for continuation in cleaned_lines[line_idx + 1 : next_line_idx]:
+            if not continuation or section_stop.match(continuation):
+                break
+            if open_group > 0 or "~" in continuation or SERIAL_LABEL_RE.search(continuation):
+                serial_context.append(continuation)
+                open_group += continuation.count("(") + continuation.count("[")
+                open_group -= continuation.count(")") + continuation.count("]")
+                if open_group <= 0 and _extract_item_serial_numbers(" ".join(serial_context)):
+                    break
+            else:
+                break
+
+        item_text = " ".join(serial_context)
+        item["serial_numbers"] = _extract_item_serial_numbers(item_text)
+        cleaned_description = _description_without_serials(item_text)
+
+        # Some PDF generators draw the product name a few points above the
+        # numeric row. pdfplumber consequently emits it on the previous text
+        # line, while the row's description column contains only serials.
+        if item["serial_numbers"] and not cleaned_description:
+            previous_idx = line_idx - 1
+            while previous_idx >= 0 and not cleaned_lines[previous_idx]:
+                previous_idx -= 1
+            if previous_idx >= 0 and _is_likely_item_description(cleaned_lines[previous_idx]):
+                cleaned_description = cleaned_lines[previous_idx]
+
+        if cleaned_description:
+            item["description"] = cleaned_description
+
     return items
+
+
+def _merge_table_items_with_text_items(table_items, text_items):
+    """Keep serial metadata when pdfplumber's table candidate wins."""
+    used_text_indexes = set()
+
+    for table_index, table_item in enumerate(table_items):
+        table_item["serial_numbers"] = list(table_item.get("serial_numbers") or [])
+        match_index = None
+
+        for text_index, text_item in enumerate(text_items):
+            if text_index in used_text_indexes:
+                continue
+            if table_item.get("code") and table_item.get("code") == text_item.get("code"):
+                match_index = text_index
+                break
+
+        if match_index is None and table_index < len(text_items) and table_index not in used_text_indexes:
+            match_index = table_index
+
+        if match_index is None:
+            continue
+
+        used_text_indexes.add(match_index)
+        text_item = text_items[match_index]
+        if not table_item["serial_numbers"]:
+            table_item["serial_numbers"] = list(text_item.get("serial_numbers") or [])
+        if not table_item.get("description") and text_item.get("description"):
+            table_item["description"] = text_item["description"]
+
+    return table_items
 
 
 def _sum_tax_lines(text):
@@ -563,7 +735,10 @@ def parse_pdf_invoice(file_path: str) -> dict:
             data = max(candidates, key=_score_data)
 
             if table_items and len(table_items) >= len(data.get("items", [])):
-                data["items"] = table_items
+                data["items"] = _merge_table_items_with_text_items(
+                    table_items,
+                    data.get("items", []),
+                )
 
         if not data["items"]:
             print("PDF text was read, but line items were not matched. Falling back to OCR...")

@@ -166,11 +166,11 @@ Beklenen JSON alani:
     {
       "code": "urun/stok kodu veya bos string",
       "description": "urun veya hizmet adi (seri numaralari haric)",
-      "serial_numbers": ["varsa urun altinda parantez icinde tilda (~) veya virgul ile ayrilmis seri numaralarini tek tek diziye ekle, yoksa bos dizi []"],
       "quantity": 0.0,
       "unit_price": 0.0,
       "total_price": 0.0,
-      "tax_rate": 20.0
+      "tax_rate": 20.0,
+      "serial_numbers": ["Varsa bu kaleme ait fatura aciklamasinda yer alan cihaz seri numaralarini (DBJ... gibi) ayri ayri bu diziye ekle. Miktar veya fiyati buraya yazma. Yoksa [] dondur."]
     }
   ]
 }

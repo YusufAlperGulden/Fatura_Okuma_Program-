@@ -4,7 +4,11 @@ import unittest
 from unittest.mock import patch
 from xml.etree import ElementTree as ET
 
-from extractors.pdf_extractor import parse_invoice_text, parse_pdf_invoice
+from extractors.pdf_extractor import (
+    _merge_table_items_with_text_items,
+    parse_invoice_text,
+    parse_pdf_invoice,
+)
 from extractors.excel_extractor import parse_excel_invoice
 from extractors.xml_extractor import parse_xml_invoice
 from integrators.uyumsoft_api import (
@@ -122,9 +126,67 @@ class PipelineTests(unittest.TestCase):
         self.assertEqual(data["total_amount"], "480,00")
         self.assertEqual(len(data["items"]), 1)
         self.assertEqual(data["items"][0]["description"], "NFC Silver Kart")
+        self.assertEqual(data["items"][0]["serial_numbers"], [])
         data["customer_name"] = "Mock Customer"
         data["invoice_no"] = "INV-123"
         self.assertEqual(validate_invoice(data), (True, []))
+
+    def test_parse_wrapped_katlan_product_serial_numbers(self):
+        text = """
+        Elektronik Barkod Kodlayıcı / Yazıcı
+        1390.151 (DBJ251703926~DBJ251703864~DBJ251703909~DBJ251703825~DBJ 6,00 ₺43.703,98 ₺262.223,89
+        251703866~DBJ254618071)
+        1984.001 Kargo Ücreti 1,00 ₺445,96 ₺445,96
+        Ara Toplam ₺262.669,85
+        KDV 18(%20) ₺52.533,97
+        Yekün ₺315.203,82
+        """
+
+        data = parse_invoice_text(text)
+
+        self.assertEqual(len(data["items"]), 2)
+        self.assertEqual(data["items"][0]["description"], "Elektronik Barkod Kodlayıcı / Yazıcı")
+        self.assertEqual(
+            data["items"][0]["serial_numbers"],
+            [
+                "DBJ251703926",
+                "DBJ251703864",
+                "DBJ251703909",
+                "DBJ251703825",
+                "DBJ251703866",
+                "DBJ254618071",
+            ],
+        )
+        self.assertEqual(data["items"][0]["quantity"], "6,00")
+        self.assertEqual(data["items"][1]["serial_numbers"], [])
+
+    def test_table_candidate_keeps_serial_numbers_from_text_candidate(self):
+        table_items = [
+            {
+                "code": "1390.151",
+                "description": "Elektronik Barkod Kodlayıcı / Yazıcı",
+                "serial_numbers": [],
+                "quantity": "6,00",
+                "unit_price": "43703,98",
+                "tax_rate": None,
+                "total_price": "262223,89",
+            }
+        ]
+        text_items = [
+            {
+                "code": "1390.151",
+                "description": "Elektronik Barkod Kodlayıcı / Yazıcı",
+                "serial_numbers": ["DBJ251703926", "DBJ251703864"],
+                "quantity": "6,00",
+                "unit_price": "43703,98",
+                "tax_rate": None,
+                "total_price": "262223,89",
+            }
+        ]
+
+        merged = _merge_table_items_with_text_items(table_items, text_items)
+
+        self.assertEqual(merged[0]["serial_numbers"], ["DBJ251703926", "DBJ251703864"])
 
     def test_parse_pdf_buyer_name_and_tax_id_from_buyer_section(self):
         text = """

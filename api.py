@@ -14,6 +14,7 @@ from extractors.xml_extractor import parse_xml_invoice
 from validators.invoice_validator import validate_invoice
 from integrators.uyumsoft_api import enrich_invoice_customer_from_uyumsoft, send_invoice_to_uyumsoft
 from database import init_db, save_invoice, get_invoices
+from utils.serial_numbers import merge_invoice_serial_numbers
 
 # Initialize the SQLite database
 init_db()
@@ -167,6 +168,10 @@ async def upload_invoice(file: UploadFile = File(...)):
             except Exception as e:
                 local_errors.append(f"Tesseract OCR hatasi: {str(e)}")
 
+        # Preserve deterministic local serials if the AI fallback replaces the
+        # rest of a partially extracted invoice.
+        local_data_for_serials = data if isinstance(data, dict) else None
+
         # STAGE 2: FALLBACK TO AI (Only if local extraction failed)
         if local_error and os.getenv("GEMINI_API_KEY") and (ext == ".pdf" or _is_image_extension(ext)):
             try:
@@ -178,7 +183,8 @@ async def upload_invoice(file: UploadFile = File(...)):
                 elif ext == '.png': mime_type = "image/png"
                 elif ext == '.webp': mime_type = "image/webp"
                 
-                data = extract_invoice_with_ai(file_bytes, mime_type)
+                ai_data = extract_invoice_with_ai(file_bytes, mime_type)
+                data = merge_invoice_serial_numbers(ai_data, local_data_for_serials)
                 data["_extraction_method"] = "Google Gemini Yapay Zeka"
             except Exception as e:
                 if _is_gemini_quota_error(e):

@@ -1,5 +1,7 @@
 import xml.etree.ElementTree as ET
 
+from utils.serial_numbers import normalize_serial_numbers
+
 def find_text_agnostic(root, tag_name):
     """
     Finds the first element whose tag ends with tag_name, ignoring XML namespaces.
@@ -110,10 +112,27 @@ def parse_xml_invoice(file_path: str) -> dict:
                     item_code = child_text_agnostic(elem, "ID")
                 # Description usually in Item -> Name
                 item_name = None
+                item_element = None
                 for sub in elem.iter():
                     if sub.tag.endswith("}Item") or sub.tag == "Item":
+                        item_element = sub
                         item_name = find_text_agnostic(sub, "Name")
                         break
+
+                serial_values = []
+                if item_element is not None:
+                    for sub in item_element.iter():
+                        if not (
+                            sub.tag.endswith("}ItemInstance")
+                            or sub.tag == "ItemInstance"
+                        ):
+                            continue
+                        for instance_child in sub.iter():
+                            if (
+                                instance_child.tag.endswith("}SerialID")
+                                or instance_child.tag == "SerialID"
+                            ) and instance_child.text:
+                                serial_values.append(instance_child.text)
                         
                 quantity = find_text_agnostic(elem, "InvoicedQuantity")
                 
@@ -138,6 +157,7 @@ def parse_xml_invoice(file_path: str) -> dict:
                 data["items"].append({
                     "code": item_code,
                     "description": item_name or "Unknown Item",
+                    "serial_numbers": normalize_serial_numbers(serial_values),
                     "quantity": quantity.replace('.', ',') if quantity else None,
                     "unit_price": unit_price.replace('.', ',') if unit_price else None,
                     "total_price": total_price.replace('.', ',') if total_price else None,
