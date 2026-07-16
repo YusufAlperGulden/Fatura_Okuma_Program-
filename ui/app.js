@@ -578,9 +578,17 @@ let currentUploadId = null;
         const action = 'draft';
         const actionLabel = 'Taslak Oluştur';
         statusBox.classList.remove('hidden');
+                statusBox.style.position = 'relative';
+        statusBox.style.overflow = 'hidden';
         statusBox.style.backgroundColor = '#3b82f6';
         statusBox.style.color = '#fff';
-        statusBox.innerHTML = `<div class="spinner" style="width:20px;height:20px;border-width:2px;display:inline-block;vertical-align:middle;margin-right:10px;"></div> ${actionLabel} çalışıyor...`;
+        statusBox.innerHTML = `
+            <div class="fake-progress-bar"></div>
+            <div style="position: relative; z-index: 1; display: flex; align-items: center;">
+                <div class="spinner" style="width:20px;height:20px;border-width:2px;display:inline-block;margin-right:10px;"></div> 
+                ${actionLabel} çalışıyor...
+            </div>
+        `;
         
         try {
             const response = await fetch('/send-uyumsoft', {
