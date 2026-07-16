@@ -64,6 +64,76 @@ document.addEventListener('DOMContentLoaded', () => {
     });
     
     let currentInvoiceData = null;
+let validationRevisionId = 0;
+let validationTimeout = null;
+
+function handleInputChange(e) {
+    if (!currentInvoiceData) return;
+    const key = e.target.getAttribute('data-key');
+    if (!key) return;
+
+    if (key.startsWith('item-')) {
+        const parts = key.split('-');
+        const index = parseInt(parts[1], 10);
+        const field = parts.slice(2).join('-');
+        if (currentInvoiceData.items && currentInvoiceData.items[index]) {
+            currentInvoiceData.items[index][field] = e.target.value;
+        }
+    } else if (key === 'date_time') {
+        const parts = e.target.value.split(' ');
+        currentInvoiceData.date = parts[0] || '';
+        currentInvoiceData.time = parts[1] || '';
+    } else {
+        currentInvoiceData[key] = e.target.value;
+    }
+
+    triggerValidation();
+}
+
+document.addEventListener('input', (e) => {
+    if (e.target.classList.contains('edit-input')) {
+        handleInputChange(e);
+    }
+});
+
+function triggerValidation() {
+    clearTimeout(validationTimeout);
+    const sendBtn = document.getElementById('send-draft-btn');
+    if (sendBtn) sendBtn.disabled = true;
+    const badge = document.getElementById('validation-badge');
+    if (badge) {
+        badge.textContent = 'DOĞRULANIYOR...';
+        badge.className = 'badge';
+    }
+    
+    validationTimeout = setTimeout(async () => {
+        validationRevisionId++;
+        const currentRev = validationRevisionId;
+        
+        try {
+            const response = await fetch('/api/validate', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ invoice_data: currentInvoiceData })
+            });
+            const result = await readJsonResponse(response);
+            if (validationRevisionId !== currentRev) return;
+            
+            currentInvoiceData = result.invoice_data;
+            updateValidationUI(result);
+        } catch (e) {
+            console.error("Validation error:", e);
+        }
+    }, 500);
+}
+
+function updateInputIfNotFocused(id, value) {
+    const el = document.getElementById(id);
+    if (el && document.activeElement !== el) {
+        el.value = value == null ? '' : String(value);
+    }
+}
+
 let currentUploadId = null;
     let pdfObjectUrl = null;
 
@@ -225,11 +295,11 @@ let currentUploadId = null;
         document.getElementById('res-vkn').textContent = '-';
         document.getElementById('res-customer-name').textContent = '-';
         document.getElementById('res-method').textContent = '-';
-        document.getElementById('res-subtotal').textContent = '-';
+        document.getElementById('res-subtotal').value = '-';
         if (document.getElementById('res-tax-breakdown')) {
             document.getElementById('res-tax-breakdown').innerHTML = '-';
         }
-        document.getElementById('res-total').textContent = '-';
+        document.getElementById('res-total').value = '-';
         if (document.getElementById('notes-card')) {
             document.getElementById('notes-card').classList.add('hidden');
             document.getElementById('res-notes').textContent = '-';
@@ -267,7 +337,7 @@ let currentUploadId = null;
             
             if (response.ok) {
                 currentInvoiceData = result.data;
-                showResults(result);
+                renderInvoice(result);
                 
                 // Automated UI Checklist Flow
                 document.getElementById('send-draft-btn').classList.add('hidden');
@@ -318,25 +388,12 @@ let currentUploadId = null;
         }
     }
     
-    function showResults(result) {
+    function renderInvoice(result) {
         resultsSection.classList.remove('hidden');
         document.getElementById('split-container').classList.remove('hidden');
-        
-        // Badge
-        const badge = document.getElementById('validation-badge');
-        if (result.is_valid) {
-            badge.textContent = 'GEÇERLİ';
-            badge.className = 'badge valid';
-            document.getElementById('portal-btn').classList.remove('hidden');
-        } else {
-            badge.textContent = 'HATALI';
-            badge.className = 'badge error';
-        }
         document.getElementById('csv-btn').classList.remove('hidden');
         
-        // Ensure data exists before accessing properties
         const data = result.data || {};
-        
         const getSymbol = (currency) => {
             if (currency === 'USD') return '$';
             if (currency === 'EUR') return '€';
@@ -344,81 +401,25 @@ let currentUploadId = null;
             return '₺';
         };
         const sym = getSymbol(data.currency);
-        const globalSubtotal = parseMoney(data.subtotal);
-        const globalTax = parseMoney(data.tax_amount);
-        const globalRate = globalSubtotal && globalTax ? (globalTax / globalSubtotal * 100) : 0;
         
-        // Update summary cards
-        document.getElementById('res-invoice-no').textContent = data.invoice_no || '-';
-        let dateTimeStr = data.date || '-';
-        if (data.time) {
-            dateTimeStr += ` ${data.time}`;
-        }
-        document.getElementById('res-date-time').textContent = dateTimeStr;
-        document.getElementById('res-vkn').textContent = data.customer_tax_id || '-';
-        const customerName = data.customer_title || data.customer_name || data.customer || '';
-        if (customerName) {
-            document.getElementById('res-customer-name').textContent = customerName;
-        } else {
-            document.getElementById('res-customer-name').textContent = '-';
-        }
+        document.getElementById('res-invoice-no').value = data.invoice_no || '';
+        let dateTimeStr = data.date || '';
+        if (data.time) dateTimeStr += ` ${data.time}`;
+        document.getElementById('res-date-time').value = dateTimeStr.trim();
+        document.getElementById('res-vkn').value = data.customer_tax_id || '';
+        document.getElementById('res-customer-name').value = data.customer_title || data.customer_name || data.customer || '';
         document.getElementById('res-method').textContent = data._extraction_method || '-';
-        document.getElementById('res-subtotal').textContent = data.subtotal ? `${sym}${data.subtotal}` : '-';
+        document.getElementById('res-subtotal').value = data.subtotal || '';
         
         const discountCard = document.getElementById('discount-card');
         if (parseMoney(data.discount_amount) > 0) {
-            document.getElementById('res-discount').textContent = `-${sym}${data.discount_amount}`;
+            document.getElementById('res-discount').value = data.discount_amount || '';
             discountCard.classList.remove('hidden');
         } else {
             discountCard.classList.add('hidden');
         }
         
-        // Calculate tax breakdown
-        const breakdownDiv = document.getElementById('res-tax-breakdown');
-        if (breakdownDiv) {
-            breakdownDiv.innerHTML = '';
-            if (data.items && data.items.length > 0 && data.tax_amount) {
-                const breakdown = {};
-                let calcSub = 0;
-                data.items.forEach(item => {
-                    let rate = item.tax_rate !== undefined && item.tax_rate !== null && String(item.tax_rate).trim() !== "" 
-                        ? parseMoney(item.tax_rate) 
-                        : Math.round(globalRate);
-                    let total = parseMoney(item.total_price);
-                    if (total === 0 && item.unit_price && item.quantity) {
-                        total = parseMoney(item.unit_price) * parseMoney(item.quantity);
-                    }
-                    calcSub += total;
-                    if (!breakdown[rate]) breakdown[rate] = { taxable: 0 };
-                    breakdown[rate].taxable += total;
-                });
-                
-                const discountAmt = parseMoney(data.discount_amount);
-                let breakdownHtml = '';
-                let totalTax = 0;
-                for (let rate in breakdown) {
-                    let taxable = breakdown[rate].taxable;
-                    if (discountAmt > 0 && calcSub > 0) {
-                        taxable -= discountAmt * (taxable / calcSub);
-                    }
-                    const tax = taxable * parseFloat(rate) / 100;
-                    if (tax > 0 || parseFloat(rate) === 0) {
-                        totalTax += tax;
-                        const formattedTax = tax.toLocaleString('tr-TR', {minimumFractionDigits: 2, maximumFractionDigits: 2});
-                        breakdownHtml += `
-                            <div style="color: #c0392b; margin-bottom: 2px;">%${rate} = ${formattedTax}</div>
-                        `;
-                    }
-                }
-                const formattedTotalTax = totalTax.toLocaleString('tr-TR', {minimumFractionDigits: 2, maximumFractionDigits: 2});
-                breakdownHtml += `<div style="color: #2980b9; margin-top: 4px;">Top = ${formattedTotalTax}</div>`;
-                breakdownDiv.innerHTML = breakdownHtml;
-            } else {
-                breakdownDiv.textContent = data.tax_amount ? `${sym}${data.tax_amount}` : '-';
-            }
-        }
-
-        document.getElementById('res-total').textContent = data.total_amount ? `${sym}${data.total_amount}` : '-';
+        document.getElementById('res-total').value = data.total_amount || '';
         
         const notesCard = document.getElementById('notes-card');
         if (notesCard && data.notes && data.notes.trim() !== '') {
@@ -428,7 +429,6 @@ let currentUploadId = null;
             notesCard.classList.add('hidden');
         }
         
-        // Render items
         const tbody = document.querySelector('#items-table tbody');
         tbody.innerHTML = '';
         
@@ -442,30 +442,119 @@ let currentUploadId = null;
             tr.appendChild(td);
             tbody.appendChild(tr);
         } else {
-            items.forEach(item => {
+            items.forEach((item, idx) => {
                 const tr = document.createElement('tr');
-                const hasItemRate = item.tax_rate !== undefined && item.tax_rate !== null && String(item.tax_rate).trim() !== '';
-                const rate = hasItemRate ? parseMoney(item.tax_rate) : Math.round(globalRate);
-                const formattedRate = `%${rate}`;
-                let lineTotal = item.total_price ? parseMoney(item.total_price) : (item.unit_price && item.quantity ? parseMoney(item.unit_price) * parseMoney(item.quantity) : 0);
-                let lineTax = (lineTotal * parseFloat(rate) / 100);
-                let formattedTax = lineTax > 0 ? `${sym}${lineTax.toLocaleString('tr-TR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}` : '-';
+                
+                const appendInputCell = (row, value, field, cellClass = '') => {
+                    const td = document.createElement('td');
+                    if (cellClass) td.className = cellClass;
+                    const input = document.createElement('input');
+                    input.type = 'text';
+                    input.className = 'edit-input cell-input';
+                    input.setAttribute('data-key', `item-${idx}-${field}`);
+                    input.value = value == null ? '' : String(value);
+                    td.appendChild(input);
+                    row.appendChild(td);
+                };
 
-                appendTextCell(tr, item.code);
-                appendTextCell(tr, item.description, 'item-description-cell');
-                appendSerialNumbersCell(tr, item.serial_numbers);
-                appendTextCell(tr, item.quantity);
-                appendTextCell(tr, item.unit_price ? `${sym}${item.unit_price}` : null);
-                appendTextCell(tr, formattedRate);
-                appendTextCell(tr, formattedTax);
-                appendTextCell(tr, item.total_price ? `${sym}${item.total_price}` : null);
+                appendInputCell(tr, item.code, 'code');
+                appendInputCell(tr, item.description, 'description', 'item-description-cell');
+                
+                const tdSerials = document.createElement('td');
+                tdSerials.className = 'serial-numbers-cell';
+                const inputSerials = document.createElement('input');
+                inputSerials.type = 'text';
+                inputSerials.className = 'edit-input cell-input';
+                inputSerials.setAttribute('data-key', `item-${idx}-serial_numbers`);
+                inputSerials.value = (item.serial_numbers || []).join(', ');
+                tdSerials.appendChild(inputSerials);
+                tr.appendChild(tdSerials);
+                
+                appendInputCell(tr, item.quantity, 'quantity');
+                appendInputCell(tr, item.unit_price, 'unit_price');
+                appendInputCell(tr, item.tax_rate, 'tax_rate');
+                appendInputCell(tr, item.tax_amount || '', 'tax_amount');
+                appendInputCell(tr, item.total_price, 'total_price');
+                
                 tbody.appendChild(tr);
+            });
+        }
+        
+        updateValidationUI({ is_valid: result.is_valid, errors: result.errors || [], invoice_data: data });
+    }
+    
+    function updateValidationUI(result) {
+        const badge = document.getElementById('validation-badge');
+        const sendBtn = document.getElementById('send-draft-btn');
+        sendBtn.disabled = false;
+        
+        const data = result.invoice_data || {};
+        
+        if (result.is_valid) {
+            badge.textContent = 'GEÇERLİ';
+            badge.className = 'badge valid';
+            document.getElementById('portal-btn').classList.remove('hidden');
+            sendBtn.classList.remove('hidden');
+            document.getElementById('error-box').classList.add('hidden');
+        } else {
+            badge.textContent = 'HATALI';
+            badge.className = 'badge error';
+            sendBtn.classList.add('hidden');
+            
+            const errorBox = document.getElementById('error-box');
+            if (result.errors && result.errors.length > 0) {
+                errorBox.innerHTML = '<div style="display: flex; align-items: center; margin-bottom: 0.5rem;"><svg style="width: 24px; height: 24px; margin-right: 8px; color: #f87171;" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg><strong style="font-size: 1.1rem;">Lütfen faturadaki şu eksik veya hataları giderin:</strong></div>' + 
+                '<ul style="margin-left: 2rem; list-style-type: disc;">' + result.errors.map(e => `<li style="margin-bottom: 0.25rem;">${escapeHtml(e)}</li>`).join('') + '</ul>';
+                errorBox.classList.remove('hidden');
+            } else {
+                errorBox.classList.add('hidden');
+            }
+        }
+        
+        updateInputIfNotFocused('res-invoice-no', data.invoice_no);
+        let dateTimeStr = data.date || '';
+        if (data.time) dateTimeStr += ` ${data.time}`;
+        updateInputIfNotFocused('res-date-time', dateTimeStr.trim());
+        updateInputIfNotFocused('res-vkn', data.customer_tax_id);
+        updateInputIfNotFocused('res-customer-name', data.customer_title || data.customer_name);
+        updateInputIfNotFocused('res-subtotal', data.subtotal);
+        updateInputIfNotFocused('res-discount', data.discount_amount);
+        updateInputIfNotFocused('res-total', data.total_amount);
+        
+        const getSymbol = (currency) => {
+            if (currency === 'USD') return '$';
+            if (currency === 'EUR') return '€';
+            if (currency === 'GBP') return '£';
+            return '₺';
+        };
+        const sym = getSymbol(data.currency);
+        
+        const breakdownDiv = document.getElementById('res-tax-breakdown');
+        if (breakdownDiv) {
+            breakdownDiv.innerHTML = '';
+            if (data.tax_amount) {
+                breakdownDiv.textContent = `${sym}${data.tax_amount}`;
+            } else {
+                breakdownDiv.textContent = '-';
+            }
+        }
+        
+        // Update item inputs if they exist
+        if (data.items && data.items.length > 0) {
+            data.items.forEach((item, idx) => {
+                updateInputIfNotFocused(`item-${idx}-code`, item.code);
+                updateInputIfNotFocused(`item-${idx}-description`, item.description);
+                updateInputIfNotFocused(`item-${idx}-serial_numbers`, (item.serial_numbers || []).join(', '));
+                updateInputIfNotFocused(`item-${idx}-quantity`, item.quantity);
+                updateInputIfNotFocused(`item-${idx}-unit_price`, item.unit_price);
+                updateInputIfNotFocused(`item-${idx}-tax_rate`, item.tax_rate);
+                updateInputIfNotFocused(`item-${idx}-tax_amount`, item.tax_amount);
+                updateInputIfNotFocused(`item-${idx}-total_price`, item.total_price);
             });
         }
     }
     
-    // Uyumsoft send logic: used automatically after validation.
-            async function runUyumsoftAction() {
+    async function runUyumsoftAction() {
         if (!currentInvoiceData) return;
         const capturedUploadId = currentUploadId;
         const sendBtn = document.getElementById('send-draft-btn');
@@ -551,14 +640,14 @@ let currentUploadId = null;
         for (const tr of tbody.rows) {
             if (tr.cells.length === 1) continue; // Skip empty message
             const rowData = Array.from(tr.cells, cell =>
-                csvCell(cell.dataset.csvValue !== undefined ? cell.dataset.csvValue : cell.textContent)
+                csvCell(cell.querySelector("input") ? cell.querySelector("input").value : (cell.dataset.csvValue !== undefined ? cell.dataset.csvValue : cell.textContent))
             );
             rows.push(rowData.join(','));
         }
         
         rows.push('');
-        rows.push(['Ara Toplam', '', '', '', '', '', '', document.getElementById('res-subtotal').textContent].map(csvCell).join(','));
-        rows.push(['Genel Toplam', '', '', '', '', '', '', document.getElementById('res-total').textContent].map(csvCell).join(','));
+        rows.push(['Ara Toplam', '', '', '', '', '', '', document.getElementById('res-subtotal').value].map(csvCell).join(','));
+        rows.push(['Genel Toplam', '', '', '', '', '', '', document.getElementById('res-total').value].map(csvCell).join(','));
         
         const csvContent = "\uFEFF" + rows.join('\r\n');
         const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });

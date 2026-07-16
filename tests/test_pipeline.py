@@ -373,7 +373,7 @@ class PipelineTests(unittest.TestCase):
 
         is_valid, errors = validate_invoice(invalid_date)
         self.assertFalse(is_valid)
-        self.assertTrue(any("Invalid date format" in error for error in errors))
+        self.assertTrue(any("Fatura tarihi geçersiz" in error for error in errors))
 
         is_valid, errors = validate_invoice(
             {
@@ -384,7 +384,7 @@ class PipelineTests(unittest.TestCase):
             }
         )
         self.assertFalse(is_valid)
-        self.assertIn("No items found.", errors)
+        self.assertTrue(any("kalem" in error for error in errors))
 
     def test_excel_extracts_currency_rate_discount_notes_and_tax_rate(self):
         import pandas as pd

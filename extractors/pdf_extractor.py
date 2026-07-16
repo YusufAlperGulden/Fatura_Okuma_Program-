@@ -80,6 +80,85 @@ def _clean_customer_name_line(line):
     return re.sub(r"\s+", " ", line).strip()
 
 
+def _collapse_repeated_name(value):
+    """Collapse exact name repetitions produced by multi-column PDF text."""
+    words = str(value or "").split()
+    for chunk_size in range(1, (len(words) // 2) + 1):
+        if len(words) % chunk_size:
+            continue
+        chunk = words[:chunk_size]
+        if chunk * (len(words) // chunk_size) == words:
+            return " ".join(chunk)
+    return " ".join(words)
+
+
+def _extract_unlabeled_header_customer_name(text):
+    """Read a company name from compact invoices without party labels.
+
+    Some PDFs put the company name and address at the top, then print the
+    VKN/TCKN a few lines later without a label. Restrict this fallback to the
+    short header region before that identifier so product descriptions lower
+    in the document cannot be mistaken for a customer name.
+    """
+    lines = [
+        re.sub(r"\s+", " ", line).strip()
+        for line in str(text or "").splitlines()
+    ]
+    lines = [line for line in lines if line]
+
+    tax_id_line_index = None
+    for index, line in enumerate(lines[:20]):
+        if re.search(r"\b\d{10,11}\b", line):
+            tax_id_line_index = index
+            break
+
+    if tax_id_line_index is None:
+        return None
+
+    header_text = "\n".join(lines[: tax_id_line_index + 1])
+    has_explicit_seller_label = re.search(
+        r"\b(?:Satıcı|Satici|Seller|Supplier)(?:\s+Bilgileri)?\b",
+        header_text,
+        re.IGNORECASE,
+    )
+    has_explicit_buyer_label = re.search(
+        r"\b(?:Alıcı|Alici|Buyer|Customer)(?:\s+Bilgileri)?\b",
+        header_text,
+        re.IGNORECASE,
+    )
+    if has_explicit_seller_label and not has_explicit_buyer_label:
+        return None
+
+    for line in lines[: tax_id_line_index + 1]:
+        candidate_line = re.sub(r"\b\d{10,11}\b.*$", "", line).strip(" :-")
+        if not candidate_line:
+            continue
+        if re.search(
+            r"\b\d{1,2}\.\d{1,2}\.\d{4}\b|\b\d{1,2}:\d{2}\b",
+            candidate_line,
+        ):
+            continue
+        if re.search(
+            r"\b(?:Satıcı|Satici|Supplier|Alıcı|Alici|Buyer|Customer)"
+            r"(?:\s+Bilgileri)?\b",
+            candidate_line,
+            re.IGNORECASE,
+        ):
+            continue
+
+        customer_name = _clean_customer_name_line(candidate_line)
+        if not customer_name or len(customer_name) > 160:
+            continue
+
+        customer_name = _collapse_repeated_name(customer_name)
+
+        words = re.findall(r"[^\W\d_]{2,}", customer_name, re.UNICODE)
+        if len(words) >= 2:
+            return customer_name
+
+    return None
+
+
 def _extract_customer_name(text):
     for line in _buyer_section_lines(text):
         customer_name = _clean_customer_name_line(line)
@@ -94,7 +173,7 @@ def _extract_customer_name(text):
     if match:
         return _clean_customer_name_line(match.group(1))
 
-    return None
+    return _extract_unlabeled_header_customer_name(text)
 
 
 def _extract_customer_tax_id(text):

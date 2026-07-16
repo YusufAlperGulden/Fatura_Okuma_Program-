@@ -236,6 +236,37 @@ header p {
     }
 }
 
+.edit-input {
+    width: 100%;
+    background-color: transparent;
+    border: 1px dashed transparent;
+    color: inherit;
+    font-size: 1.25rem;
+    font-weight: 600;
+    line-height: 1.35;
+    font-family: inherit;
+    padding: 2px 0;
+    margin: 0;
+    outline: none;
+    transition: all 0.2s ease;
+}
+
+.edit-input:hover {
+    border-bottom: 1px dashed var(--accent-color);
+}
+
+.edit-input:focus {
+    border-bottom: 1px solid var(--accent-color);
+    background-color: rgba(56, 189, 248, 0.05);
+    border-radius: 4px;
+    padding-left: 4px;
+}
+
+.edit-input.cell-input {
+    font-size: 1rem;
+    font-weight: 400;
+}
+
 /* Table */
 .items-panel h3 {
     margin-bottom: 1rem;
