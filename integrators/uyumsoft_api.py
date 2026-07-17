@@ -183,10 +183,37 @@ def _customer_display_name(invoice: dict[str, Any], customer_tax_id: str) -> str
         or invoice.get("customer")
     )
     if name:
-        return str(name).strip()
+        return " ".join(str(name).split())
     if customer_tax_id and customer_tax_id != "0000000000":
         return f"MUSTERI {customer_tax_id}"
     return "BILINMEYEN MUSTERI"
+
+
+def _customer_party_name_xml(customer_name: str, customer_scheme: str) -> str:
+    """Build customer name XML without duplicating TCKN display names.
+
+    Uyumsoft renders a TCKN party by joining Person/FirstName and
+    Person/FamilyName.  Writing the full display name into both elements made
+    the portal show values such as ``ALPER23 ALPER23``.  Split a multi-word
+    name once; for a single-token name, emit only FirstName.
+    """
+    normalized_name = " ".join(str(customer_name or "").split())
+    escaped_name = escape(normalized_name)
+
+    if customer_scheme != "TCKN":
+        return f"<cac:PartyName><cbc:Name>{escaped_name}</cbc:Name></cac:PartyName>"
+
+    name_parts = normalized_name.rsplit(maxsplit=1)
+    first_name = escape(name_parts[0])
+    family_name_xml = (
+        f"<cbc:FamilyName>{escape(name_parts[1])}</cbc:FamilyName>"
+        if len(name_parts) == 2
+        else ""
+    )
+    return (
+        f"<cac:Person><cbc:FirstName>{first_name}</cbc:FirstName>"
+        f"{family_name_xml}</cac:Person>"
+    )
 
 
 def build_ubl_invoice(invoice: dict[str, Any]) -> str:
@@ -308,6 +335,7 @@ def build_ubl_invoice(invoice: dict[str, Any]) -> str:
 
     supplier_scheme = _scheme_id(supplier_tax_id)
     customer_scheme = _scheme_id(customer_tax_id)
+    customer_party_name_xml = _customer_party_name_xml(customer_name, customer_scheme)
 
     text_amount = amount_to_turkish_text(total_amount, currency)
     notes_xml += f"\n  <cbc:Note>{escape(text_amount)}</cbc:Note>"
@@ -397,7 +425,7 @@ def build_ubl_invoice(invoice: dict[str, Any]) -> str:
   <cac:AccountingCustomerParty>
     <cac:Party>
       <cac:PartyIdentification><cbc:ID schemeID="{customer_scheme}">{escape(customer_tax_id)}</cbc:ID></cac:PartyIdentification>
-      {f'<cac:Person><cbc:FirstName>{escape(customer_name)}</cbc:FirstName><cbc:FamilyName>{escape(customer_name)}</cbc:FamilyName></cac:Person>' if customer_scheme == 'TCKN' else f'<cac:PartyName><cbc:Name>{escape(customer_name)}</cbc:Name></cac:PartyName>'}
+      {customer_party_name_xml}
     </cac:Party>
   </cac:AccountingCustomerParty>
   {allowance_charge_xml}{pricing_exchange_rate_xml}

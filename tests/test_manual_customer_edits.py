@@ -1,6 +1,7 @@
 import asyncio
 import unittest
 from unittest.mock import patch
+from xml.etree import ElementTree as ET
 
 from api import SendUyumsoftRequest, send_uyumsoft_api
 from integrators.uyumsoft_api import build_invoice_info_body
@@ -36,6 +37,15 @@ def _valid_invoice():
     }
 
 
+def _texts_for_local_name(xml_text, local_name):
+    root = ET.fromstring(xml_text)
+    return [
+        element.text
+        for element in root.iter()
+        if element.tag.rsplit("}", 1)[-1] == local_name
+    ]
+
+
 class ManualCustomerEditTests(unittest.TestCase):
     def test_serializer_prefers_edited_name_over_stale_customer_title(self):
         body = build_invoice_info_body("SaveAsDraft", _valid_invoice())
@@ -43,6 +53,35 @@ class ManualCustomerEditTests(unittest.TestCase):
         self.assertIn(EDITED_CUSTOMER_NAME, body)
         self.assertNotIn(OLD_CUSTOMER_NAME, body)
         self.assertIn(f'Title="{EDITED_CUSTOMER_NAME}"', body)
+        self.assertEqual(
+            _texts_for_local_name(body, "FirstName"), [EDITED_CUSTOMER_NAME]
+        )
+        self.assertEqual(_texts_for_local_name(body, "FamilyName"), [])
+
+    def test_multi_word_tckn_name_is_split_without_repetition(self):
+        invoice = _valid_invoice()
+        invoice["customer_name"] = "  Yusuf   Alper   Gülden  "
+        invoice["customer_title"] = "Yusuf Alper Gülden"
+
+        body = build_invoice_info_body("SaveAsDraft", invoice)
+
+        self.assertEqual(_texts_for_local_name(body, "FirstName"), ["Yusuf Alper"])
+        self.assertEqual(_texts_for_local_name(body, "FamilyName"), ["Gülden"])
+        self.assertEqual(body.count('Title="Yusuf Alper Gülden"'), 1)
+
+    def test_vkn_company_name_remains_a_single_party_name(self):
+        invoice = _valid_invoice()
+        invoice["customer_tax_id"] = "1234567890"
+        invoice["customer_name"] = "Örnek Şirket A.Ş."
+        invoice["customer_title"] = "Örnek Şirket A.Ş."
+
+        body = build_invoice_info_body("SaveAsDraft", invoice)
+
+        self.assertIn(
+            "<cac:PartyName><cbc:Name>Örnek Şirket A.Ş.</cbc:Name></cac:PartyName>",
+            body,
+        )
+        self.assertEqual(_texts_for_local_name(body, "Person"), [])
 
     def test_send_endpoint_preserves_user_reviewed_customer_name(self):
         request = SendUyumsoftRequest(invoice_data=_valid_invoice(), action="draft")
