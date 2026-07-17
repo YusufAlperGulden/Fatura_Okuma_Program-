@@ -231,8 +231,8 @@ def build_ubl_invoice(invoice: dict[str, Any]) -> str:
         raise ValueError("invoice must be an object")
 
     invoice_no = str(invoice.get("invoice_no") or "").strip()
-    if not invoice_no:
-        invoice_no = f"AUTO-{uuid.uuid4().hex[:12].upper()}"
+    #if not invoice_no:
+    #    invoice_no = f"AUTO-{uuid.uuid4().hex[:12].upper()}"
     issue_date = _parse_date(invoice.get("date"))
     issue_time = _parse_time(invoice.get("time"))
     issue_time_xml = (
@@ -325,8 +325,10 @@ def build_ubl_invoice(invoice: dict[str, Any]) -> str:
         raise ValueError("discount_amount must be between zero and subtotal")
 
     supplied_subtotal = _money(invoice.get("subtotal"), field_name="subtotal")
-    if invoice.get("subtotal") not in (None, "") and quantize_money(supplied_subtotal) != calculated_subtotal:
-        raise ValueError("invoice subtotal does not match line totals")
+    if invoice.get("subtotal") not in (None, ""):
+        supplied_q = quantize_money(supplied_subtotal)
+        if supplied_q != calculated_subtotal and supplied_q != quantize_money(calculated_subtotal - discount_amount):
+            raise ValueError("invoice subtotal does not match line totals")
 
     discount_shares = _allocate_discount_shares(
         [item["line_total"] for item in parsed_items], discount_amount
