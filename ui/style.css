@@ -810,8 +810,8 @@ tr:hover {
     border-radius: 8px;
     display: flex;
     flex-direction: column;
-    height: clamp(600px, 88vh, 1200px);
-    min-height: 0;
+    height: 100%; min-height: 850px;
+    
     align-self: stretch;
     box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
 }
@@ -828,7 +828,7 @@ tr:hover {
 
 .pdf-content {
     flex: 1;
-    min-height: 0;
+    
     background-color: #fff;
     border-radius: 0 0 8px 8px;
     overflow: hidden;
