@@ -763,8 +763,8 @@ def build_invoice_info_body(operation: str, invoice: dict[str, Any]) -> str:
 
     invoice_for_build = dict(invoice)
     resolved_invoice_no = str(invoice.get("invoice_no") or "").strip()
-    if not resolved_invoice_no:
-        resolved_invoice_no = f"AUTO-{uuid.uuid4().hex[:12].upper()}"
+    # if not resolved_invoice_no:
+    #     resolved_invoice_no = f"AUTO-{uuid.uuid4().hex[:12].upper()}"
     invoice_for_build["invoice_no"] = resolved_invoice_no
     ubl = build_uyumsoft_invoice_element(invoice_for_build, "Invoice")
     local_document_id = escape(resolved_invoice_no)
