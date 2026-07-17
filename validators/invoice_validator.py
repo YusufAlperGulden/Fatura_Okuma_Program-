@@ -164,8 +164,7 @@ def validate_invoice(data):
             errors.append("Fatura döviz kuru en fazla 8 ondalık basamak içerebilir.")
 
     invoice_no = str(data.get("invoice_no") or "").strip()
-    if not invoice_no:
-        errors.append("Fatura numarası boş bırakılamaz.")
+    # Fatura numarası artık zorunlu değil, Uyumsoft (veya API) tarafında otomatik atanabilecek.
     
     if not data.get("date"):
         errors.append("Fatura tarihi bulunamadı.")
