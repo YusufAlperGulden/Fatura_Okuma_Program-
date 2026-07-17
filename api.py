@@ -252,7 +252,13 @@ async def send_uyumsoft_api(request: SendUyumsoftRequest):
     """
     Receives invoice data from the UI and forwards it to the Uyumsoft API.
     """
-    is_valid, errors = validate_invoice(request.invoice_data or {})
+    import copy
+
+    # The payload reaching this endpoint is the user-reviewed final version.
+    # Work on a copy and never run customer enrichment again here: doing so
+    # used to overwrite manual edits with the registered Uyumsoft title.
+    invoice_data = copy.deepcopy(request.invoice_data or {})
+    is_valid, errors = validate_invoice(invoice_data)
     if not is_valid:
         return {
             "success": False,
@@ -261,6 +267,10 @@ async def send_uyumsoft_api(request: SendUyumsoftRequest):
             "response_code": 400,
         }
 
-    request.invoice_data = enrich_invoice_customer_from_uyumsoft(request.invoice_data)
-    result = send_invoice_to_uyumsoft(request.invoice_data, action="draft")
+    customer_name = str(invoice_data.get("customer_name") or "").strip()
+    if customer_name:
+        invoice_data["customer_name"] = customer_name
+        invoice_data["customer_title"] = customer_name
+
+    result = send_invoice_to_uyumsoft(invoice_data, action="draft")
     return result

@@ -178,8 +178,8 @@ def normalize_currency(value):
 
 def _customer_display_name(invoice: dict[str, Any], customer_tax_id: str) -> str:
     name = (
-        invoice.get("customer_title")
-        or invoice.get("customer_name")
+        invoice.get("customer_name")
+        or invoice.get("customer_title")
         or invoice.get("customer")
     )
     if name:

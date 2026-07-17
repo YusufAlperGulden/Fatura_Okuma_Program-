@@ -408,6 +408,12 @@ let currentUploadId = null;
         
         if (itemIndex === -1) {
             currentInvoiceData[fieldName] = newValue;
+            if (fieldName === 'customer_name') {
+                // customer_name is the editable/canonical field. Keep the
+                // legacy alias in sync so no downstream serializer can revive
+                // the pre-edit value.
+                currentInvoiceData.customer_title = newValue;
+            }
         } else {
             currentInvoiceData.items[itemIndex][fieldName] = newValue;
         }
