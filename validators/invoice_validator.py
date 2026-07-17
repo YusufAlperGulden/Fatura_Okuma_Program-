@@ -1,62 +1,19 @@
 import datetime
-from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
+from decimal import Decimal, ROUND_HALF_UP
 
+from utils.invoice_values import (
+    MONEY_QUANTUM,
+    decimal_places,
+    format_decimal,
+    normalize_currency,
+    parse_localized_decimal,
+    quantize_money,
+)
 
-MONEY_QUANTUM = Decimal("0.01")
 
 def _parse_decimal(value):
-    """Parse invoice numbers without turning invalid text into a valid zero."""
-    if value is None or isinstance(value, bool):
-        return None
-    if isinstance(value, Decimal):
-        try:
-            if not value.is_finite():
-                return None
-            return value.quantize(MONEY_QUANTUM, rounding=ROUND_HALF_UP)
-        except InvalidOperation:
-            return None
-    if isinstance(value, (int, float)):
-        try:
-            parsed = Decimal(str(value))
-            if not parsed.is_finite():
-                return None
-            return parsed.quantize(MONEY_QUANTUM, rounding=ROUND_HALF_UP)
-        except (InvalidOperation, ValueError):
-            return None
-
-    amount_str = str(value).strip().upper()
-    for currency in ["₺", "TL", "TRY", "$", "USD", "DOLAR", "€", "EUR", "EURO", "£", "GBP", "%"]:
-        amount_str = amount_str.replace(currency, "")
-    amount_str = amount_str.strip()
-
-    if not amount_str:
-        return None
-
-    if "," in amount_str and "." in amount_str:
-        if amount_str.rfind(",") > amount_str.rfind("."):
-            amount_str = amount_str.replace(".", "").replace(",", ".")
-        else:
-            amount_str = amount_str.replace(",", "")
-    elif "," in amount_str:
-        parts = amount_str.split(",")
-        if len(parts) == 2 and len(parts[1]) != 3:
-            amount_str = amount_str.replace(",", ".")
-        elif len(parts) > 1 and all(len(p) == 3 for p in parts[1:]):
-            amount_str = amount_str.replace(",", "")
-        else:
-            amount_str = amount_str.replace(",", ".")
-    elif "." in amount_str:
-        parts = amount_str.split(".")
-        if len(parts) > 1 and all(len(p) == 3 for p in parts[1:]):
-            amount_str = amount_str.replace(".", "")
-
-    try:
-        parsed = Decimal(amount_str)
-        if not parsed.is_finite():
-            return None
-        return parsed.quantize(MONEY_QUANTUM, rounding=ROUND_HALF_UP)
-    except (InvalidOperation, ValueError, TypeError):
-        return None
+    """Parse invoice numbers without changing their decimal precision."""
+    return parse_localized_decimal(value)
 
 
 def to_decimal(value):
@@ -110,9 +67,10 @@ def _infer_uniform_missing_tax_rate(data):
     line_totals = [_parse_decimal(item.get("total_price")) for item in items]
     if any(line_total is None for line_total in line_totals):
         return
-    subtotal = sum(line_totals, Decimal("0.00"))
+    subtotal = quantize_money(sum(line_totals, Decimal("0.00")))
     tax_amount = _parse_decimal(data.get("tax_amount"))
     discount = _parse_decimal(data.get("discount_amount")) or Decimal("0.00")
+    discount = quantize_money(discount)
     if tax_amount is None:
         return
 
@@ -155,13 +113,16 @@ def recalculate_invoice_totals(data):
         tax_rate = _parse_decimal(item.get("tax_rate"))
         if line_total is None or tax_rate is None:
             return data
-        parsed_lines.append((line_total, tax_rate))
+        parsed_lines.append((quantize_money(line_total), tax_rate))
 
     discount = _parse_decimal(data.get("discount_amount"))
     if discount is None:
         discount = Decimal("0.00")
+    discount = quantize_money(discount)
 
-    subtotal = sum((line_total for line_total, _ in parsed_lines), Decimal("0.00"))
+    subtotal = quantize_money(
+        sum((line_total for line_total, _ in parsed_lines), Decimal("0.00"))
+    )
     tax_amount = Decimal("0.00")
     discount_shares = _allocate_discount_shares(
         [line_total for line_total, _ in parsed_lines],
@@ -175,15 +136,32 @@ def recalculate_invoice_totals(data):
         )
 
     data["subtotal"] = subtotal
-    data["tax_amount"] = tax_amount
-    data["total_amount"] = subtotal - discount + tax_amount
+    data["tax_amount"] = quantize_money(tax_amount)
+    data["total_amount"] = quantize_money(subtotal - discount + tax_amount)
     return data
 
 
 def validate_invoice(data):
+    if not isinstance(data, dict):
+        return False, ["Fatura verisi bir nesne olmalıdır."]
+
     errors = []
 
     _infer_uniform_missing_tax_rate(data)
+
+    try:
+        data["currency"] = normalize_currency(data.get("currency"))
+    except ValueError:
+        errors.append(
+            f"Fatura para birimi desteklenmiyor. (Okunan: '{data.get('currency')}')"
+        )
+
+    exchange_rate = _parse_decimal(data.get("exchange_rate"))
+    if data.get("exchange_rate") not in (None, ""):
+        if exchange_rate is None or exchange_rate <= Decimal("0"):
+            errors.append("Fatura döviz kuru sıfırdan büyük sayısal bir değer olmalıdır.")
+        elif decimal_places(exchange_rate.normalize()) > 8:
+            errors.append("Fatura döviz kuru en fazla 8 ondalık basamak içerebilir.")
 
     invoice_no = str(data.get("invoice_no") or "").strip()
     if not invoice_no:
@@ -208,21 +186,33 @@ def validate_invoice(data):
             )
         else:
             errors.append(
-                f"Alıcı VKN/TCKN bilgisi hatalı veya eksik. (Okunan: '{tax_id}')"
+                f"Alıcı VKN/TCKN bilgisi hatalı veya eksik. Lütfen 10 veya 11 haneli olacak şekilde faturayı düzenleyiniz. (Okunan: '{tax_id}')"
             )
         
-    customer_name = str(data.get("customer_name") or "").strip()
+    customer_name = str(
+        data.get("customer_name") or data.get("customer_title") or ""
+    ).strip()
     if not customer_name or customer_name == "-":
         errors.append("Alıcı ünvanı (müşteri adı) bulunamadı.")
-        
-    if not data.get("items"):
+    else:
+        data["customer_name"] = customer_name
+        data["customer_title"] = customer_name
+
+    items_value = data.get("items")
+    if not isinstance(items_value, list):
+        errors.append("Fatura kalemleri bir liste olmalıdır.")
+        items = []
+    else:
+        items = items_value
+
+    if not items:
         errors.append("Fatura üzerinde herhangi bir kalem (ürün/hizmet) satırı bulunamadı.")
         
     calculated_subtotal = Decimal("0.00")
     
     parsed_tax_lines = []
 
-    for index, item in enumerate((data.get("items") or []), start=1):
+    for index, item in enumerate(items, start=1):
         if not isinstance(item, dict):
             errors.append(f"{index}. fatura kalemi geçersiz.")
             continue
@@ -241,23 +231,31 @@ def validate_invoice(data):
 
         if quantity is None or quantity <= Decimal("0.00"):
             errors.append(f"{index}. kalemin miktarı sıfırdan büyük sayısal bir değer olmalıdır.")
+        elif decimal_places(quantity.normalize()) > 6:
+            errors.append(f"{index}. kalemin miktarı en fazla 6 ondalık basamak içerebilir.")
         if unit_price is None or unit_price < Decimal("0.00"):
             errors.append(f"{index}. kalemin birim fiyatı geçerli bir sayısal değer olmalıdır.")
+        elif decimal_places(unit_price.normalize()) > 8:
+            errors.append(f"{index}. kalemin birim fiyatı en fazla 8 ondalık basamak içerebilir.")
         if total_price is None or total_price < Decimal("0.00"):
             errors.append(f"{index}. kalemin satır toplamı geçerli bir sayısal değer olmalıdır.")
+        elif total_price != quantize_money(total_price):
+            errors.append(f"{index}. kalemin satır toplamı en fazla 2 ondalık basamak içerebilir.")
         if tax_rate is None or not (Decimal("0.00") <= tax_rate <= Decimal("100.00")):
             errors.append(f"{index}. kalemin KDV oranı 0 ile 100 arasında sayısal bir değer olmalıdır.")
+        elif decimal_places(tax_rate.normalize()) > 4:
+            errors.append(f"{index}. kalemin KDV oranı en fazla 4 ondalık basamak içerebilir.")
 
         if total_price is not None:
-            calculated_subtotal += total_price
+            calculated_subtotal += quantize_money(total_price)
         if total_price is not None and tax_rate is not None:
-            parsed_tax_lines.append((total_price, tax_rate))
+            parsed_tax_lines.append((quantize_money(total_price), tax_rate))
 
         if (
             quantity is not None
             and unit_price is not None
             and total_price is not None
-            and abs((quantity * unit_price) - total_price) > Decimal("0.05")
+            and abs(quantize_money(quantity * unit_price) - quantize_money(total_price)) > Decimal("0.05")
         ):
             errors.append(f"Kalem Matematik Hatası: '{item.get('description')}' satırında (Miktar: {quantity} x Fiyat: {unit_price} = {total_price}) tutmuyor.")
 
@@ -266,32 +264,45 @@ def validate_invoice(data):
     tax_raw = _parse_decimal(data.get("tax_amount"))
     total_raw = _parse_decimal(data.get("total_amount"))
 
-    subtotal = subtotal_raw if subtotal_raw is not None else Decimal("0.00")
-    discount_amount = discount_raw if discount_raw is not None else Decimal("0.00")
-    tax_amount = tax_raw if tax_raw is not None else Decimal("0.00")
-    total_amount = total_raw if total_raw is not None else Decimal("0.00")
+    subtotal = quantize_money(subtotal_raw) if subtotal_raw is not None else Decimal("0.00")
+    discount_amount = quantize_money(discount_raw) if discount_raw is not None else Decimal("0.00")
+    tax_amount = quantize_money(tax_raw) if tax_raw is not None else Decimal("0.00")
+    total_amount = quantize_money(total_raw) if total_raw is not None else Decimal("0.00")
+    calculated_subtotal = quantize_money(calculated_subtotal)
 
     if subtotal_raw is None:
         errors.append("Fatura ara toplamı geçerli bir sayısal değer olmalıdır.")
+    elif subtotal_raw != subtotal:
+        errors.append("Fatura ara toplamı en fazla 2 ondalık basamak içerebilir.")
     if data.get("discount_amount") not in (None, "") and discount_raw is None:
         errors.append("Fatura indirim tutarı geçerli bir sayısal değer olmalıdır.")
+    elif discount_raw is not None and discount_raw != discount_amount:
+        errors.append("Fatura indirim tutarı en fazla 2 ondalık basamak içerebilir.")
     if tax_raw is None:
         errors.append("Fatura KDV toplamı geçerli bir sayısal değer olmalıdır.")
+    elif tax_raw != tax_amount:
+        errors.append("Fatura KDV toplamı en fazla 2 ondalık basamak içerebilir.")
     if total_raw is None:
         errors.append("Fatura genel toplamı geçerli bir sayısal değer olmalıdır.")
+    elif total_raw != total_amount:
+        errors.append("Fatura genel toplamı en fazla 2 ondalık basamak içerebilir.")
     if discount_amount < Decimal("0.00") or discount_amount > calculated_subtotal:
         errors.append("Fatura indirim tutarı sıfırdan küçük veya ara toplamdan büyük olamaz.")
     
     if total_amount <= Decimal("0.00"):
         errors.append(f"Fatura Genel Toplamı sıfır veya geçersiz. (Okunan: {total_amount})")
 
-    if abs(calculated_subtotal - subtotal) > Decimal("1.00") and abs((calculated_subtotal - discount_amount) - subtotal) > Decimal("1.00"):
-         errors.append(f"Matematik Hatası: Kalemlerin tutar toplamı ({calculated_subtotal}) ile faturanın Ara Toplamı ({subtotal}) uyuşmuyor.")
-         
-    if abs((calculated_subtotal - discount_amount + tax_amount) - total_amount) > Decimal("1.00"):
-         errors.append(f"Matematik Hatası: KDV ve İndirim hesaplaması sonucu Genel Toplam ile uyuşmuyor. (Hesaplanan: {(calculated_subtotal - discount_amount + tax_amount)}, Faturada Yazan: {total_amount})")
+    if (
+        calculated_subtotal != subtotal
+        and quantize_money(calculated_subtotal - discount_amount) != subtotal
+    ):
+        errors.append(f"Matematik Hatası: Kalemlerin tutar toplamı ({calculated_subtotal}) ile faturanın Ara Toplamı ({subtotal}) uyuşmuyor.")
 
-    if parsed_tax_lines and len(parsed_tax_lines) == len(data.get("items") or []):
+    expected_total = quantize_money(calculated_subtotal - discount_amount + tax_amount)
+    if abs(expected_total - total_amount) > Decimal("0.10"):
+        errors.append(f"Matematik Hatası: KDV ve İndirim hesaplaması sonucu Genel Toplam ile uyuşmuyor. (Hesaplanan: {(calculated_subtotal - discount_amount + tax_amount)}, Faturada Yazan: {total_amount})")
+
+    if parsed_tax_lines and len(parsed_tax_lines) == len(items):
         expected_tax = Decimal("0.00")
         discount_shares = _allocate_discount_shares(
             [line_total for line_total, _ in parsed_tax_lines],
@@ -301,7 +312,8 @@ def validate_invoice(data):
             expected_tax += (
                 (line_total - discount_share) * tax_rate / Decimal("100")
             ).quantize(MONEY_QUANTUM, rounding=ROUND_HALF_UP)
-        if abs(expected_tax - tax_amount) > Decimal("1.00"):
+        expected_tax = quantize_money(expected_tax)
+        if abs(expected_tax - tax_amount) > Decimal("0.05"):
             errors.append(
                 "Matematik Hatası: Kalem KDV oranlarından hesaplanan toplam KDV "
                 f"({expected_tax}) ile faturanın KDV toplamı ({tax_amount}) uyuşmuyor."
@@ -338,17 +350,16 @@ def validate_invoice(data):
             data["time"] = parsed_time.strftime("%H:%M:%S")
 
     is_valid = len(errors) == 0
-                
+
     def format_tr_money(val: Decimal) -> str:
-        return f"{float(val):,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+        return f"{quantize_money(val):,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
 
-    def format_quantity(value: Decimal):
-        text = format(value.normalize(), "f")
-
-        if "." in text:
-            text = text.rstrip("0").rstrip(".")
-
-        return text.replace(".", ",")
+    def format_number(value: Decimal, max_places: int, min_places: int = 0):
+        return format_decimal(
+            value,
+            max_places=max_places,
+            min_places=min_places,
+        ).replace(".", ",")
 
     if subtotal_raw is not None:
         data["subtotal"] = format_tr_money(subtotal_raw)
@@ -358,21 +369,23 @@ def validate_invoice(data):
         data["tax_amount"] = format_tr_money(tax_raw)
     if total_raw is not None:
         data["total_amount"] = format_tr_money(total_raw)
+    if exchange_rate is not None and exchange_rate > Decimal("0"):
+        data["exchange_rate"] = format_number(exchange_rate, 8, min_places=4)
 
-    for item in (data.get("items") or []):
+    for item in items:
         if not isinstance(item, dict):
             continue
         quantity = _parse_decimal(item.get("quantity"))
         unit_price = _parse_decimal(item.get("unit_price"))
         total_price = _parse_decimal(item.get("total_price"))
         tax_rate = _parse_decimal(item.get("tax_rate"))
-        if quantity is not None:
-            item["quantity"] = format_quantity(quantity)
-        if unit_price is not None:
-            item["unit_price"] = format_tr_money(unit_price)
-        if total_price is not None:
+        if quantity is not None and decimal_places(quantity.normalize()) <= 6:
+            item["quantity"] = format_number(quantity, 6)
+        if unit_price is not None and decimal_places(unit_price.normalize()) <= 8:
+            item["unit_price"] = format_number(unit_price, 8, min_places=2)
+        if total_price is not None and total_price == quantize_money(total_price):
             item["total_price"] = format_tr_money(total_price)
-        if tax_rate is not None:
-            item["tax_rate"] = format_quantity(tax_rate)
+        if tax_rate is not None and decimal_places(tax_rate.normalize()) <= 4:
+            item["tax_rate"] = format_number(tax_rate, 4)
 
     return is_valid, errors

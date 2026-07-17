@@ -359,6 +359,15 @@ document.addEventListener('DOMContentLoaded', () => {
             : state === 'pending'
                 ? 'Değişiklikler doğrulanıyor.'
                 : '';
+                
+        const svgPath = sendBtn.querySelector('svg path');
+        if (svgPath) {
+            if (state === 'invalid') {
+                svgPath.setAttribute('d', 'M6 18L18 6M6 6l12 12');
+            } else {
+                svgPath.setAttribute('d', 'M5 13l4 4L19 7');
+            }
+        }
     }
 
     function setCsvValidationState(state) {
@@ -459,6 +468,24 @@ document.addEventListener('DOMContentLoaded', () => {
         } catch (error) {
             throw new Error(`Sunucu JSON yerine hata sayfası döndürdü (HTTP ${response.status}). Sayfayı yenileyip tekrar deneyin.`);
         }
+    }
+
+    function formatApiError(result) {
+        if (!result) return "";
+        if (result.errors && Array.isArray(result.errors) && result.errors.length > 0) {
+            return result.errors.join(", ");
+        }
+        if (result.message) {
+            let msg = result.message;
+            if (result.details && Array.isArray(result.details) && result.details.length > 0) {
+                msg += " - " + result.details.join(", ");
+            }
+            return msg;
+        }
+        if (result.detail) {
+            return typeof result.detail === 'string' ? result.detail : JSON.stringify(result.detail);
+        }
+        return "Sunucu bilinmeyen bir hata döndürdü.";
     }
 
     let currentAbortController = null;
@@ -577,10 +604,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 updateValidationUI(result);
                 document.getElementById('send-draft-btn').classList.remove('hidden');
             } else {
-                showError("Sunucu Hatası: " + (result.detail || "Bilinmeyen hata"));
+                showError("Sunucu Hatası: " + formatApiError(result));
             }
             
-                } catch (error) {
+        } catch (error) {
             if (currentUploadId !== capturedUploadId) return;
             loading.classList.add('hidden');
             dropZone.classList.remove('hidden');
@@ -590,7 +617,7 @@ document.addEventListener('DOMContentLoaded', () => {
             } else {
                 showError("Bağlantı hatası: " + error.message);
             }
-                } finally {
+        } finally {
             if (currentUploadId === capturedUploadId) {
                 currentAbortController = null;
             }
@@ -739,10 +766,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
                 updateValidationUI(result);
             } else {
-                const detail = typeof result.detail === 'string'
-                    ? result.detail
-                    : 'Fatura doğrulaması tamamlanamadı.';
-                setValidationFailure(detail);
+                setValidationFailure(formatApiError(result) || 'Fatura doğrulaması tamamlanamadı.');
             }
         } catch (err) {
             if (err.name === 'AbortError' || capturedValidationRevision !== validationRevision) return;
