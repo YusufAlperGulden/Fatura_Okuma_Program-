@@ -1,10 +1,11 @@
 from __future__ import annotations
 
 import os
+import copy
 import uuid
 from dataclasses import dataclass
 from datetime import datetime, timezone
-from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
+from decimal import Decimal, ROUND_HALF_UP
 from typing import Any
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
@@ -15,6 +16,13 @@ import urllib.request
 from datetime import datetime, timedelta
 from utils.money_to_text import amount_to_turkish_text
 from utils.serial_numbers import normalize_serial_numbers
+from utils.invoice_values import (
+    MONEY_QUANTUM,
+    format_decimal,
+    normalize_currency as normalize_invoice_currency,
+    parse_localized_decimal,
+    quantize_money,
+)
 
 def get_tcmb_rate(currency_code, date_str):
     try:
@@ -51,7 +59,7 @@ def get_tcmb_rate(currency_code, date_str):
             
         date_obj -= timedelta(days=1)
             
-    return "1.0000"
+    return None
 
 
 
@@ -88,44 +96,25 @@ def _local_name(tag: str) -> str:
     return tag.rsplit("}", 1)[-1] if "}" in tag else tag
 
 
-def _money(value: Any) -> Decimal:
+def _money(value: Any, *, field_name: str = "amount") -> Decimal:
     if value is None or value == "":
         return Decimal("0.00")
-
-    text = str(value).strip().upper()
-    for currency in ["₺", "TL", "TRY", "$", "USD", "DOLAR", "€", "EUR", "EURO", "£", "GBP", "%"]:
-        text = text.replace(currency, "")
-    text = text.replace(" ", "").strip()
-
-    if not text:
-        return Decimal("0.00")
-
-    if "," in text and "." in text:
-        if text.rfind(",") > text.rfind("."):
-            text = text.replace(".", "").replace(",", ".")
-        else:
-            text = text.replace(",", "")
-    elif "," in text:
-        parts = text.split(",")
-        if len(parts) == 2 and len(parts[1]) != 3:
-            text = text.replace(",", ".")
-        elif len(parts) > 1 and all(len(p) == 3 for p in parts[1:]):
-            text = text.replace(",", "")
-        else:
-            text = text.replace(",", ".")
-    elif "." in text:
-        parts = text.split(".")
-        if len(parts) > 1 and all(len(p) == 3 for p in parts[1:]):
-            text = text.replace(".", "")
-
-    try:
-        return Decimal(text)
-    except InvalidOperation:
-        return Decimal("0.00")
+    parsed = parse_localized_decimal(value)
+    if parsed is None:
+        raise ValueError(f"{field_name} must be numeric")
+    return parsed
 
 
 def _fmt_money(value: Decimal) -> str:
-    return str(value.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP))
+    return f"{quantize_money(value):.2f}"
+
+
+def _fmt_quantity(value: Decimal) -> str:
+    return format_decimal(value, max_places=6)
+
+
+def _fmt_unit_price(value: Decimal) -> str:
+    return format_decimal(value, max_places=8, min_places=2)
 
 
 def _parse_date(value: Any) -> str:
@@ -173,27 +162,7 @@ def _tax_rate(invoice: dict[str, Any]) -> Decimal:
 
 
 def normalize_currency(value):
-    text = str(value or "").strip().upper()
-
-    mapping = {
-        "TL": "TRY",
-        "TRY": "TRY",
-        "₺": "TRY",
-        "TÜRK LİRASI": "TRY",
-        "TURK LIRASI": "TRY",
-
-        "EURO": "EUR",
-        "EUR": "EUR",
-        "€": "EUR",
-
-        "DOLAR": "USD",
-        "USD": "USD",
-        "$": "USD",
-        "AMERIKAN DOLARI": "USD",
-        "AMERİKAN DOLARI": "USD",
-    }
-
-    return mapping.get(text, "TRY")
+    return normalize_invoice_currency(value)
 
 
 def _customer_display_name(invoice: dict[str, Any], customer_tax_id: str) -> str:
@@ -236,7 +205,31 @@ def _customer_party_name_xml(customer_name: str, customer_scheme: str) -> str:
     )
 
 
+def _allocate_discount_shares(
+    line_totals: list[Decimal], discount: Decimal
+) -> list[Decimal]:
+    if not line_totals:
+        return []
+    subtotal = sum(line_totals, Decimal("0.00"))
+    if subtotal <= 0 or discount <= 0:
+        return [Decimal("0.00") for _ in line_totals]
+
+    shares: list[Decimal] = []
+    allocated = Decimal("0.00")
+    for index, line_total in enumerate(line_totals):
+        if index == len(line_totals) - 1:
+            share = discount - allocated
+        else:
+            share = quantize_money(discount * line_total / subtotal)
+            allocated += share
+        shares.append(share)
+    return shares
+
+
 def build_ubl_invoice(invoice: dict[str, Any]) -> str:
+    if not isinstance(invoice, dict):
+        raise ValueError("invoice must be an object")
+
     invoice_no = str(invoice.get("invoice_no") or "").strip()
     if not invoice_no:
         invoice_no = f"AUTO-{uuid.uuid4().hex[:12].upper()}"
@@ -248,16 +241,20 @@ def build_ubl_invoice(invoice: dict[str, Any]) -> str:
         else ""
     )
         
-    currency = normalize_currency(invoice.get("currency") or os.getenv("UYUMSOFT_CURRENCY", "TRY"))
+    currency = normalize_currency(
+        invoice.get("currency") or os.getenv("UYUMSOFT_CURRENCY", "TRY")
+    )
     profile_id = str(invoice.get("profile_id") or os.getenv("UYUMSOFT_PROFILE_ID", "TICARIFATURA"))
     invoice_type = str(invoice.get("invoice_type") or os.getenv("UYUMSOFT_INVOICE_TYPE", "SATIS"))
     
     extracted_notes = str(invoice.get("notes") or "").strip()
     notes_xml = f"\n  <cbc:Note>{escape(extracted_notes)}</cbc:Note>" if extracted_notes else ""
 
-    supplier_tax_id = str(
+    supplier_tax_id = "".join(filter(str.isdigit, str(
         invoice.get("supplier_tax_id") or os.getenv("UYUMSOFT_SUPPLIER_VKN", "9000068418")
-    )
+    )))
+    if len(supplier_tax_id) not in (10, 11):
+        raise ValueError("supplier_tax_id must contain 10 or 11 digits")
     supplier_name = str(
         invoice.get("supplier_name")
         or os.getenv(
@@ -276,38 +273,29 @@ def build_ubl_invoice(invoice: dict[str, Any]) -> str:
         
     customer_name = _customer_display_name(invoice, customer_tax_id)
 
-    items = invoice.get("items") or []
+    items = invoice.get("items")
+    if not isinstance(items, list) or not items:
+        raise ValueError("items must be a non-empty list")
     rate = _tax_rate(invoice)
-    subtotal = _money(invoice.get("subtotal"))
-    tax_amount = _money(invoice.get("tax_amount"))
-    total_amount = _money(invoice.get("total_amount"))
-
-    line_xml = []
-    calculated_subtotal = Decimal("0.00")
-    calculated_tax = Decimal("0.00")
-    tax_subtotals: dict[Decimal, dict[str, Decimal]] = {}
-
+    parsed_items: list[dict[str, Any]] = []
     for index, item in enumerate(items, start=1):
-        quantity = _money(item.get("quantity"))
-        unit_price = _money(item.get("unit_price"))
-        line_total = _money(item.get("total_price"))
+        if not isinstance(item, dict):
+            raise ValueError(f"item {index} must be an object")
+        quantity = _money(item.get("quantity"), field_name=f"item {index} quantity")
+        unit_price = _money(item.get("unit_price"), field_name=f"item {index} unit_price")
+        line_total = quantize_money(
+            _money(item.get("total_price"), field_name=f"item {index} total_price")
+        )
+        if quantity <= 0 or unit_price < 0 or line_total < 0:
+            raise ValueError(f"item {index} contains invalid numeric values")
 
         item_rate_value = item.get("tax_rate")
-        item_rate = (
-            _money(item_rate_value)
-            if item_rate_value is not None and str(item_rate_value).strip() != ""
-            else rate
+        item_rate = _money(
+            item_rate_value if item_rate_value not in (None, "") else rate,
+            field_name=f"item {index} tax_rate",
         )
-        line_tax = (line_total * item_rate / Decimal("100")).quantize(
-            Decimal("0.01"), rounding=ROUND_HALF_UP
-        )
-        calculated_subtotal += line_total
-        calculated_tax += line_tax
-        
-        if item_rate not in tax_subtotals:
-            tax_subtotals[item_rate] = {"taxable": Decimal("0.00"), "tax": Decimal("0.00")}
-        tax_subtotals[item_rate]["taxable"] += line_total
-        tax_subtotals[item_rate]["tax"] += line_tax
+        if item_rate < 0 or item_rate > 100:
+            raise ValueError(f"item {index} tax_rate must be between 0 and 100")
 
         description_value = (
             item.get("description") if "description" in item else item.get("name")
@@ -315,9 +303,60 @@ def build_ubl_invoice(invoice: dict[str, Any]) -> str:
         description_text = str(description_value or "").strip()
         if not description_text:
             raise ValueError(f"item {index} description cannot be empty")
-        description = escape(description_text)
+        parsed_items.append(
+            {
+                "quantity": quantity,
+                "unit_price": unit_price,
+                "line_total": line_total,
+                "tax_rate": item_rate,
+                "description": description_text,
+                "code": str(item.get("code") or "").strip(),
+                "serial_numbers": normalize_serial_numbers(item.get("serial_numbers")),
+            }
+        )
 
-        code_text = str(item.get("code") or "").strip()
+    calculated_subtotal = quantize_money(
+        sum((item["line_total"] for item in parsed_items), Decimal("0.00"))
+    )
+    discount_amount = quantize_money(
+        _money(invoice.get("discount_amount"), field_name="discount_amount")
+    )
+    if discount_amount < 0 or discount_amount > calculated_subtotal:
+        raise ValueError("discount_amount must be between zero and subtotal")
+
+    supplied_subtotal = _money(invoice.get("subtotal"), field_name="subtotal")
+    if invoice.get("subtotal") not in (None, "") and quantize_money(supplied_subtotal) != calculated_subtotal:
+        raise ValueError("invoice subtotal does not match line totals")
+
+    discount_shares = _allocate_discount_shares(
+        [item["line_total"] for item in parsed_items], discount_amount
+    )
+    tax_subtotals: dict[Decimal, dict[str, Decimal]] = {}
+    line_xml: list[str] = []
+    calculated_tax = Decimal("0.00")
+
+    for index, (item, discount_share) in enumerate(
+        zip(parsed_items, discount_shares), start=1
+    ):
+        quantity = item["quantity"]
+        unit_price = item["unit_price"]
+        line_total = item["line_total"]
+        item_rate = item["tax_rate"]
+        taxable_amount = line_total - discount_share
+        line_tax = quantize_money(taxable_amount * item_rate / Decimal("100"))
+        calculated_tax += line_tax
+
+        group = tax_subtotals.setdefault(
+            item_rate,
+            {"gross": Decimal("0.00"), "discount": Decimal("0.00"),
+             "taxable": Decimal("0.00"), "tax": Decimal("0.00")},
+        )
+        group["gross"] += line_total
+        group["discount"] += discount_share
+        group["taxable"] += taxable_amount
+        group["tax"] += line_tax
+
+        code_text = item["code"]
         sellers_item_xml = (
             "\n      <cac:SellersItemIdentification>"
             f"<cbc:ID>{escape(code_text)}</cbc:ID>"
@@ -329,18 +368,18 @@ def build_ubl_invoice(invoice: dict[str, Any]) -> str:
             "\n      <cac:ItemInstance>"
             f"<cbc:SerialID>{escape(serial_number)}</cbc:SerialID>"
             "</cac:ItemInstance>"
-            for serial_number in normalize_serial_numbers(item.get("serial_numbers"))
+            for serial_number in item["serial_numbers"]
         )
         line_xml.append(
             f"""
   <cac:InvoiceLine>
     <cbc:ID>{index}</cbc:ID>
-    <cbc:InvoicedQuantity unitCode="C62">{_fmt_money(quantity)}</cbc:InvoicedQuantity>
+    <cbc:InvoicedQuantity unitCode="C62">{_fmt_quantity(quantity)}</cbc:InvoicedQuantity>
     <cbc:LineExtensionAmount currencyID="{currency}">{_fmt_money(line_total)}</cbc:LineExtensionAmount>
     <cac:TaxTotal>
       <cbc:TaxAmount currencyID="{currency}">{_fmt_money(line_tax)}</cbc:TaxAmount>
       <cac:TaxSubtotal>
-        <cbc:TaxableAmount currencyID="{currency}">{_fmt_money(line_total)}</cbc:TaxableAmount>
+        <cbc:TaxableAmount currencyID="{currency}">{_fmt_money(taxable_amount)}</cbc:TaxableAmount>
         <cbc:TaxAmount currencyID="{currency}">{_fmt_money(line_tax)}</cbc:TaxAmount>
         <cbc:Percent>{_fmt_money(item_rate)}</cbc:Percent>
         <cac:TaxCategory>
@@ -352,61 +391,46 @@ def build_ubl_invoice(invoice: dict[str, Any]) -> str:
       </cac:TaxSubtotal>
     </cac:TaxTotal>
     <cac:Item>
-      <cbc:Name>{description}</cbc:Name>{sellers_item_xml}{item_instances_xml}
+      <cbc:Name>{escape(item["description"])}</cbc:Name>{sellers_item_xml}{item_instances_xml}
     </cac:Item>
     <cac:Price>
-      <cbc:PriceAmount currencyID="{currency}">{_fmt_money(unit_price)}</cbc:PriceAmount>
+      <cbc:PriceAmount currencyID="{currency}">{_fmt_unit_price(unit_price)}</cbc:PriceAmount>
     </cac:Price>
   </cac:InvoiceLine>"""
         )
 
-    discount_amount = _money(invoice.get("discount_amount"))
-    line_extension_amount = calculated_subtotal if calculated_subtotal > Decimal("0.00") else subtotal
-
-    if subtotal == Decimal("0.00"):
-        subtotal = line_extension_amount
-    if tax_amount == Decimal("0.00"):
-        tax_amount = calculated_tax
-
-    taxable_amount = line_extension_amount - discount_amount
-    if total_amount == Decimal("0.00"):
-        total_amount = taxable_amount + tax_amount
+    calculated_tax = quantize_money(calculated_tax)
+    supplied_tax = _money(invoice.get("tax_amount"), field_name="tax_amount")
+    if invoice.get("tax_amount") not in (None, "") and quantize_money(supplied_tax) != calculated_tax:
+        raise ValueError("invoice tax_amount does not match line tax calculation")
+    line_extension_amount = calculated_subtotal
+    taxable_amount = calculated_subtotal - discount_amount
+    total_amount = quantize_money(taxable_amount + calculated_tax)
+    supplied_total = _money(invoice.get("total_amount"), field_name="total_amount")
+    if invoice.get("total_amount") not in (None, "") and quantize_money(supplied_total) != total_amount:
+        raise ValueError("invoice total_amount does not match calculated total")
+    tax_amount = calculated_tax
 
     supplier_scheme = _scheme_id(supplier_tax_id)
     customer_scheme = _scheme_id(customer_tax_id)
     customer_party_name_xml = _customer_party_name_xml(customer_name, customer_scheme)
 
-    allowance_charge_xml = ""
-    
-    if discount_amount >= Decimal("0.00"):
-        allowance_charge_xml = f"""
+    allowance_charge_parts = []
+    if discount_amount > 0:
+        for tax_rate, amounts in tax_subtotals.items():
+            if amounts["discount"] <= 0:
+                continue
+            allowance_charge_parts.append(f"""
   <cac:AllowanceCharge>
     <cbc:ChargeIndicator>false</cbc:ChargeIndicator>
-    <cbc:Amount currencyID="{currency}">{_fmt_money(discount_amount)}</cbc:Amount>
-  </cac:AllowanceCharge>"""
-        if calculated_subtotal > Decimal("0.00"):
-            allocated_discount = Decimal("0.00")
-            rate_groups = list(tax_subtotals.items())
-            for group_index, (t_rate, t_amounts) in enumerate(rate_groups):
-                if group_index == len(rate_groups) - 1:
-                    discount_part = discount_amount - allocated_discount
-                else:
-                    proportion = t_amounts["taxable"] / calculated_subtotal
-                    discount_part = (discount_amount * proportion).quantize(
-                        Decimal("0.01"),
-                        rounding=ROUND_HALF_UP,
-                    )
-                    allocated_discount += discount_part
-                t_amounts["taxable"] -= discount_part
-                t_amounts["tax"] = (t_amounts["taxable"] * t_rate / Decimal("100")).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+    <cbc:Amount currencyID="{currency}">{_fmt_money(amounts["discount"])}</cbc:Amount>
+    <cac:TaxCategory>
+      <cbc:Percent>{_fmt_money(tax_rate)}</cbc:Percent>
+      <cac:TaxScheme><cbc:Name>KDV</cbc:Name><cbc:TaxTypeCode>0015</cbc:TaxTypeCode></cac:TaxScheme>
+    </cac:TaxCategory>
+  </cac:AllowanceCharge>""")
+    allowance_charge_xml = "".join(allowance_charge_parts)
 
-    # Use the same item/rate calculation for every document-level amount.
-    # This prevents a manual KDV-rate edit from producing stale header totals.
-    tax_amount = sum(
-        (amounts["tax"] for amounts in tax_subtotals.values()),
-        Decimal("0.00"),
-    )
-    total_amount = taxable_amount + tax_amount
     text_amount = amount_to_turkish_text(total_amount, currency)
     notes_xml += f"\n  <cbc:Note>{escape(text_amount)}</cbc:Note>"
 
@@ -426,21 +450,20 @@ def build_ubl_invoice(invoice: dict[str, Any]) -> str:
     </cac:TaxSubtotal>""")
     doc_tax_subtotal_str = "".join(doc_tax_subtotals_xml)
 
-    allowance_total_xml = f'\n    <cbc:AllowanceTotalAmount currencyID="{currency}">{_fmt_money(discount_amount)}</cbc:AllowanceTotalAmount>' if discount_amount >= Decimal("0.00") else ""
+    allowance_total_xml = f'\n    <cbc:AllowanceTotalAmount currencyID="{currency}">{_fmt_money(discount_amount)}</cbc:AllowanceTotalAmount>' if discount_amount > Decimal("0.00") else ""
 
     pricing_exchange_rate_xml = ""
     if currency != "TRY":
         rate_val = invoice.get("exchange_rate")
-        rate_decimal = _money(rate_val) if rate_val not in (None, "") else Decimal("0")
-        if rate_decimal == Decimal("1"):
-            rate_decimal = Decimal("0")
+        rate_decimal = _money(rate_val, field_name="exchange rate") if rate_val not in (None, "") else Decimal("0")
         if rate_decimal <= Decimal("0"):
-            rate_decimal = _money(get_tcmb_rate(currency, issue_date))
+            looked_up_rate = get_tcmb_rate(currency, issue_date)
+            if looked_up_rate in (None, ""):
+                raise ValueError(f"exchange rate could not be obtained for {currency}")
+            rate_decimal = _money(looked_up_rate, field_name="exchange rate")
         if rate_decimal <= Decimal("0"):
-            rate_decimal = Decimal("1")
-        rate_val_fmt = str(
-            rate_decimal.quantize(Decimal("0.0001"), rounding=ROUND_HALF_UP)
-        )
+            raise ValueError(f"exchange rate must be positive for {currency}")
+        rate_val_fmt = format_decimal(rate_decimal, max_places=8, min_places=4)
             
         pricing_exchange_rate_xml = f'''
   <cac:PricingExchangeRate>
@@ -665,15 +688,24 @@ def enrich_invoice_customer_from_uyumsoft(invoice_data: dict[str, Any]) -> dict[
     if not isinstance(invoice_data, dict):
         return invoice_data
 
-    if invoice_data.get("_uyumsoft_customer_lookup") == "matched" and (
+    target_vkn = "".join(filter(str.isdigit, str(invoice_data.get("customer_tax_id") or "")))
+    if (
+        invoice_data.get("_uyumsoft_customer_lookup") == "matched"
+        and invoice_data.get("customer_alias_tax_id") == target_vkn
+        and (
         invoice_data.get("customer_title") or invoice_data.get("customer_name")
+        )
     ):
         return invoice_data
+
+    if invoice_data.get("customer_alias_tax_id") != target_vkn:
+        invoice_data.pop("customer_alias", None)
+        invoice_data.pop("customer_alias_tax_id", None)
+        invoice_data.pop("_uyumsoft_customer_lookup", None)
 
     if os.getenv("UYUMSOFT_CUSTOMER_LOOKUP", "1").lower() in {"0", "false", "no", "off"}:
         return invoice_data
 
-    target_vkn = "".join(filter(str.isdigit, str(invoice_data.get("customer_tax_id") or "")))
     if len(target_vkn) not in (10, 11):
         return invoice_data
 
@@ -711,8 +743,9 @@ def enrich_invoice_customer_from_uyumsoft(invoice_data: dict[str, Any]) -> dict[
         invoice_data["_uyumsoft_customer_lookup"] = "matched"
 
     alias = str(match.get("PostboxAlias") or match.get("Alias") or "").strip()
-    if alias and not invoice_data.get("customer_alias"):
+    if alias:
         invoice_data["customer_alias"] = alias
+        invoice_data["customer_alias_tax_id"] = target_vkn
 
     return invoice_data
 
@@ -741,7 +774,12 @@ def build_invoice_info_body(operation: str, invoice: dict[str, Any]) -> str:
     target_vkn = escape(target_vkn)
     
     target_title = escape(_customer_display_name(invoice, target_vkn))
-    target_alias = invoice.get("customer_alias")
+    alias_tax_id = "".join(
+        filter(str.isdigit, str(invoice.get("customer_alias_tax_id") or ""))
+    )
+    target_alias = (
+        invoice.get("customer_alias") if alias_tax_id == target_vkn else None
+    )
     alias_attr = f' Alias="{escape(str(target_alias))}"' if target_alias else ""
     scenario = escape(str(invoice.get("scenario") or os.getenv("UYUMSOFT_SCENARIO", "Automated")))
     created_at = datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
@@ -774,6 +812,14 @@ def build_soap_envelope(username: str, password: str, operation_body: str) -> st
 
 
 def send_invoice_to_uyumsoft(invoice_data: dict[str, Any], action: str | None = None) -> dict[str, Any]:
+    if not isinstance(invoice_data, dict):
+        return {
+            "success": False,
+            "message": "Invoice payload must be an object.",
+            "details": "A JSON object is required.",
+            "response_code": 400,
+        }
+
     environment = normalize_uyumsoft_environment()
     username = os.getenv("UYUMSOFT_USERNAME") or ("Uyumsoft" if environment == "test" else "")
     password = os.getenv("UYUMSOFT_PASSWORD") or ("Uyumsoft" if environment == "test" else "")
@@ -786,28 +832,54 @@ def send_invoice_to_uyumsoft(invoice_data: dict[str, Any], action: str | None = 
             "response_code": 401,
         }
 
-    if environment == "prod":
-        supplier_tax_id = str(
-            invoice_data.get("supplier_tax_id")
-            or os.getenv("UYUMSOFT_SUPPLIER_VKN", "")
-        ).strip()
-        supplier_name = str(
-            invoice_data.get("supplier_name")
-            or os.getenv("UYUMSOFT_SUPPLIER_NAME", "")
-        ).strip()
-        if (
-            len("".join(filter(str.isdigit, supplier_tax_id))) not in (10, 11)
-            or not supplier_name
-        ):
+    default_supplier_vkn = "9000068418" if environment == "test" else ""
+    default_supplier_name = (
+        "UYUMSOFT BILGI SISTEMLERI VE TEKNOLOJILERI TICARET ANONIM SIRKETI"
+        if environment == "test"
+        else ""
+    )
+    supplier_tax_id = "".join(
+        filter(
+            str.isdigit,
+            str(os.getenv("UYUMSOFT_SUPPLIER_VKN", default_supplier_vkn)),
+        )
+    )
+    supplier_name = str(
+        os.getenv("UYUMSOFT_SUPPLIER_NAME", default_supplier_name)
+    ).strip()
+    supplier_tax_office = str(
+        os.getenv("UYUMSOFT_SUPPLIER_TAX_OFFICE", "")
+    ).strip()
+    if len(supplier_tax_id) not in (10, 11) or not supplier_name:
+        if environment == "prod":
             return {
                 "success": False,
                 "message": "Canlı Uyumsoft gönderimi için işyeri bilgileri eksik.",
                 "details": (
                     "UYUMSOFT_SUPPLIER_VKN ve UYUMSOFT_SUPPLIER_NAME "
-                    "değerlerini tanımlayın veya fatura verisinde supplier alanlarını gönderin."
+                    "değerlerini sunucu ortamında tanımlayın."
                 ),
                 "response_code": 422,
             }
+        return {
+            "success": False,
+            "message": "Uyumsoft supplier configuration is invalid.",
+            "details": "Configure a 10/11 digit supplier VKN and supplier name.",
+            "response_code": 422,
+        }
+
+    prepared_invoice = copy.deepcopy(invoice_data)
+    prepared_invoice["supplier_tax_id"] = supplier_tax_id
+    prepared_invoice["supplier_name"] = supplier_name
+    prepared_invoice["supplier_tax_office"] = supplier_tax_office
+    for key, env_name in (
+        ("profile_id", "UYUMSOFT_PROFILE_ID"),
+        ("invoice_type", "UYUMSOFT_INVOICE_TYPE"),
+        ("scenario", "UYUMSOFT_SCENARIO"),
+    ):
+        configured = os.getenv(env_name)
+        if configured:
+            prepared_invoice[key] = configured
 
     selected_action = (action or os.getenv("UYUMSOFT_ACTION", "test_connection")).lower()
     client = UyumsoftSoapClient(username, password, environment=environment)
@@ -816,7 +888,7 @@ def send_invoice_to_uyumsoft(invoice_data: dict[str, Any], action: str | None = 
         if selected_action in {"test", "test_connection"}:
             result = client.test_connection()
         elif selected_action in {"dry_run", "preview"}:
-            body = build_invoice_info_body("SaveAsDraft", invoice_data)
+            body = build_invoice_info_body("SaveAsDraft", prepared_invoice)
             ET.fromstring(body)
             return {
                 "success": True,
@@ -827,11 +899,11 @@ def send_invoice_to_uyumsoft(invoice_data: dict[str, Any], action: str | None = 
                 "response_code": 200,
             }
         elif selected_action == "validate":
-            result = client.validate_invoice_data(invoice_data)
+            result = client.validate_invoice_data(prepared_invoice)
         elif selected_action == "draft":
-            result = client.save_as_draft_data(invoice_data)
+            result = client.save_as_draft_data(prepared_invoice)
         elif selected_action == "send":
-            result = client.send_invoice_data(invoice_data)
+            result = client.send_invoice_data(prepared_invoice)
         else:
             return {
                 "success": False,

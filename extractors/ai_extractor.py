@@ -2,7 +2,12 @@ import io
 import json
 import os
 
-import google.generativeai as genai
+try:
+    from google import genai
+    from google.genai import types as genai_types
+except ImportError:  # Keep non-AI helpers importable in lightweight test installs.
+    genai = None
+    genai_types = None
 
 from utils.serial_numbers import normalize_invoice_serial_numbers
 
@@ -26,7 +31,22 @@ def _is_model_selection_error(error: Exception) -> bool:
     )
 
 
-def _candidate_model_names() -> list[str]:
+def _require_genai_sdk() -> None:
+    if genai is None or genai_types is None:
+        raise RuntimeError(
+            "The google-genai package is required for Gemini extraction. "
+            "Install the dependencies from requirements.txt."
+        )
+
+
+def _create_client(api_key: str | None):
+    _require_genai_sdk()
+    if api_key:
+        return genai.Client(api_key=api_key)
+    return genai.Client()
+
+
+def _candidate_model_names(client) -> list[str]:
     configured_model = os.getenv("GEMINI_MODEL", DEFAULT_GEMINI_MODEL).strip()
     candidates: list[str] = []
 
@@ -35,9 +55,12 @@ def _candidate_model_names() -> list[str]:
             candidates.append(model_name)
 
     try:
-        for model_info in genai.list_models():
-            methods = getattr(model_info, "supported_generation_methods", [])
-            if "generateContent" not in methods:
+        for model_info in client.models.list():
+            actions = getattr(model_info, "supported_actions", []) or []
+            if not any(
+                str(action).replace("_", "").lower() == "generatecontent"
+                for action in actions
+            ):
                 continue
 
             model_name = getattr(model_info, "name", "")
@@ -51,20 +74,19 @@ def _candidate_model_names() -> list[str]:
     return candidates
 
 
-def _generate_content_with_available_model(input_data: list) -> str:
+def _generate_content_with_available_model(client, input_data: list) -> str:
     last_model_error: Exception | None = None
 
-    for model_name in _candidate_model_names():
-        model = genai.GenerativeModel(
-            model_name=model_name,
-            generation_config={
-                "response_mime_type": "application/json",
-                "temperature": 0.0,
-            },
-        )
-
+    for model_name in _candidate_model_names(client):
         try:
-            response = model.generate_content(input_data)
+            response = client.models.generate_content(
+                model=model_name,
+                contents=input_data,
+                config=genai_types.GenerateContentConfig(
+                    response_mime_type="application/json",
+                    temperature=0.0,
+                ),
+            )
             return response.text
         except Exception as exc:
             if not _is_model_selection_error(exc):
@@ -115,9 +137,7 @@ def extract_invoice_with_ai(file_bytes: bytes, mime_type: str = "application/pdf
     """
     api_key = os.environ.get("GEMINI_API_KEY")
 
-    if api_key:
-        genai.configure(api_key=api_key)
-    else:
+    if not api_key:
         print("Warning: GEMINI_API_KEY is not set.")
 
     if mime_type in ["image/jpeg", "image/png", "image/webp"]:
@@ -182,12 +202,17 @@ subtotal - discount_amount + tax_amount = total_amount tutarliligini kontrol et.
 Ondalikli degerleri JSON number olarak ver. JSON formatini asla bozma!
 """.strip()
 
+    _require_genai_sdk()
     input_data = [
-        {"mime_type": mime_type, "data": file_bytes},
+        genai_types.Part.from_bytes(data=file_bytes, mime_type=mime_type),
         prompt,
     ]
 
-    raw_json = _generate_content_with_available_model(input_data)
+    client = _create_client(api_key)
+    try:
+        raw_json = _generate_content_with_available_model(client, input_data)
+    finally:
+        client.close()
     try:
         return _stringify_amount_fields(_load_json_response(raw_json))
     except json.JSONDecodeError as exc:

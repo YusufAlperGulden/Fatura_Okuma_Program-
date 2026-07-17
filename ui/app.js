@@ -1,4 +1,10 @@
 document.addEventListener('DOMContentLoaded', () => {
+    const {
+        calculateTaxBreakdown,
+        formatCentsTr,
+        parseLocaleNumber,
+    } = window.InvoiceUiHelpers;
+
     // Theme toggle logic
     const themeBtn = document.getElementById('theme-toggle');
     if (themeBtn) {
@@ -66,6 +72,12 @@ document.addEventListener('DOMContentLoaded', () => {
         handleEdit(-1, 'customer_name', e.target.value);
     });
 
+    document.querySelectorAll('.edit-input-top').forEach(input => {
+        input.addEventListener('blur', () => {
+            syncCanonicalInputs(currentInvoiceData);
+        });
+    });
+
 
     const dropZone = document.getElementById('drop-zone');
 
@@ -125,9 +137,11 @@ document.addEventListener('DOMContentLoaded', () => {
     });
     
     fileInput.addEventListener('change', (e) => {
-        if (e.target.files.length) {
-            handleFile(e.target.files[0]);
-        }
+        const selectedFile = e.target.files && e.target.files[0];
+        // A file input does not emit change when the same file is selected
+        // twice unless its value is reset after every selection.
+        e.target.value = '';
+        if (selectedFile) handleFile(selectedFile);
     });
     
     let pdfObjectUrl = null;
@@ -160,39 +174,12 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function parseMoney(value) {
-        if (value === null || value === undefined || value === '') return 0;
-
-        let text = String(value).replace(/[^0-9.,-]/g, '');
-        if (text.includes(',') && text.includes('.')) {
-            text = text.lastIndexOf(',') > text.lastIndexOf('.')
-                ? text.replace(/\./g, '').replace(',', '.')
-                : text.replace(/,/g, '');
-        } else if (text.includes(',')) {
-            const parts = text.split(',');
-            text = parts.length > 1 && parts.slice(1).every(part => part.length === 3)
-                ? text.replace(/,/g, '')
-                : text.replace(',', '.');
-        } else if (text.includes('.')) {
-            const parts = text.split('.');
-            if (parts.length > 1 && parts.slice(1).every(part => part.length === 3)) {
-                text = text.replace(/\./g, '');
-            }
-        }
-
-        return Number.parseFloat(text) || 0;
+        const parsed = parseLocaleNumber(value);
+        return parsed === null ? 0 : parsed;
     }
 
     function parseEditableNumber(value) {
-        if (value === null || value === undefined) return null;
-        const compact = String(value)
-            .trim()
-            .replace(/[₺$€£%]/g, '')
-            .replace(/\b(TL|TRY|USD|DOLAR|EUR|EURO|GBP)\b/gi, '')
-            .replace(/\s/g, '');
-        const numericPattern = /^[+-]?(?:\d+|\d+[.,]\d+|\d{1,3}(?:\.\d{3})+(?:,\d+)?|\d{1,3}(?:,\d{3})+(?:\.\d+)?)$/;
-        if (!compact || !numericPattern.test(compact)) return null;
-        const parsed = parseMoney(compact);
-        return Number.isFinite(parsed) ? parsed : null;
+        return parseLocaleNumber(value);
     }
 
     function hasNumericValue(value) {
@@ -207,6 +194,14 @@ document.addEventListener('DOMContentLoaded', () => {
         return roundMoney(value).toFixed(2).replace('.', ',');
     }
 
+    function formatEditedDecimal(value) {
+        if (!Number.isFinite(value)) return '';
+        return value.toLocaleString('tr-TR', {
+            useGrouping: false,
+            maximumFractionDigits: 8,
+        });
+    }
+
     function syncItemInput(itemIndex, fieldName, value) {
         const input = document.querySelector(
             `#items-table input[data-item-index="${itemIndex}"][data-field-name="${fieldName}"]`
@@ -214,6 +209,41 @@ document.addEventListener('DOMContentLoaded', () => {
         if (input && document.activeElement !== input) {
             input.value = value;
         }
+    }
+
+    function updateInputIfNotFocused(id, value) {
+        const input = document.getElementById(id);
+        if (input && document.activeElement !== input) {
+            input.value = value === null || value === undefined ? '' : value;
+        }
+    }
+
+    function syncCanonicalInputs(data) {
+        if (!data || typeof data !== 'object') return;
+
+        updateInputIfNotFocused('res-invoice-no', data.invoice_no);
+        updateInputIfNotFocused('res-date', data.date);
+        updateInputIfNotFocused('res-time', data.time);
+        updateInputIfNotFocused('res-vkn', data.customer_tax_id);
+        updateInputIfNotFocused(
+            'res-customer-name',
+            data.customer_name || data.customer_title || data.customer || '',
+        );
+
+        if (!Array.isArray(data.items)) return;
+        const editableFields = [
+            'code',
+            'description',
+            'quantity',
+            'unit_price',
+            'tax_rate',
+            'total_price',
+        ];
+        data.items.forEach((item, itemIndex) => {
+            editableFields.forEach(fieldName => {
+                syncItemInput(itemIndex, fieldName, item && item[fieldName]);
+            });
+        });
     }
 
     function recalculateEditedAmounts(itemIndex, fieldName) {
@@ -245,7 +275,7 @@ document.addEventListener('DOMContentLoaded', () => {
             && quantity > 0
             && lineTotal !== null
         ) {
-            item.unit_price = formatEditedMoney(lineTotal / quantity);
+            item.unit_price = formatEditedDecimal(lineTotal / quantity);
             syncItemInput(itemIndex, 'unit_price', item.unit_price);
         }
 
@@ -331,6 +361,81 @@ document.addEventListener('DOMContentLoaded', () => {
                 : '';
     }
 
+    function setCsvValidationState(state) {
+        const csvButton = document.getElementById('csv-btn');
+        const exportAllowed = state === 'valid';
+        csvButton.disabled = !exportAllowed;
+        csvButton.setAttribute('aria-disabled', exportAllowed ? 'false' : 'true');
+        csvButton.title = state === 'pending'
+            ? 'Değişikliklerin doğrulanması tamamlandıktan sonra CSV indirilebilir.'
+            : state === 'invalid'
+                ? 'Hatalı fatura CSV olarak indirilemez.'
+                : '';
+    }
+
+    function appendWorkflowItem(list, state, message) {
+        const item = document.createElement('li');
+        item.className = state;
+        item.textContent = message;
+        list.appendChild(item);
+    }
+
+    function updateWorkflowUI(state, data = currentInvoiceData, message = '') {
+        const workflowPanel = document.getElementById('workflow-progress');
+        const checklist = document.getElementById('checklist');
+        if (!data) {
+            workflowPanel.classList.add('hidden');
+            checklist.replaceChildren();
+            return;
+        }
+
+        workflowPanel.classList.remove('hidden');
+        checklist.replaceChildren();
+        appendWorkflowItem(checklist, 'success', 'Fatura okundu');
+
+        if (state === 'pending') {
+            appendWorkflowItem(checklist, 'pending', 'Düzenlemeler doğrulanıyor...');
+            return;
+        }
+        if (state === 'valid') {
+            appendWorkflowItem(checklist, 'success', 'Toplamlar doğrulandı');
+            if (data._uyumsoft_customer_lookup === 'matched') {
+                appendWorkflowItem(
+                    checklist,
+                    'success',
+                    'Müşteri adı Uyumsoft mükellef listesinden eşleştirildi',
+                );
+            }
+            appendWorkflowItem(
+                checklist,
+                'pending',
+                'Fatura geçerli. Uyumsoft\'a göndermek için "Taslak Olarak Gönder" butonunu kullanın.',
+            );
+            return;
+        }
+
+        appendWorkflowItem(
+            checklist,
+            'error',
+            message || 'Fatura okundu ancak doğrulama hataları nedeniyle aktarım durduruldu.',
+        );
+    }
+
+    function setValidationFailure(message) {
+        currentInvoiceIsValid = false;
+        currentValidationErrors = [message];
+        currentValidationState = 'invalid';
+        const badge = document.getElementById('validation-badge');
+        badge.textContent = 'DOĞRULAMA HATASI';
+        badge.className = 'badge error';
+        document.getElementById('portal-btn').classList.add('hidden');
+        document.getElementById('send-draft-btn').disabled = false;
+        setDraftButtonValidationState('invalid');
+        setCsvValidationState('invalid');
+        renderValidationErrors(currentValidationErrors);
+        updateWorkflowUI('invalid', currentInvoiceData, message);
+    }
+
     function showDraftValidationPopup(errors = currentValidationErrors, title = 'Taslak gönderilemedi.') {
         const messages = Array.isArray(errors)
             ? errors.filter(message => typeof message === 'string' && message.trim())
@@ -404,7 +509,8 @@ document.addEventListener('DOMContentLoaded', () => {
         draftSendInProgress = false;
         setEditingDisabled(false);
         setDraftButtonValidationState('idle');
-                document.getElementById('csv-btn').classList.add('hidden');
+        setCsvValidationState('idle');
+        document.getElementById('csv-btn').classList.add('hidden');
         document.getElementById('workflow-progress').classList.add('hidden');
         document.getElementById('validation-badge').className = 'badge';
         document.getElementById('validation-badge').textContent = 'Bekliyor';
@@ -469,28 +575,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 currentInvoiceData = result.data;
                 renderInvoice(result);
                 updateValidationUI(result);
-                
-                // Automated UI Checklist Flow
                 document.getElementById('send-draft-btn').classList.remove('hidden');
-                const workflowPanel = document.getElementById('workflow-progress');
-                const checklist = document.getElementById('checklist');
-                workflowPanel.classList.remove('hidden');
-                checklist.innerHTML = ''; // Clear previous
-                
-                if (result.is_valid) {
-                    // Show successful validation steps
-                    checklist.innerHTML += `<li class="success"><svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg> Fatura okundu</li>`;
-                    checklist.innerHTML += `<li class="success"><svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg> Toplamlar doğrulandı</li>`;
-                    if (currentInvoiceData && currentInvoiceData._uyumsoft_customer_lookup === 'matched') {
-                        checklist.innerHTML += `<li class="success"><svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg> Müşteri adı Uyumsoft mükellef listesinden eşleştirildi</li>`;
-                    }
-                    
-                    checklist.innerHTML += `<li class="pending">Fatura geçerli. Uyumsoft'a göndermek için "Taslak Olarak Gönder" butonunu kullanın.</li>`;
-                } else {
-                    checklist.innerHTML += `<li class="success"><svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg> Fatura okundu</li>`;
-                    checklist.innerHTML += `<li class="error"><svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg> Fatura okundu ancak aktarım durduruldu.</li>`;
-                    
-                }
             } else {
                 showError("Sunucu Hatası: " + (result.detail || "Bilinmeyen hata"));
             }
@@ -532,6 +617,14 @@ document.addEventListener('DOMContentLoaded', () => {
         
         input.addEventListener('input', (e) => {
             handleEdit(itemIndex, fieldName, e.target.value);
+        });
+        input.addEventListener('blur', () => {
+            const canonicalItem = currentInvoiceData
+                && Array.isArray(currentInvoiceData.items)
+                && currentInvoiceData.items[itemIndex];
+            if (canonicalItem) {
+                syncItemInput(itemIndex, fieldName, canonicalItem[fieldName]);
+            }
         });
 
         cell.appendChild(input);
@@ -609,9 +702,11 @@ document.addEventListener('DOMContentLoaded', () => {
         currentValidationState = 'pending';
         document.getElementById('send-draft-btn').disabled = false;
         setDraftButtonValidationState('pending');
+        setCsvValidationState('pending');
         const badge = document.getElementById('validation-badge');
         badge.textContent = 'Doğrulanıyor...';
         badge.className = 'badge';
+        updateWorkflowUI('pending');
 
         clearTimeout(validationTimeout);
         validationTimeout = setTimeout(() => {
@@ -644,20 +739,15 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
                 updateValidationUI(result);
             } else {
-                currentInvoiceIsValid = false;
-                currentValidationErrors = [result.detail || 'Fatura doğrulaması tamamlanamadı.'];
-                currentValidationState = 'invalid';
-                setDraftButtonValidationState('invalid');
-                renderValidationErrors(currentValidationErrors);
+                const detail = typeof result.detail === 'string'
+                    ? result.detail
+                    : 'Fatura doğrulaması tamamlanamadı.';
+                setValidationFailure(detail);
             }
         } catch (err) {
             if (err.name === 'AbortError' || capturedValidationRevision !== validationRevision) return;
             console.error("Validasyon hatası:", err);
-            currentInvoiceIsValid = false;
-            currentValidationErrors = ['Fatura doğrulaması sırasında bağlantı hatası oluştu.'];
-            currentValidationState = 'invalid';
-            setDraftButtonValidationState('invalid');
-            renderValidationErrors(currentValidationErrors);
+            setValidationFailure('Fatura doğrulaması sırasında bağlantı hatası oluştu.');
         } finally {
             if (validationAbortController === abortController) {
                 validationAbortController = null;
@@ -707,6 +797,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const sendDraftBtn = document.getElementById('send-draft-btn');
         sendDraftBtn.disabled = false;
         setDraftButtonValidationState(currentValidationState);
+        setCsvValidationState(currentValidationState);
         if (result.is_valid) {
             badge.textContent = 'GEÇERLİ';
             badge.className = 'badge valid';
@@ -718,6 +809,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         renderValidationErrors(result.is_valid ? [] : result.errors);
         document.getElementById('csv-btn').classList.remove('hidden');
+        updateWorkflowUI(currentValidationState, result.data || currentInvoiceData);
 
         // Ensure data exists before accessing properties
         const data = result.data || {};
@@ -729,27 +821,14 @@ document.addEventListener('DOMContentLoaded', () => {
             return '₺';
         };
         const sym = getSymbol(data.currency);
-        const globalSubtotal = parseMoney(data.subtotal);
-        const globalTax = parseMoney(data.tax_amount);
-        const globalRate = globalSubtotal && globalTax ? (globalTax / globalSubtotal * 100) : 0;
 
-        // Update summary cards
-        function updateInputIfNotFocused(id, value) {
-            const el = document.getElementById(id);
-            if (document.activeElement !== el) {
-                el.value = value || '';
-            }
-        }
-
-        updateInputIfNotFocused('res-invoice-no', data.invoice_no);
-        
-        updateInputIfNotFocused('res-date', data.date);
-        updateInputIfNotFocused('res-time', data.time);
-        updateInputIfNotFocused('res-vkn', data.customer_tax_id);
-        const customerName = data.customer_name || data.customer_title || data.customer || '';
-        updateInputIfNotFocused('res-customer-name', customerName);
+        // Canonical validation values update every non-focused input. If an
+        // input is still active, its blur handler performs this sync later.
+        syncCanonicalInputs(data);
         document.getElementById('res-method').textContent = data._extraction_method || '-';
-        document.getElementById('res-subtotal').textContent = data.subtotal ? `${sym}${data.subtotal}` : '-';
+        document.getElementById('res-subtotal').textContent = data.subtotal !== null && data.subtotal !== undefined && data.subtotal !== ''
+            ? `${sym}${data.subtotal}`
+            : '-';
 
         const discountCard = document.getElementById('discount-card');
         if (parseMoney(data.discount_amount) > 0) {
@@ -762,49 +841,37 @@ document.addEventListener('DOMContentLoaded', () => {
         // Calculate tax breakdown
         const breakdownDiv = document.getElementById('res-tax-breakdown');
         if (breakdownDiv) {
-            breakdownDiv.innerHTML = '';
-            if (data.items && data.items.length > 0 && data.tax_amount) {
-                const breakdown = {};
-                let calcSub = 0;
-                data.items.forEach(item => {
-                    let rate = item.tax_rate !== undefined && item.tax_rate !== null && String(item.tax_rate).trim() !== ""
-                        ? parseMoney(item.tax_rate)
-                        : Math.round(globalRate);
-                    let total = parseMoney(item.total_price);
-                    if (total === 0 && item.unit_price && item.quantity) {
-                        total = parseMoney(item.unit_price) * parseMoney(item.quantity);
-                    }
-                    calcSub += total;
-                    if (!breakdown[rate]) breakdown[rate] = { taxable: 0 };
-                    breakdown[rate].taxable += total;
+            breakdownDiv.replaceChildren();
+            if (Array.isArray(data.items) && data.items.length > 0 && data.tax_amount !== null && data.tax_amount !== undefined && data.tax_amount !== '') {
+                const breakdown = calculateTaxBreakdown({
+                    items: data.items,
+                    discountAmount: data.discount_amount,
+                    canonicalTaxAmount: data.tax_amount,
                 });
-
-                const discountAmt = parseMoney(data.discount_amount);
-                let breakdownHtml = '';
-                let totalTax = 0;
-                for (let rate in breakdown) {
-                    let taxable = breakdown[rate].taxable;
-                    if (discountAmt > 0 && calcSub > 0) {
-                        taxable -= discountAmt * (taxable / calcSub);
-                    }
-                    const tax = taxable * parseFloat(rate) / 100;
-                    if (tax > 0 || parseFloat(rate) === 0) {
-                        totalTax += tax;
-                        const formattedTax = tax.toLocaleString('tr-TR', {minimumFractionDigits: 2, maximumFractionDigits: 2});
-                        breakdownHtml += `
-                            <div style="color: #c0392b; margin-bottom: 2px;">%${rate} = ${formattedTax}</div>
-                        `;
-                    }
+                if (breakdown.groups.length > 0) {
+                    breakdown.groups.forEach(group => {
+                        const row = document.createElement('div');
+                        row.className = 'tax-breakdown-row';
+                        row.textContent = `%${group.rate} = ${formatCentsTr(group.taxCents)}`;
+                        breakdownDiv.appendChild(row);
+                    });
+                    const totalRow = document.createElement('div');
+                    totalRow.className = 'tax-breakdown-total';
+                    totalRow.textContent = `Top = ${formatCentsTr(breakdown.totalTaxCents)}`;
+                    breakdownDiv.appendChild(totalRow);
+                } else {
+                    breakdownDiv.textContent = `${sym}${data.tax_amount}`;
                 }
-                const formattedTotalTax = totalTax.toLocaleString('tr-TR', {minimumFractionDigits: 2, maximumFractionDigits: 2});
-                breakdownHtml += `<div style="color: #2980b9; margin-top: 4px;">Top = ${formattedTotalTax}</div>`;
-                breakdownDiv.innerHTML = breakdownHtml;
             } else {
-                breakdownDiv.textContent = data.tax_amount ? `${sym}${data.tax_amount}` : '-';
+                breakdownDiv.textContent = data.tax_amount !== null && data.tax_amount !== undefined && data.tax_amount !== ''
+                    ? `${sym}${data.tax_amount}`
+                    : '-';
             }
         }
 
-        document.getElementById('res-total').textContent = data.total_amount ? `${sym}${data.total_amount}` : '-';
+        document.getElementById('res-total').textContent = data.total_amount !== null && data.total_amount !== undefined && data.total_amount !== ''
+            ? `${sym}${data.total_amount}`
+            : '-';
         
         const notesCard = document.getElementById('notes-card');
         if (notesCard && data.notes && data.notes.trim() !== '') {
@@ -920,7 +987,7 @@ document.addEventListener('DOMContentLoaded', () => {
             draftSendInProgress = false;
             setEditingDisabled(false);
             statusBox.style.backgroundColor = '#dc2626';
-            statusBox.innerHTML = `❌ Bağlantı Hatası: ${error.message}`;
+            statusBox.textContent = `❌ Bağlantı Hatası: ${error && error.message ? error.message : 'Bilinmeyen hata'}`;
             sendBtn.disabled = false;
         }
     }
@@ -928,26 +995,35 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('portal-btn').addEventListener('click', openUyumsoftPortal);
 
     document.getElementById('csv-btn').addEventListener('click', () => {
-        if (!currentInvoiceData || !currentInvoiceData.items) return;
+        if (currentValidationState !== 'valid' || !currentInvoiceIsValid) {
+            const message = currentValidationState === 'pending'
+                ? 'Değişikliklerin doğrulanması henüz tamamlanmadı.'
+                : 'Hatalı bir fatura CSV olarak indirilemez.';
+            window.alert(message);
+            return;
+        }
+        if (!currentInvoiceData || !Array.isArray(currentInvoiceData.items)) return;
         
         const headers = ['Urun Kodu', 'Urun Aciklamasi', 'Seri Numaralari', 'Miktar', 'Birim Fiyat', 'KDV Orani', 'Satir Toplami'];
         const rows = [headers.map(csvCell).join(',')];
-        
-        const tbody = document.querySelector('#items-table tbody');
-        for (const tr of tbody.rows) {
-            if (tr.cells.length === 1) continue; // Skip empty message
-            const rowData = Array.from(tr.cells, cell => {
-                const input = cell.querySelector('input');
-                const val = input ? input.value : (cell.dataset.csvValue !== undefined ? cell.dataset.csvValue : cell.textContent);
-                return csvCell(val);
-            });
-            rows.push(rowData.join(','));
-        }
+
+        currentInvoiceData.items.forEach(item => {
+            rows.push([
+                item.code,
+                item.description,
+                normalizeSerialNumbers(item.serial_numbers).join('~'),
+                item.quantity,
+                item.unit_price,
+                item.tax_rate,
+                item.total_price,
+            ].map(csvCell).join(','));
+        });
         
         rows.push('');
         const summaryRow = (label, value) => [label, ...Array(headers.length - 2).fill(''), value];
-        rows.push(summaryRow('Ara Toplam', document.getElementById('res-subtotal').textContent).map(csvCell).join(','));
-        rows.push(summaryRow('Genel Toplam', document.getElementById('res-total').textContent).map(csvCell).join(','));
+        rows.push(summaryRow('Ara Toplam', currentInvoiceData.subtotal).map(csvCell).join(','));
+        rows.push(summaryRow('KDV Toplamı', currentInvoiceData.tax_amount).map(csvCell).join(','));
+        rows.push(summaryRow('Genel Toplam', currentInvoiceData.total_amount).map(csvCell).join(','));
         
         const csvContent = "\uFEFF" + rows.join('\r\n');
         const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
@@ -959,6 +1035,7 @@ document.addEventListener('DOMContentLoaded', () => {
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
+        setTimeout(() => URL.revokeObjectURL(url), 0);
     });
 
     function showError(msg) {

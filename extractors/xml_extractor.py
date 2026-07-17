@@ -1,4 +1,5 @@
 import xml.etree.ElementTree as ET
+from decimal import Decimal, InvalidOperation
 
 from utils.serial_numbers import normalize_serial_numbers
 
@@ -17,6 +18,24 @@ def child_text_agnostic(root, tag_name):
         if elem.tag.endswith(f"}}{tag_name}") or elem.tag == tag_name:
             return elem.text
     return None
+
+
+def _clean_text(value):
+    if value is None:
+        return None
+    value = value.strip()
+    return value or None
+
+
+def _decimal_or_none(value):
+    value = _clean_text(value)
+    if value is None:
+        return None
+    try:
+        return Decimal(value)
+    except InvalidOperation:
+        return None
+
 
 def parse_xml_invoice(file_path: str) -> dict:
     """
@@ -86,7 +105,32 @@ def parse_xml_invoice(file_path: str) -> dict:
                     if elem.tag.endswith("}PartyName") or elem.tag == "PartyName":
                         customer_name = find_text_agnostic(elem, "Name")
                         break
+            if not customer_name:
+                person = next(
+                    (
+                        elem
+                        for elem in customer_party.iter()
+                        if elem.tag.endswith("}Person") or elem.tag == "Person"
+                    ),
+                    None,
+                )
+                first_name = (
+                    child_text_agnostic(person, "FirstName")
+                    if person is not None
+                    else None
+                )
+                family_name = (
+                    child_text_agnostic(person, "FamilyName")
+                    if person is not None
+                    else None
+                )
+                customer_name = " ".join(
+                    part.strip()
+                    for part in (first_name, family_name)
+                    if part and part.strip()
+                ) or None
             if customer_name:
+                customer_name = customer_name.strip()
                 data["customer_name"] = customer_name
                 data["customer_title"] = customer_name
                 
@@ -108,15 +152,17 @@ def parse_xml_invoice(file_path: str) -> dict:
                         item_code = find_text_agnostic(sub, "ID")
                         if item_code:
                             break
-                if not item_code:
-                    item_code = child_text_agnostic(elem, "ID")
-                # Description usually in Item -> Name
+                # InvoiceLine/ID is the line sequence number, not a product
+                # code.  A missing item identification must stay missing.
                 item_name = None
                 item_element = None
                 for sub in elem.iter():
                     if sub.tag.endswith("}Item") or sub.tag == "Item":
                         item_element = sub
-                        item_name = find_text_agnostic(sub, "Name")
+                        item_name = (
+                            child_text_agnostic(sub, "Name")
+                            or child_text_agnostic(sub, "Description")
+                        )
                         break
 
                 serial_values = []
@@ -156,7 +202,7 @@ def parse_xml_invoice(file_path: str) -> dict:
 
                 data["items"].append({
                     "code": item_code,
-                    "description": item_name or "Unknown Item",
+                    "description": _clean_text(item_name),
                     "serial_numbers": normalize_serial_numbers(serial_values),
                     "quantity": quantity.replace('.', ',') if quantity else None,
                     "unit_price": unit_price.replace('.', ',') if unit_price else None,
@@ -188,6 +234,19 @@ def parse_xml_invoice(file_path: str) -> dict:
             )
             data["total_amount"] = tot.replace('.', ',') if tot else None
 
+            tax_exclusive = child_text_agnostic(
+                monetary_total, "TaxExclusiveAmount"
+            )
+            tax_inclusive = child_text_agnostic(
+                monetary_total, "TaxInclusiveAmount"
+            )
+            charge = child_text_agnostic(monetary_total, "ChargeTotalAmount")
+        else:
+            tax_exclusive = None
+            tax_inclusive = None
+            charge = None
+            discount = None
+
         tax_total = None
         for elem in root.iter():
             if elem.tag.endswith("}TaxTotal") or elem.tag == "TaxTotal":
@@ -197,10 +256,34 @@ def parse_xml_invoice(file_path: str) -> dict:
             tax_amt = child_text_agnostic(tax_total, "TaxAmount") or find_text_agnostic(tax_total, "TaxAmount")
             data["tax_amount"] = tax_amt.replace('.', ',') if tax_amt else data["tax_amount"]
 
-        if not data["tax_amount"] and data["subtotal"] and data["total_amount"]:
-            subtotal = float(data["subtotal"].replace(".", "").replace(",", "."))
-            total = float(data["total_amount"].replace(".", "").replace(",", "."))
-            data["tax_amount"] = f"{total - subtotal:.2f}".replace(".", ",")
+        if not data["tax_amount"]:
+            inclusive_value = _decimal_or_none(tax_inclusive)
+            exclusive_value = _decimal_or_none(tax_exclusive)
+
+            if inclusive_value is not None and exclusive_value is not None:
+                calculated_tax = inclusive_value - exclusive_value
+            else:
+                total_value = _decimal_or_none(
+                    data["total_amount"].replace(",", ".")
+                    if data["total_amount"]
+                    else None
+                )
+                subtotal_value = _decimal_or_none(
+                    data["subtotal"].replace(",", ".")
+                    if data["subtotal"]
+                    else None
+                )
+                discount_value = _decimal_or_none(discount) or Decimal("0")
+                charge_value = _decimal_or_none(charge) or Decimal("0")
+                calculated_tax = (
+                    total_value
+                    - (subtotal_value - discount_value + charge_value)
+                    if total_value is not None and subtotal_value is not None
+                    else None
+                )
+
+            if calculated_tax is not None:
+                data["tax_amount"] = f"{calculated_tax:.2f}".replace(".", ",")
 
         print("Successfully read XML file.")
         return data

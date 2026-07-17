@@ -427,6 +427,22 @@ tr:hover {
     background-color: #f59e0b !important;
 }
 
+#csv-btn:disabled {
+    cursor: not-allowed;
+    filter: grayscale(0.4);
+    opacity: 0.55;
+}
+
+.tax-breakdown-row {
+    color: #c0392b;
+    margin-bottom: 2px;
+}
+
+.tax-breakdown-total {
+    color: #2980b9;
+    margin-top: 4px;
+}
+
 .error-box {
     width: 100%;
     background-color: var(--error-bg);

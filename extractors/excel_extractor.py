@@ -1,5 +1,6 @@
 import os
 import unicodedata
+from datetime import date, datetime
 
 import pandas as pd
 
@@ -38,6 +39,16 @@ def _as_text(value):
     return str(value).strip()
 
 
+def _as_date_text(value):
+    if value is None or pd.isna(value):
+        return None
+    if isinstance(value, (pd.Timestamp, datetime, date)):
+        if isinstance(value, datetime):
+            return value.date().isoformat()
+        return value.isoformat()
+    return str(value).strip()
+
+
 def _normalize_currency_value(value):
     text = _as_text(value)
     if not text:
@@ -62,7 +73,14 @@ def _normalize_currency_value(value):
 def _read_table(file_path):
     ext = os.path.splitext(file_path)[1].lower()
     if ext == ".csv":
-        return pd.read_csv(file_path)
+        try:
+            return pd.read_csv(
+                file_path, sep=None, engine="python", encoding="utf-8-sig"
+            )
+        except UnicodeDecodeError:
+            return pd.read_csv(
+                file_path, sep=None, engine="python", encoding="cp1254"
+            )
     return pd.read_excel(file_path)
 
 
@@ -119,11 +137,14 @@ def parse_excel_invoice(file_path: str) -> dict:
             ],
             "item_code": ["urun kodu", "mal hizmet kodu", "kod", "code"],
             "item_description": [
+                "urun adi",
                 "urun aciklamasi",
                 "urun aciklama",
                 "mal hizmet adi",
+                "mal hizmet",
                 "aciklama",
                 "description",
+                "name",
             ],
             "serial_numbers": [
                 "urun seri numaralari",
@@ -164,7 +185,7 @@ def parse_excel_invoice(file_path: str) -> dict:
 
         first = df.iloc[0]
         data["invoice_no"] = _as_text(_first_present(first, column_sets["invoice_no"]))
-        data["date"] = _as_text(_first_present(first, column_sets["date"]))
+        data["date"] = _as_date_text(_first_present(first, column_sets["date"]))
         data["customer_tax_id"] = _as_text(_first_present(first, column_sets["customer_tax_id"]))
         data["customer_name"] = _as_text(_first_present(first, column_sets["customer_name"]))
         data["customer_title"] = data["customer_name"]
@@ -195,7 +216,7 @@ def parse_excel_invoice(file_path: str) -> dict:
 
             data["items"].append({
                 "code": _as_text(_first_present(row, column_sets["item_code"])),
-                "description": description or "Unknown Item",
+                "description": description,
                 "serial_numbers": normalize_serial_numbers(
                     _first_present(row, column_sets["serial_numbers"])
                 ),

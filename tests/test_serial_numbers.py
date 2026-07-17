@@ -1,22 +1,9 @@
 import os
-import sys
 import tempfile
-import types
 import unittest
 from xml.etree import ElementTree as ET
 
 import pandas as pd
-
-# The tested AI post-processor does not call Gemini. Keep this unit test usable
-# in lightweight local environments where the optional SDK is not installed.
-try:
-    import google.generativeai  # noqa: F401
-except ModuleNotFoundError:
-    google_package = sys.modules.get("google") or types.ModuleType("google")
-    generativeai_module = types.ModuleType("google.generativeai")
-    google_package.generativeai = generativeai_module
-    sys.modules["google"] = google_package
-    sys.modules["google.generativeai"] = generativeai_module
 
 from extractors.ai_extractor import _stringify_amount_fields
 from extractors.excel_extractor import parse_excel_invoice
