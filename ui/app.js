@@ -19,8 +19,25 @@ document.addEventListener('DOMContentLoaded', () => {
         Notification.requestPermission();
     }
 
+    let currentInvoiceData = null;
+    let currentUploadId = null;
+    let currentInvoiceIsValid = false;
+    let currentValidationErrors = [];
+    let currentValidationState = 'idle';
+
     // Add event listener for draft send
     document.getElementById('send-draft-btn').addEventListener('click', () => {
+        if (currentValidationState === 'pending') {
+            showDraftValidationPopup(
+                ['Yaptığınız değişikliklerin doğrulanması henüz tamamlanmadı. Lütfen kısa bir süre sonra tekrar deneyin.'],
+                'Fatura henüz gönderilemez.'
+            );
+            return;
+        }
+        if (!currentInvoiceIsValid) {
+            showDraftValidationPopup();
+            return;
+        }
         if (confirm("Bu faturayı Uyumsoft'a taslak olarak göndermek istediğinize emin misiniz?")) {
             runUyumsoftAction();
         }
@@ -87,8 +104,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
     
-    let currentInvoiceData = null;
-let currentUploadId = null;
     let pdfObjectUrl = null;
 
     function escapeHtml(value) {
@@ -118,11 +133,6 @@ let currentUploadId = null;
         return `"${text.replace(/"/g, '""')}"`;
     }
 
-    function textOrDash(value) {
-        if (value === null || value === undefined || String(value).trim() === '') return '-';
-        return String(value);
-    }
-
     function parseMoney(value) {
         if (value === null || value === undefined || value === '') return 0;
 
@@ -144,14 +154,6 @@ let currentUploadId = null;
         }
 
         return Number.parseFloat(text) || 0;
-    }
-
-    function appendTextCell(row, value, className = '') {
-        const cell = document.createElement('td');
-        if (className) cell.className = className;
-        cell.textContent = textOrDash(value);
-        row.appendChild(cell);
-        return cell;
     }
 
     function appendSerialNumbersCell(row, value) {
@@ -184,6 +186,33 @@ let currentUploadId = null;
         if (Array.isArray(details)) return details.join(', ');
         if (typeof details === 'object') return JSON.stringify(details);
         return String(details);
+    }
+
+    function setDraftButtonValidationState(state) {
+        const sendBtn = document.getElementById('send-draft-btn');
+        sendBtn.classList.toggle('validation-blocked', state === 'invalid');
+        sendBtn.classList.toggle('validation-pending', state === 'pending');
+        sendBtn.title = state === 'invalid'
+            ? 'Faturadaki hataları görmek için tıklayın.'
+            : state === 'pending'
+                ? 'Değişiklikler doğrulanıyor.'
+                : '';
+    }
+
+    function showDraftValidationPopup(errors = currentValidationErrors, title = 'Taslak gönderilemedi.') {
+        const messages = Array.isArray(errors)
+            ? errors.filter(message => typeof message === 'string' && message.trim())
+            : (errors ? [String(errors)] : []);
+        const detail = messages.length > 0
+            ? messages.map(message => `• ${message}`).join('\n')
+            : 'Fatura doğrulama hataları içeriyor. Lütfen kırmızı hata alanındaki bilgileri düzeltin.';
+
+        window.alert(`${title}\n\n${detail}`);
+
+        const errorBox = document.getElementById('error-box');
+        if (errorBox && !errorBox.classList.contains('hidden')) {
+            errorBox.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
     }
 
     async function readJsonResponse(response) {
@@ -231,6 +260,16 @@ let currentUploadId = null;
         currentUploadId = crypto.randomUUID();
         const capturedUploadId = currentUploadId;
         currentInvoiceData = null;
+        validationRevision += 1;
+        clearTimeout(validationTimeout);
+        if (validationAbortController) {
+            validationAbortController.abort();
+            validationAbortController = null;
+        }
+        currentInvoiceIsValid = false;
+        currentValidationErrors = [];
+        currentValidationState = 'idle';
+        setDraftButtonValidationState('idle');
                 document.getElementById('csv-btn').classList.add('hidden');
         document.getElementById('workflow-progress').classList.add('hidden');
         document.getElementById('validation-badge').className = 'badge';
@@ -298,7 +337,7 @@ let currentUploadId = null;
                 updateValidationUI(result);
                 
                 // Automated UI Checklist Flow
-                document.getElementById('send-draft-btn').classList.add('hidden');
+                document.getElementById('send-draft-btn').classList.remove('hidden');
                 const workflowPanel = document.getElementById('workflow-progress');
                 const checklist = document.getElementById('checklist');
                 workflowPanel.classList.remove('hidden');
@@ -313,7 +352,6 @@ let currentUploadId = null;
                     }
                     
                     checklist.innerHTML += `<li class="pending">Fatura geçerli. Uyumsoft'a göndermek için "Taslak Olarak Gönder" butonunu kullanın.</li>`;
-                    document.getElementById('send-draft-btn').classList.remove('hidden');
                 } else {
                     checklist.innerHTML += `<li class="success"><svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg> Fatura okundu</li>`;
                     checklist.innerHTML += `<li class="error"><svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg> Fatura okundu ancak aktarım durduruldu.</li>`;
@@ -367,6 +405,7 @@ let currentUploadId = null;
 
     let validationTimeout = null;
     let validationAbortController = null;
+    let validationRevision = 0;
 
     function renderValidationErrors(errors) {
         const errorBox = document.getElementById('error-box');
@@ -417,8 +456,17 @@ let currentUploadId = null;
         } else {
             currentInvoiceData.items[itemIndex][fieldName] = newValue;
         }
-        
-        document.getElementById('send-draft-btn').disabled = true;
+
+        validationRevision += 1;
+        if (validationAbortController) {
+            validationAbortController.abort();
+            validationAbortController = null;
+        }
+        currentInvoiceIsValid = false;
+        currentValidationErrors = [];
+        currentValidationState = 'pending';
+        document.getElementById('send-draft-btn').disabled = false;
+        setDraftButtonValidationState('pending');
         const badge = document.getElementById('validation-badge');
         badge.textContent = 'Doğrulanıyor...';
         badge.className = 'badge';
@@ -431,26 +479,43 @@ let currentUploadId = null;
 
     async function validateCurrentData() {
         if (!currentInvoiceData) return;
-        
+
+        const capturedValidationRevision = validationRevision;
         if (validationAbortController) {
             validationAbortController.abort();
         }
-        validationAbortController = new AbortController();
-        
+        const abortController = new AbortController();
+        validationAbortController = abortController;
+
         try {
             const response = await fetch('/validate', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(currentInvoiceData),
-                signal: validationAbortController.signal
+                signal: abortController.signal
             });
             const result = await readJsonResponse(response);
+            if (capturedValidationRevision !== validationRevision) return;
             if (response.ok) {
                 updateValidationUI(result);
+            } else {
+                currentInvoiceIsValid = false;
+                currentValidationErrors = [result.detail || 'Fatura doğrulaması tamamlanamadı.'];
+                currentValidationState = 'invalid';
+                setDraftButtonValidationState('invalid');
+                renderValidationErrors(currentValidationErrors);
             }
         } catch (err) {
-            if (err.name !== 'AbortError') {
-                console.error("Validasyon hatası:", err);
+            if (err.name === 'AbortError' || capturedValidationRevision !== validationRevision) return;
+            console.error("Validasyon hatası:", err);
+            currentInvoiceIsValid = false;
+            currentValidationErrors = ['Fatura doğrulaması sırasında bağlantı hatası oluştu.'];
+            currentValidationState = 'invalid';
+            setDraftButtonValidationState('invalid');
+            renderValidationErrors(currentValidationErrors);
+        } finally {
+            if (validationAbortController === abortController) {
+                validationAbortController = null;
             }
         }
     }
@@ -464,7 +529,7 @@ let currentUploadId = null;
         if (items.length === 0) {
             const tr = document.createElement('tr');
             const td = document.createElement('td');
-            td.colSpan = 8;
+            td.colSpan = 7;
             td.className = 'empty-items-cell';
             td.textContent = 'Herhangi bir kalem bulunamadı.';
             tr.appendChild(td);
@@ -478,7 +543,6 @@ let currentUploadId = null;
                 appendInputCell(tr, item.quantity, 'quantity', index);
                 appendInputCell(tr, item.unit_price, 'unit_price', index);
                 appendInputCell(tr, item.tax_rate, 'tax_rate', index);
-                appendTextCell(tr, item.tax_amount || '-'); // Tax amount is computed
                 appendInputCell(tr, item.total_price, 'total_price', index);
                 tbody.appendChild(tr);
             });
@@ -492,15 +556,20 @@ let currentUploadId = null;
 
         // Badge
         const badge = document.getElementById('validation-badge');
+        currentInvoiceIsValid = Boolean(result.is_valid);
+        currentValidationErrors = Array.isArray(result.errors) ? result.errors : [];
+        currentValidationState = currentInvoiceIsValid ? 'valid' : 'invalid';
+        const sendDraftBtn = document.getElementById('send-draft-btn');
+        sendDraftBtn.disabled = false;
+        setDraftButtonValidationState(currentValidationState);
         if (result.is_valid) {
             badge.textContent = 'GEÇERLİ';
             badge.className = 'badge valid';
             document.getElementById('portal-btn').classList.remove('hidden');
-            document.getElementById('send-draft-btn').disabled = false;
         } else {
             badge.textContent = 'HATALI';
             badge.className = 'badge error';
-            document.getElementById('send-draft-btn').disabled = true;
+            document.getElementById('portal-btn').classList.add('hidden');
         }
         renderValidationErrors(result.is_valid ? [] : result.errors);
         document.getElementById('csv-btn').classList.remove('hidden');
@@ -606,6 +675,10 @@ let currentUploadId = null;
     // Uyumsoft send logic: used automatically after validation.
             async function runUyumsoftAction() {
         if (!currentInvoiceData) return;
+        if (currentValidationState !== 'valid' || !currentInvoiceIsValid) {
+            showDraftValidationPopup();
+            return;
+        }
         const capturedUploadId = currentUploadId;
         const sendBtn = document.getElementById('send-draft-btn');
         sendBtn.disabled = true;
@@ -677,6 +750,16 @@ let currentUploadId = null;
                 statusBox.style.backgroundColor = '#dc2626';
                 statusBox.innerHTML = `❌ Hata: ${escapeHtml(result.message)}${details ? ` <br> <small>${escapeHtml(details)}</small>` : ''}`;
                 sendBtn.disabled = false;
+                if (Number(result.response_code) === 400) {
+                    currentInvoiceIsValid = false;
+                    currentValidationErrors = Array.isArray(result.details) ? result.details : [];
+                    currentValidationState = 'invalid';
+                    setDraftButtonValidationState('invalid');
+                    showDraftValidationPopup(
+                        result.details,
+                        'Fatura doğrulama hataları nedeniyle taslak gönderilemedi.'
+                    );
+                }
             }
         } catch (error) {
             if (currentUploadId !== capturedUploadId) return;
@@ -691,7 +774,7 @@ let currentUploadId = null;
     document.getElementById('csv-btn').addEventListener('click', () => {
         if (!currentInvoiceData || !currentInvoiceData.items) return;
         
-        const headers = ['Urun Kodu', 'Urun Aciklamasi', 'Seri Numaralari', 'Miktar', 'Birim Fiyat', 'KDV Orani', 'KDV Tutari', 'Satir Toplami'];
+        const headers = ['Urun Kodu', 'Urun Aciklamasi', 'Seri Numaralari', 'Miktar', 'Birim Fiyat', 'KDV Orani', 'Satir Toplami'];
         const rows = [headers.map(csvCell).join(',')];
         
         const tbody = document.querySelector('#items-table tbody');
@@ -706,8 +789,9 @@ let currentUploadId = null;
         }
         
         rows.push('');
-        rows.push(['Ara Toplam', '', '', '', '', '', '', document.getElementById('res-subtotal').textContent].map(csvCell).join(','));
-        rows.push(['Genel Toplam', '', '', '', '', '', '', document.getElementById('res-total').textContent].map(csvCell).join(','));
+        const summaryRow = (label, value) => [label, ...Array(headers.length - 2).fill(''), value];
+        rows.push(summaryRow('Ara Toplam', document.getElementById('res-subtotal').textContent).map(csvCell).join(','));
+        rows.push(summaryRow('Genel Toplam', document.getElementById('res-total').textContent).map(csvCell).join(','));
         
         const csvContent = "\uFEFF" + rows.join('\r\n');
         const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });

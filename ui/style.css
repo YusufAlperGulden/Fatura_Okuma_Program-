@@ -293,7 +293,7 @@ table {
 }
 
 #items-table {
-    min-width: 1080px;
+    min-width: 960px;
 }
 
 th {
@@ -351,7 +351,7 @@ td {
 
 @media (max-width: 720px) {
     #items-table {
-        min-width: 980px;
+        min-width: 860px;
     }
 
     .serial-numbers-cell {
@@ -396,6 +396,14 @@ tr:hover {
 .primary-btn svg {
     width: 20px;
     height: 20px;
+}
+
+#send-draft-btn.validation-blocked {
+    background-color: #dc2626 !important;
+}
+
+#send-draft-btn.validation-pending {
+    background-color: #f59e0b !important;
 }
 
 .error-box {
