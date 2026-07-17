@@ -3,6 +3,7 @@ import sys
 import tempfile
 import types
 import unittest
+from xml.etree import ElementTree as ET
 
 import pandas as pd
 
@@ -20,12 +21,33 @@ except ModuleNotFoundError:
 from extractors.ai_extractor import _stringify_amount_fields
 from extractors.excel_extractor import parse_excel_invoice
 from extractors.xml_extractor import parse_xml_invoice
+from integrators.uyumsoft_api import build_invoice_info_body, build_ubl_invoice
 from integrators.uyumsoft_excel import export_to_uyumsoft_excel
 from utils.serial_numbers import (
     merge_invoice_serial_numbers,
     normalize_invoice_serial_numbers,
     normalize_serial_numbers,
 )
+
+
+def _ubl_invoice(items):
+    subtotal = sum(float(item.get("total_price") or 0) for item in items)
+    tax_amount = subtotal * 0.20
+    return {
+        "invoice_no": "INV-SERIAL-OUT",
+        "date": "17.07.2026",
+        "customer_tax_id": "1234567890",
+        "customer_name": "Test Musteri",
+        "items": items,
+        "subtotal": str(subtotal),
+        "tax_amount": str(tax_amount),
+        "total_amount": str(subtotal + tax_amount),
+        "currency": "TRY",
+    }
+
+
+def _local_name(element):
+    return element.tag.rsplit("}", 1)[-1]
 
 
 class SerialNumberTests(unittest.TestCase):
@@ -36,6 +58,170 @@ class SerialNumberTests(unittest.TestCase):
         )
         self.assertEqual(normalize_serial_numbers(None), [])
         self.assertEqual(normalize_serial_numbers([123.0, "ABC"]), ["123", "ABC"])
+
+    def test_uyumsoft_ubl_emits_one_item_instance_per_normalized_serial(self):
+        invoice = _ubl_invoice(
+            [
+                {
+                    "code": "SKU-1",
+                    "description": "Device",
+                    "serial_numbers": "(00123~SER&2;SER&2~A<B)",
+                    "quantity": "3",
+                    "unit_price": "100",
+                    "total_price": "300",
+                    "tax_rate": "20",
+                }
+            ]
+        )
+
+        root = ET.fromstring(build_ubl_invoice(invoice))
+        instances = [node for node in root.iter() if _local_name(node) == "ItemInstance"]
+        serials = [node.text for node in root.iter() if _local_name(node) == "SerialID"]
+
+        self.assertEqual(len(instances), 3)
+        self.assertEqual(serials, ["00123", "SER&2", "A<B"])
+
+        item_node = next(node for node in root.iter() if _local_name(node) == "Item")
+        self.assertEqual(
+            [_local_name(child) for child in item_node],
+            [
+                "Name",
+                "SellersItemIdentification",
+                "ItemInstance",
+                "ItemInstance",
+                "ItemInstance",
+            ],
+        )
+
+    def test_uyumsoft_ubl_omits_item_instances_when_serials_are_empty(self):
+        items = []
+        for index, serial_numbers in enumerate((None, [], ["  "]), start=1):
+            items.append(
+                {
+                    "code": f"SKU-{index}",
+                    "description": f"Device {index}",
+                    "serial_numbers": serial_numbers,
+                    "quantity": "1",
+                    "unit_price": "25",
+                    "total_price": "25",
+                    "tax_rate": "20",
+                }
+            )
+        items.append(
+            {
+                "code": "SKU-NO-KEY",
+                "description": "Device without serial key",
+                "quantity": "1",
+                "unit_price": "25",
+                "total_price": "25",
+                "tax_rate": "20",
+            }
+        )
+
+        root = ET.fromstring(build_ubl_invoice(_ubl_invoice(items)))
+
+        self.assertFalse(any(_local_name(node) == "ItemInstance" for node in root.iter()))
+        self.assertFalse(any(_local_name(node) == "SerialID" for node in root.iter()))
+
+    def test_uyumsoft_ubl_keeps_serials_on_their_own_invoice_line(self):
+        items = [
+            {
+                "code": "SKU-A",
+                "description": "Device A",
+                "serial_numbers": ["A-1", "A-2"],
+                "quantity": "2",
+                "unit_price": "50",
+                "total_price": "100",
+                "tax_rate": "20",
+            },
+            {
+                "code": "SKU-B",
+                "description": "Device B",
+                "serial_numbers": ["B-1"],
+                "quantity": "1",
+                "unit_price": "50",
+                "total_price": "50",
+                "tax_rate": "20",
+            },
+            {
+                "code": "SKU-C",
+                "description": "Service",
+                "serial_numbers": [],
+                "quantity": "1",
+                "unit_price": "50",
+                "total_price": "50",
+                "tax_rate": "20",
+            },
+        ]
+
+        root = ET.fromstring(build_ubl_invoice(_ubl_invoice(items)))
+        lines = [node for node in root.iter() if _local_name(node) == "InvoiceLine"]
+        serials_by_line = []
+        for line in lines:
+            serials_by_line.append(
+                [node.text for node in line.iter() if _local_name(node) == "SerialID"]
+            )
+
+        self.assertEqual(serials_by_line, [["A-1", "A-2"], ["B-1"], []])
+
+    def test_uyumsoft_ubl_serials_round_trip_through_xml_extractor(self):
+        invoice = _ubl_invoice(
+            [
+                {
+                    "code": "SKU-ROUNDTRIP",
+                    "description": "Round-trip device",
+                    "serial_numbers": ["00123", "SER-2"],
+                    "quantity": "2",
+                    "unit_price": "100",
+                    "total_price": "200",
+                    "tax_rate": "20",
+                }
+            ]
+        )
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            path = os.path.join(tmpdir, "uyumsoft-serials.xml")
+            with open(path, "w", encoding="utf-8") as handle:
+                handle.write(build_ubl_invoice(invoice))
+            parsed = parse_xml_invoice(path)
+
+        self.assertEqual(parsed["items"][0]["serial_numbers"], ["00123", "SER-2"])
+
+    def test_uyumsoft_draft_body_preserves_only_present_serial_numbers(self):
+        invoice = _ubl_invoice(
+            [
+                {
+                    "code": "SKU-WITH-SERIAL",
+                    "description": "Serialized device",
+                    "serial_numbers": ["SER-001", "SER-002"],
+                    "quantity": "2",
+                    "unit_price": "100",
+                    "total_price": "200",
+                    "tax_rate": "20",
+                },
+                {
+                    "code": "SKU-WITHOUT-SERIAL",
+                    "description": "Unserialized service",
+                    "quantity": "1",
+                    "unit_price": "100",
+                    "total_price": "100",
+                    "tax_rate": "20",
+                },
+            ]
+        )
+
+        root = ET.fromstring(build_invoice_info_body("SaveAsDraft", invoice))
+        lines = [node for node in root.iter() if _local_name(node) == "InvoiceLine"]
+        serials_by_line = [
+            [node.text for node in line.iter() if _local_name(node) == "SerialID"]
+            for line in lines
+        ]
+
+        self.assertEqual(serials_by_line, [["SER-001", "SER-002"], []])
+        self.assertEqual(
+            sum(1 for node in root.iter() if _local_name(node) == "ItemInstance"),
+            2,
+        )
 
     def test_invoice_and_ai_outputs_are_canonical_and_backward_compatible(self):
         old_invoice = {"items": [{"description": "Old item"}]}

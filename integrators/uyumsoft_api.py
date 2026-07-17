@@ -14,6 +14,7 @@ from xml.sax.saxutils import escape
 import urllib.request
 from datetime import datetime, timedelta
 from utils.money_to_text import amount_to_turkish_text
+from utils.serial_numbers import normalize_serial_numbers
 
 def get_tcmb_rate(currency_code, date_str):
     try:
@@ -291,6 +292,12 @@ def build_ubl_invoice(invoice: dict[str, Any]) -> str:
 
         description = escape(str(item.get("description") or item.get("name") or "Item"))
         code = escape(str(item.get("code") or index))
+        item_instances_xml = "".join(
+            "\n      <cac:ItemInstance>"
+            f"<cbc:SerialID>{escape(serial_number)}</cbc:SerialID>"
+            "</cac:ItemInstance>"
+            for serial_number in normalize_serial_numbers(item.get("serial_numbers"))
+        )
         line_xml.append(
             f"""
   <cac:InvoiceLine>
@@ -313,7 +320,7 @@ def build_ubl_invoice(invoice: dict[str, Any]) -> str:
     </cac:TaxTotal>
     <cac:Item>
       <cbc:Name>{description}</cbc:Name>
-      <cac:SellersItemIdentification><cbc:ID>{code}</cbc:ID></cac:SellersItemIdentification>
+      <cac:SellersItemIdentification><cbc:ID>{code}</cbc:ID></cac:SellersItemIdentification>{item_instances_xml}
     </cac:Item>
     <cac:Price>
       <cbc:PriceAmount currencyID="{currency}">{_fmt_money(unit_price)}</cbc:PriceAmount>
