@@ -115,10 +115,19 @@ async def upload_invoice(file: UploadFile = File(...)):
         # Save the file temporarily
         file_id = str(uuid.uuid4())
         ext = os.path.splitext(file.filename)[1].lower()
+        if ext not in ['.pdf', '.xml', '.csv', '.xls', '.xlsx', '.jpg', '.jpeg', '.png', '.webp']:
+            from fastapi.responses import JSONResponse
+            return JSONResponse(status_code=415, content={"is_valid": False, "errors": [f"Unsupported format: {ext}"], "data": None, "filename": file.filename})
         temp_path = os.path.join(UPLOAD_DIR, f"{file_id}{ext}")
         
-        with open(temp_path, "wb") as buffer:
-            shutil.copyfileobj(file.file, buffer)
+        try:
+            with open(temp_path, "wb") as buffer:
+                shutil.copyfileobj(file.file, buffer)
+        except Exception as e:
+            if os.path.exists(temp_path):
+                os.remove(temp_path)
+            from fastapi.responses import JSONResponse
+            return JSONResponse(status_code=500, content={"is_valid": False, "errors": [f"File write error: {str(e)}"], "data": None, "filename": file.filename})
             
         file_path = temp_path
         data = {}
@@ -212,10 +221,11 @@ async def upload_invoice(file: UploadFile = File(...)):
             errors.append("Fatura okunamadı ve GEMINI_API_KEY ayarlanmadığı için Yapay Zeka (Fallback) devreye giremedi.")
             
         if data:
+            data = enrich_invoice_customer_from_uyumsoft(data)
             is_valid, validation_errors = validate_invoice(data)
-            errors.extend(validation_errors)
             if is_valid:
-                data = enrich_invoice_customer_from_uyumsoft(data)
+                errors = []
+            errors.extend(validation_errors)
         elif local_errors:
             errors.extend(local_errors)
 
@@ -257,9 +267,13 @@ async def upload_invoice(file: UploadFile = File(...)):
 @app.post("/validate")
 async def api_validate(invoice_data: dict):
     import copy
+    from fastapi.responses import JSONResponse
     
-    data_copy = copy.deepcopy(invoice_data)
-    is_valid, errors = validate_invoice(data_copy)
+    try:
+        data_copy = copy.deepcopy(invoice_data)
+        is_valid, errors = validate_invoice(data_copy)
+    except Exception as e:
+        return JSONResponse(status_code=422, content={"is_valid": False, "errors": [str(e)], "data": None})
     
     return {
         "is_valid": is_valid,
@@ -273,19 +287,31 @@ async def send_uyumsoft_api(request: SendUyumsoftRequest):
     Receives invoice data from the UI and forwards it to the Uyumsoft API.
     """
     import copy
+    from fastapi.responses import JSONResponse
 
     # The payload reaching this endpoint is the user-reviewed final version.
     # Work on a copy and never run customer enrichment again here: doing so
     # used to overwrite manual edits with the registered Uyumsoft title.
     invoice_data = copy.deepcopy(request.invoice_data or {})
-    is_valid, errors = validate_invoice(invoice_data)
+    
+    try:
+        is_valid, errors = validate_invoice(invoice_data)
+    except Exception as e:
+        return JSONResponse(
+            status_code=422,
+            content={"success": False, "message": str(e), "response_code": 422}
+        )
+        
     if not is_valid:
-        return {
-            "success": False,
-            "message": "Invoice data failed local validation.",
-            "details": errors,
-            "response_code": 400,
-        }
+        return JSONResponse(
+            status_code=400,
+            content={
+                "success": False,
+                "message": "Invoice data failed local validation.",
+                "details": errors,
+                "response_code": 400,
+            }
+        )
 
     customer_name = str(invoice_data.get("customer_name") or "").strip()
     if customer_name:
@@ -293,4 +319,10 @@ async def send_uyumsoft_api(request: SendUyumsoftRequest):
         invoice_data["customer_title"] = customer_name
 
     result = send_invoice_to_uyumsoft(invoice_data, action="draft")
+    
+    if isinstance(result, dict) and not result.get("success", True):
+        status = result.get("response_code") or 500
+        if isinstance(status, int) and status >= 400:
+            return JSONResponse(status_code=status, content=result)
+            
     return result
