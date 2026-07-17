@@ -398,6 +398,27 @@ tr:hover {
     height: 20px;
 }
 
+.integration-environment {
+    width: 100%;
+    margin-top: 0.75rem;
+    text-align: center;
+    font-size: 0.82rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+}
+
+.integration-environment.test {
+    color: #f59e0b;
+}
+
+.integration-environment.prod {
+    color: #ef4444;
+}
+
+.integration-environment.unknown {
+    color: var(--text-secondary);
+}
+
 #send-draft-btn.validation-blocked {
     background-color: #dc2626 !important;
 }

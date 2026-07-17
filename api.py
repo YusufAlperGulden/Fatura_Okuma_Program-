@@ -1,5 +1,4 @@
 import os
-import sys
 import shutil
 import uuid
 from fastapi import FastAPI, UploadFile, File
@@ -12,7 +11,11 @@ from extractors.excel_extractor import parse_excel_invoice
 from extractors.pdf_extractor import parse_pdf_invoice
 from extractors.xml_extractor import parse_xml_invoice
 from validators.invoice_validator import validate_invoice
-from integrators.uyumsoft_api import enrich_invoice_customer_from_uyumsoft, send_invoice_to_uyumsoft
+from integrators.uyumsoft_api import (
+    enrich_invoice_customer_from_uyumsoft,
+    normalize_uyumsoft_environment,
+    send_invoice_to_uyumsoft,
+)
 from utils.serial_numbers import merge_invoice_serial_numbers
 
 app = FastAPI(title="Invoice Pipeline API")
@@ -27,6 +30,24 @@ def read_root():
 @app.get("/health")
 def health_check():
     return {"status": "ok"}
+
+
+@app.get("/runtime-config")
+def runtime_config():
+    """Expose only non-secret UI settings for the active Uyumsoft environment."""
+    environment = normalize_uyumsoft_environment()
+
+    default_portal_url = (
+        "http://portal-test.uyumsoft.com.tr/Taslak"
+        if environment == "test"
+        else "https://www.uyumsoft.com/kullanici-girisi"
+    )
+    return {
+        "uyumsoft_environment": environment,
+        "uyumsoft_portal_url": (
+            os.getenv("UYUMSOFT_PORTAL_URL", "").strip() or default_portal_url
+        ),
+    }
 
 UPLOAD_DIR = "uploads"
 os.makedirs(UPLOAD_DIR, exist_ok=True)
@@ -235,7 +256,6 @@ async def upload_invoice(file: UploadFile = File(...)):
 
 @app.post("/validate")
 async def api_validate(invoice_data: dict):
-    from validators.invoice_validator import validate_invoice
     import copy
     
     data_copy = copy.deepcopy(invoice_data)

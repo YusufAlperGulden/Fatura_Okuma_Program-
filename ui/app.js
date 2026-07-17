@@ -24,6 +24,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let currentInvoiceIsValid = false;
     let currentValidationErrors = [];
     let currentValidationState = 'idle';
+    let draftSendInProgress = false;
 
     // Add event listener for draft send
     document.getElementById('send-draft-btn').addEventListener('click', () => {
@@ -72,7 +73,32 @@ document.addEventListener('DOMContentLoaded', () => {
     const fileInput = document.getElementById('file-input');
     const loading = document.getElementById('loading');
     const resultsSection = document.getElementById('results-section');
-    const UYUMSOFT_PORTAL_URL = 'http://portal-test.uyumsoft.com.tr/Taslak';
+    let UYUMSOFT_PORTAL_URL = 'https://www.uyumsoft.com/kullanici-girisi';
+
+    async function loadRuntimeConfig() {
+        try {
+            const response = await fetch('/runtime-config');
+            if (!response.ok) throw new Error(`HTTP ${response.status}`);
+            const config = await response.json();
+            if (config.uyumsoft_portal_url) {
+                UYUMSOFT_PORTAL_URL = config.uyumsoft_portal_url;
+            }
+            const environment = config.uyumsoft_environment === 'prod' ? 'prod' : 'test';
+            document.documentElement.dataset.uyumsoftEnvironment = environment;
+            const environmentBadge = document.getElementById('uyumsoft-environment-badge');
+            environmentBadge.className = `integration-environment ${environment}`;
+            environmentBadge.textContent = environment === 'prod'
+                ? 'Uyumsoft ortamı: GERÇEK / CANLI'
+                : 'Uyumsoft ortamı: TEST';
+        } catch (error) {
+            const environmentBadge = document.getElementById('uyumsoft-environment-badge');
+            environmentBadge.className = 'integration-environment unknown';
+            environmentBadge.textContent = 'Uyumsoft ortam bilgisi alınamadı';
+            console.warn('Uyumsoft ortam ayarı okunamadı.', error);
+        }
+    }
+
+    loadRuntimeConfig();
 
     function openUyumsoftPortal() {
         window.open(UYUMSOFT_PORTAL_URL, '_blank', 'noopener');
@@ -154,6 +180,112 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         return Number.parseFloat(text) || 0;
+    }
+
+    function parseEditableNumber(value) {
+        if (value === null || value === undefined) return null;
+        const compact = String(value)
+            .trim()
+            .replace(/[₺$€£%]/g, '')
+            .replace(/\b(TL|TRY|USD|DOLAR|EUR|EURO|GBP)\b/gi, '')
+            .replace(/\s/g, '');
+        const numericPattern = /^[+-]?(?:\d+|\d+[.,]\d+|\d{1,3}(?:\.\d{3})+(?:,\d+)?|\d{1,3}(?:,\d{3})+(?:\.\d+)?)$/;
+        if (!compact || !numericPattern.test(compact)) return null;
+        const parsed = parseMoney(compact);
+        return Number.isFinite(parsed) ? parsed : null;
+    }
+
+    function hasNumericValue(value) {
+        return parseEditableNumber(value) !== null;
+    }
+
+    function roundMoney(value) {
+        return Math.round((value + Number.EPSILON) * 100) / 100;
+    }
+
+    function formatEditedMoney(value) {
+        return roundMoney(value).toFixed(2).replace('.', ',');
+    }
+
+    function syncItemInput(itemIndex, fieldName, value) {
+        const input = document.querySelector(
+            `#items-table input[data-item-index="${itemIndex}"][data-field-name="${fieldName}"]`
+        );
+        if (input && document.activeElement !== input) {
+            input.value = value;
+        }
+    }
+
+    function recalculateEditedAmounts(itemIndex, fieldName) {
+        if (
+            itemIndex < 0
+            || !currentInvoiceData
+            || !Array.isArray(currentInvoiceData.items)
+            || !currentInvoiceData.items[itemIndex]
+            || !['quantity', 'unit_price', 'tax_rate', 'total_price'].includes(fieldName)
+        ) {
+            return;
+        }
+
+        const item = currentInvoiceData.items[itemIndex];
+        const quantity = parseEditableNumber(item.quantity);
+        const unitPrice = parseEditableNumber(item.unit_price);
+        const lineTotal = parseEditableNumber(item.total_price);
+
+        if (
+            ['quantity', 'unit_price'].includes(fieldName)
+            && quantity !== null
+            && unitPrice !== null
+        ) {
+            item.total_price = formatEditedMoney(quantity * unitPrice);
+            syncItemInput(itemIndex, 'total_price', item.total_price);
+        } else if (
+            fieldName === 'total_price'
+            && quantity !== null
+            && quantity > 0
+            && lineTotal !== null
+        ) {
+            item.unit_price = formatEditedMoney(lineTotal / quantity);
+            syncItemInput(itemIndex, 'unit_price', item.unit_price);
+        }
+
+        const canRecalculateTotals = currentInvoiceData.items.every(line => (
+            hasNumericValue(line.total_price) && hasNumericValue(line.tax_rate)
+        ));
+        if (!canRecalculateTotals) return;
+
+        const subtotal = currentInvoiceData.items.reduce(
+            (sum, line) => sum + parseEditableNumber(line.total_price),
+            0
+        );
+        const discount = hasNumericValue(currentInvoiceData.discount_amount)
+            ? parseMoney(currentInvoiceData.discount_amount)
+            : 0;
+        let taxAmount = 0;
+        let allocatedDiscount = 0;
+
+        currentInvoiceData.items.forEach((line, index) => {
+            const total = parseEditableNumber(line.total_price);
+            const rate = parseEditableNumber(line.tax_rate);
+            let discountShare = 0;
+            if (subtotal > 0 && discount > 0) {
+                discountShare = index === currentInvoiceData.items.length - 1
+                    ? roundMoney(discount - allocatedDiscount)
+                    : roundMoney(discount * total / subtotal);
+                allocatedDiscount = roundMoney(allocatedDiscount + discountShare);
+            }
+            taxAmount += roundMoney((total - discountShare) * rate / 100);
+        });
+
+        currentInvoiceData.subtotal = formatEditedMoney(subtotal);
+        currentInvoiceData.tax_amount = formatEditedMoney(taxAmount);
+        currentInvoiceData.total_amount = formatEditedMoney(subtotal - discount + taxAmount);
+    }
+
+    function setEditingDisabled(disabled) {
+        document.querySelectorAll('.edit-input-top, .edit-input').forEach(input => {
+            input.disabled = disabled;
+        });
     }
 
     function appendSerialNumbersCell(row, value) {
@@ -269,6 +401,8 @@ document.addEventListener('DOMContentLoaded', () => {
         currentInvoiceIsValid = false;
         currentValidationErrors = [];
         currentValidationState = 'idle';
+        draftSendInProgress = false;
+        setEditingDisabled(false);
         setDraftButtonValidationState('idle');
                 document.getElementById('csv-btn').classList.add('hidden');
         document.getElementById('workflow-progress').classList.add('hidden');
@@ -386,6 +520,8 @@ document.addEventListener('DOMContentLoaded', () => {
         input.type = 'text';
         input.value = value == null ? '' : value;
         input.className = 'edit-input';
+        input.dataset.fieldName = fieldName;
+        input.dataset.itemIndex = String(itemIndex);
         input.style.width = '100%';
         input.style.boxSizing = 'border-box';
         input.style.padding = '4px';
@@ -443,7 +579,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function handleEdit(itemIndex, fieldName, newValue) {
-        if (!currentInvoiceData || !currentInvoiceData.items) return;
+        if (!currentInvoiceData || draftSendInProgress) return;
         
         if (itemIndex === -1) {
             currentInvoiceData[fieldName] = newValue;
@@ -453,8 +589,14 @@ document.addEventListener('DOMContentLoaded', () => {
                 // the pre-edit value.
                 currentInvoiceData.customer_title = newValue;
             }
-        } else {
+        } else if (
+            Array.isArray(currentInvoiceData.items)
+            && currentInvoiceData.items[itemIndex]
+        ) {
             currentInvoiceData.items[itemIndex][fieldName] = newValue;
+            recalculateEditedAmounts(itemIndex, fieldName);
+        } else {
+            return;
         }
 
         validationRevision += 1;
@@ -497,6 +639,9 @@ document.addEventListener('DOMContentLoaded', () => {
             const result = await readJsonResponse(response);
             if (capturedValidationRevision !== validationRevision) return;
             if (response.ok) {
+                if (result.data && typeof result.data === 'object') {
+                    currentInvoiceData = result.data;
+                }
                 updateValidationUI(result);
             } else {
                 currentInvoiceIsValid = false;
@@ -672,22 +817,26 @@ document.addEventListener('DOMContentLoaded', () => {
 
     }
     
-    // Uyumsoft send logic: used automatically after validation.
-            async function runUyumsoftAction() {
-        if (!currentInvoiceData) return;
+    // Send only the immutable, user-reviewed snapshot after validation.
+    async function runUyumsoftAction() {
+        if (!currentInvoiceData || draftSendInProgress) return;
         if (currentValidationState !== 'valid' || !currentInvoiceIsValid) {
             showDraftValidationPopup();
             return;
         }
         const capturedUploadId = currentUploadId;
+        const capturedValidationRevision = validationRevision;
+        const invoiceSnapshot = JSON.parse(JSON.stringify(currentInvoiceData));
         const sendBtn = document.getElementById('send-draft-btn');
+        draftSendInProgress = true;
         sendBtn.disabled = true;
+        setEditingDisabled(true);
         
         const statusBox = document.getElementById('api-status-box');
         const action = 'draft';
         const actionLabel = 'Taslak Oluştur';
         statusBox.classList.remove('hidden');
-                statusBox.style.position = 'relative';
+        statusBox.style.position = 'relative';
         statusBox.style.overflow = 'hidden';
         statusBox.style.backgroundColor = '#3b82f6';
         statusBox.style.color = '#fff';
@@ -705,13 +854,16 @@ document.addEventListener('DOMContentLoaded', () => {
                 headers: {
                     'Content-Type': 'application/json'
                 },
-                body: JSON.stringify({ invoice_data: currentInvoiceData, action })
+                body: JSON.stringify({ invoice_data: invoiceSnapshot, action })
             });
             
             const result = await readJsonResponse(response);
             
                         if (result.success) {
-                if (currentUploadId !== capturedUploadId) return;
+                if (
+                    currentUploadId !== capturedUploadId
+                    || validationRevision !== capturedValidationRevision
+                ) return;
                 document.getElementById('send-draft-btn').classList.add('hidden');
                 statusBox.style.backgroundColor = '#059669';
                 statusBox.innerHTML = `✓  ${escapeHtml(result.message)} (HTTP ${escapeHtml(result.response_code)})`;
@@ -747,6 +899,8 @@ document.addEventListener('DOMContentLoaded', () => {
             } else {
                 const details = formatDetails(result.details);
                 if (currentUploadId !== capturedUploadId) return;
+                draftSendInProgress = false;
+                setEditingDisabled(false);
                 statusBox.style.backgroundColor = '#dc2626';
                 statusBox.innerHTML = `❌ Hata: ${escapeHtml(result.message)}${details ? ` <br> <small>${escapeHtml(details)}</small>` : ''}`;
                 sendBtn.disabled = false;
@@ -763,6 +917,8 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         } catch (error) {
             if (currentUploadId !== capturedUploadId) return;
+            draftSendInProgress = false;
+            setEditingDisabled(false);
             statusBox.style.backgroundColor = '#dc2626';
             statusBox.innerHTML = `❌ Bağlantı Hatası: ${error.message}`;
             sendBtn.disabled = false;

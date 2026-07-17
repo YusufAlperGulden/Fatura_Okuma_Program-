@@ -161,7 +161,9 @@ def parse_xml_invoice(file_path: str) -> dict:
                     "quantity": quantity.replace('.', ',') if quantity else None,
                     "unit_price": unit_price.replace('.', ',') if unit_price else None,
                     "total_price": total_price.replace('.', ',') if total_price else None,
-                    "tax_rate": tax_rate.replace('.', ',') if tax_rate else "0"
+                    # None means the source XML did not provide a line-level
+                    # rate.  It must not be confused with an explicit 0% KDV.
+                    "tax_rate": tax_rate.replace('.', ',') if tax_rate else None
                 })
                 
         # 4. Totals (LegalMonetaryTotal)
