@@ -810,9 +810,12 @@ tr:hover {
     border-radius: 8px;
     display: flex;
     flex-direction: column;
-    height: 100%; min-height: 850px;
-    
-    align-self: stretch;
+    height: calc(100vh - 2rem);
+    max-height: 1200px;
+    min-height: 500px;
+    position: sticky;
+    top: 1rem;
+    align-self: start;
     box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
 }
 
