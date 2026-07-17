@@ -318,12 +318,6 @@ let currentUploadId = null;
                     checklist.innerHTML += `<li class="success"><svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg> Fatura okundu</li>`;
                     checklist.innerHTML += `<li class="error"><svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg> Fatura okundu ancak aktarım durduruldu.</li>`;
                     
-                  if (!result.is_valid && result.errors && result.errors.length > 0) {
-                    const errorBox = document.getElementById('error-box');
-                    errorBox.innerHTML = '<div style="display: flex; align-items: center; margin-bottom: 0.5rem;"><svg style="width: 24px; height: 24px; margin-right: 8px; color: #f87171;" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg><strong style="font-size: 1.1rem;">Lütfen faturadaki şu eksik veya hataları giderin:</strong></div>' + 
-                    '<ul style="margin-left: 2rem; list-style-type: disc;">' + result.errors.map(e => `<li style="margin-bottom: 0.25rem;">${escapeHtml(e)}</li>`).join('') + '</ul>';
-                    errorBox.classList.remove('hidden');
-                }
                 }
             } else {
                 showError("Sunucu Hatası: " + (result.detail || "Bilinmeyen hata"));
@@ -373,6 +367,41 @@ let currentUploadId = null;
 
     let validationTimeout = null;
     let validationAbortController = null;
+
+    function renderValidationErrors(errors) {
+        const errorBox = document.getElementById('error-box');
+        const taxInput = document.getElementById('res-vkn');
+        const taxCard = document.getElementById('customer-tax-card');
+        const messages = Array.isArray(errors)
+            ? errors.filter(message => typeof message === 'string' && message.trim())
+            : [];
+        const hasTaxError = messages.some(message => /VKN|TCKN/i.test(message));
+
+        taxInput.setAttribute('aria-invalid', hasTaxError ? 'true' : 'false');
+        taxCard.classList.toggle('field-invalid', hasTaxError);
+        errorBox.replaceChildren();
+
+        if (messages.length === 0) {
+            errorBox.classList.add('hidden');
+            return;
+        }
+
+        const heading = document.createElement('strong');
+        heading.textContent = 'Lütfen şu eksik veya hatalı alanları düzeltin:';
+        const list = document.createElement('ul');
+        list.style.margin = '0.5rem 0 0 1.5rem';
+        list.style.listStyleType = 'disc';
+
+        messages.forEach(message => {
+            const item = document.createElement('li');
+            item.textContent = message;
+            item.style.marginBottom = '0.25rem';
+            list.appendChild(item);
+        });
+
+        errorBox.append(heading, list);
+        errorBox.classList.remove('hidden');
+    }
 
     function handleEdit(itemIndex, fieldName, newValue) {
         if (!currentInvoiceData || !currentInvoiceData.items) return;
@@ -467,6 +496,7 @@ let currentUploadId = null;
             badge.className = 'badge error';
             document.getElementById('send-draft-btn').disabled = true;
         }
+        renderValidationErrors(result.is_valid ? [] : result.errors);
         document.getElementById('csv-btn').classList.remove('hidden');
 
         // Ensure data exists before accessing properties

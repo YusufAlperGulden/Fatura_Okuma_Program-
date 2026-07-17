@@ -53,7 +53,22 @@ def validate_invoice(data):
         
     tax_id = str(data.get("customer_tax_id") or "").strip()
     if not tax_id or not (len(tax_id) in (10, 11) and tax_id.isdigit()):
-        errors.append(f"Alıcı VKN/TCKN bilgisi hatalı veya eksik. (Okunan: '{tax_id}')")
+        invoice_no = str(data.get("invoice_no") or "").strip()
+        if (
+            not tax_id
+            and len(invoice_no) in (10, 11)
+            and invoice_no.isdigit()
+        ):
+            errors.append(
+                "Alıcı VKN/TCKN alanı boş. "
+                f"'{invoice_no}' değeri Fatura No alanında görünüyor. "
+                "Bu değer alıcının vergi/kimlik numarasıysa Müşteri VKN/TCKN "
+                "alanında kalmalıdır."
+            )
+        else:
+            errors.append(
+                f"Alıcı VKN/TCKN bilgisi hatalı veya eksik. (Okunan: '{tax_id}')"
+            )
         
     customer_name = str(data.get("customer_name") or "").strip()
     if not customer_name or customer_name == "-":

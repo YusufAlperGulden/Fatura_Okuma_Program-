@@ -159,6 +159,23 @@ def _extract_unlabeled_header_customer_name(text):
     return None
 
 
+def _extract_unlabeled_invoice_no(text):
+    """Read a short document number sandwiched by an identical timestamp.
+
+    Some label-free PDF exports place the invoice number on its own line
+    between the issue timestamp and a repeated timestamp.  Keeping this
+    fallback deliberately narrow prevents arbitrary short numbers in invoice
+    bodies from being mistaken for document numbers.
+    """
+    match = re.search(
+        r"(?m)^\s*(\d{1,2}\.\d{2}\.\d{4}[ \t]+\d{1,2}:\d{2})\s*$"
+        r"\n^\s*([A-Za-z0-9][A-Za-z0-9_./-]{0,29})\s*$"
+        r"\n^\s*\1\s*$",
+        text or "",
+    )
+    return match.group(2) if match else None
+
+
 def _extract_customer_name(text):
     for line in _buyer_section_lines(text):
         customer_name = _clean_customer_name_line(line)
@@ -696,6 +713,8 @@ def parse_invoice_text(text: str, top_text: str = None) -> dict:
         text,
         re.IGNORECASE,
     )
+    if not data["invoice_no"]:
+        data["invoice_no"] = _extract_unlabeled_invoice_no(text)
     search_text = top_text if top_text is not None else text
 
     # Ultimate safeguard: Find exact product items and slice before them

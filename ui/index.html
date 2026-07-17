@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Fatura Veri Otomasyonu</title>
-    <link rel="stylesheet" href="style.css?v=6">
+    <link rel="stylesheet" href="style.css?v=7">
     <!-- Google Fonts -->
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <!-- Toastify for in-app notifications -->
@@ -97,9 +97,10 @@
                             <input type="text" id="res-time" class="edit-input-top" value="" placeholder="Saat">
                         </div>
                     </div>
-                    <div class="card">
-                        <span class="card-label">MÜŞTERİ VKN</span>
-                        <input type="text" id="res-vkn" class="edit-input-top" value="" placeholder="-">
+                    <div id="customer-tax-card" class="card">
+                        <span class="card-label">MÜŞTERİ VKN/TCKN</span>
+                        <input type="text" id="res-vkn" class="edit-input-top" value="" placeholder="10 veya 11 hane" inputmode="numeric" autocomplete="off" aria-describedby="res-vkn-help">
+                        <small id="res-vkn-help" class="field-hint">VKN 10, TCKN 11 hanelidir.</small>
                     </div>
                     <div id="customer-name-card" class="card wide-card">
                         <span class="card-label">MÜŞTERİ ADI</span>
@@ -191,6 +192,6 @@
     </div>
     
 
-    <script src="app.js?v=6"></script>
+    <script src="app.js?v=7"></script>
 </body>
 </html>

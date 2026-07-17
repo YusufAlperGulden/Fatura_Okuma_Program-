@@ -249,6 +249,23 @@ header p {
     box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.3);
 }
 
+.field-hint {
+    display: block;
+    margin-top: 0.35rem;
+    color: var(--text-secondary);
+    font-size: 0.72rem;
+    line-height: 1.35;
+}
+
+.card.field-invalid {
+    border-color: var(--error-border);
+    box-shadow: 0 0 0 2px rgba(239, 68, 68, 0.18);
+}
+
+.edit-input-top[aria-invalid="true"] {
+    border-color: var(--error-border);
+}
+
 
 .wide-card {
     grid-column: span 2;

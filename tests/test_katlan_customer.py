@@ -23,6 +23,7 @@ class KatlanCustomerExtractionTests(unittest.TestCase):
 
         data = parse_invoice_text(text)
 
+        self.assertEqual(data["invoice_no"], "10")
         self.assertEqual(data["customer_tax_id"], "16811884906")
         self.assertEqual(
             data["customer_name"], "Katlan Yazılım Elektronik Ve Pazarlama"
@@ -41,6 +42,41 @@ class KatlanCustomerExtractionTests(unittest.TestCase):
         )
         is_valid, errors = validate_invoice(data)
         self.assertTrue(is_valid, errors)
+
+    def test_explains_when_tax_id_is_moved_to_invoice_number(self):
+        data = {
+            "invoice_no": "16811884906",
+            "date": "10.04.2026",
+            "customer_tax_id": "",
+            "customer_name": "Katlan Yazılım Elektronik Ve Pazarlama",
+            "items": [
+                {
+                    "description": "Ürün",
+                    "quantity": "1",
+                    "unit_price": "100,00",
+                    "total_price": "100,00",
+                }
+            ],
+            "subtotal": "100,00",
+            "discount_amount": "0,00",
+            "tax_amount": "20,00",
+            "total_amount": "120,00",
+        }
+
+        is_valid, errors = validate_invoice(data)
+
+        self.assertFalse(is_valid)
+        self.assertEqual(len(errors), 1)
+        self.assertIn("Fatura No alanında görünüyor", errors[0])
+        self.assertIn("Müşteri VKN/TCKN alanında kalmalıdır", errors[0])
+
+    def test_does_not_treat_an_unrelated_short_number_as_invoice_number(self):
+        data = parse_invoice_text(
+            "10.04.2026 17:22\n10\n11.04.2026 17:22\n"
+            "Yozgat 16811884906"
+        )
+
+        self.assertIsNone(data["invoice_no"])
 
     def test_collapses_exact_name_repetitions_from_pdf_columns(self):
         data = parse_invoice_text(
