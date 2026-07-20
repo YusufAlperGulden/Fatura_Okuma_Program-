@@ -1109,21 +1109,24 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('split-container').classList.remove('hidden');
     }
 
-    document.getElementById('toggle-pdf-btn').addEventListener('click', () => {
+    document.getElementById('toggle-pdf-btn').addEventListener('click', (e) => {
+        const btn = e.currentTarget;
         const pdfSection = document.getElementById('pdf-viewer-section');
         const splitContainer = document.getElementById('split-container');
         const appContainer = document.querySelector('.app-container');
-        const icon = document.querySelector('#toggle-pdf-btn svg');
+        const icon = btn.querySelector('svg');
         
         if (pdfSection.classList.contains('hidden')) {
             pdfSection.classList.remove('hidden');
             splitContainer.classList.add('split-active');
             appContainer.classList.add('wide-mode');
+            btn.title = 'PDF Önizlemesini Gizle';
             if (icon) icon.style.transform = 'rotate(0deg)';
         } else {
             pdfSection.classList.add('hidden');
             splitContainer.classList.remove('split-active');
             appContainer.classList.remove('wide-mode');
+            btn.title = 'PDF Önizlemesini Göster';
             if (icon) icon.style.transform = 'rotate(180deg)';
         }
         if (icon) icon.style.transition = 'transform 0.3s ease';
