@@ -20,6 +20,36 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
+    // Color theme logic
+    const colorDots = document.querySelectorAll('.color-dot');
+    const savedColor = localStorage.getItem('colorTheme') || 'ocean';
+    
+    // Set initial active state based on savedColor
+    colorDots.forEach(dot => {
+        if (dot.dataset.color === savedColor) {
+            dot.classList.add('active');
+        } else {
+            dot.classList.remove('active');
+        }
+        
+        // Add click listener
+        dot.addEventListener('click', () => {
+            const color = dot.dataset.color;
+            
+            // Set attribute and save
+            if (color === 'ocean') {
+                document.documentElement.removeAttribute('data-color');
+            } else {
+                document.documentElement.setAttribute('data-color', color);
+            }
+            localStorage.setItem('colorTheme', color);
+            
+            // Update active class
+            colorDots.forEach(d => d.classList.remove('active'));
+            dot.classList.add('active');
+        });
+    });
+
     // Request notification permission for Uyumsoft alerts
     if (window.Notification && Notification.permission !== 'granted' && Notification.permission !== 'denied') {
         Notification.requestPermission();

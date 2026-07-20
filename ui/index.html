@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Fatura Veri Otomasyonu</title>
-    <link rel="stylesheet" href="style.css?v=12">
+    <link rel="stylesheet" href="style.css?v=13">
     <!-- Google Fonts -->
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <!-- Toastify for in-app notifications -->
@@ -16,16 +16,29 @@
         if (savedTheme === 'light' || (!savedTheme && window.matchMedia('(prefers-color-scheme: light)').matches)) {
             document.documentElement.setAttribute('data-theme', 'light');
         }
+        const savedColor = localStorage.getItem('colorTheme');
+        if (savedColor) {
+            document.documentElement.setAttribute('data-color', savedColor);
+        }
     </script>
 </head>
 <body>
     <div class="app-container">
         <header style="position: relative;">
-            <button id="theme-toggle" class="theme-btn" title="Temayı Değiştir">
-                <svg id="theme-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24" width="24" height="24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z" />
-                </svg>
-            </button>
+            <div style="position: absolute; right: 0; top: 0; display: flex; align-items: center; gap: 15px;">
+                <div class="color-picker" style="display: flex; gap: 8px;">
+                    <button class="color-dot active" data-color="ocean" style="background-color: #0ea5e9;" title="Ocean (Varsayılan)"></button>
+                    <button class="color-dot" data-color="emerald" style="background-color: #10b981;" title="Emerald"></button>
+                    <button class="color-dot" data-color="amethyst" style="background-color: #8b5cf6;" title="Amethyst"></button>
+                    <button class="color-dot" data-color="ruby" style="background-color: #f43f5e;" title="Ruby"></button>
+                    <button class="color-dot" data-color="amber" style="background-color: #f59e0b;" title="Amber"></button>
+                </div>
+                <button id="theme-toggle" class="theme-btn" style="position: relative;" title="Temayı Değiştir">
+                    <svg id="theme-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24" width="24" height="24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z" />
+                    </svg>
+                </button>
+            </div>
             
             <h1 class="gradient-text">Fatura İşleme Sistemi</h1>
             <p>Uyumsoft entegrasyonu için faturalarınızı (PDF/XML/Excel) yükleyin ve doğrulayın.</p>
