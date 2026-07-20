@@ -200,9 +200,18 @@ def validate_invoice(data):
             sum_even = sum(digits[1:8:2])
             tenth = (sum_odd * 7 - sum_even) % 10
             eleventh = sum(digits[0:10]) % 10
-            if digits[9] != tenth or digits[10] != eleventh:
+            
+            if digits[10] % 2 != 0:
                 errors.append(
-                    f"T.C. Kimlik Numarası hatalı. Matematiksel doğrulama algoritmasından geçemedi. Lütfen kontrol ediniz. (Okunan: '{tax_id}')"
+                    f"T.C. Kimlik Numarası hatalı. 11. hane (son rakam) her zaman çift sayı olmalıdır (Okunan son rakam: '{digits[10]}'). (Okunan TCKN: '{tax_id}')"
+                )
+            elif digits[9] != tenth:
+                errors.append(
+                    f"T.C. Kimlik Numarası hatalı. İlk 9 rakamın formülüne göre 10. rakamın '{tenth}' olması gerekirken '{digits[9]}' okundu. Lütfen kontrol ediniz. (Okunan TCKN: '{tax_id}')"
+                )
+            elif digits[10] != eleventh:
+                errors.append(
+                    f"T.C. Kimlik Numarası hatalı. İlk 10 rakamın toplamının birler basamağı 11. rakamı vermelidir (Beklenen: '{eleventh}', Okunan: '{digits[10]}'). Lütfen kontrol ediniz. (Okunan TCKN: '{tax_id}')"
                 )
         
     customer_name = str(
