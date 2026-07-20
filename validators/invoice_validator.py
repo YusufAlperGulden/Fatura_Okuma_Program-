@@ -206,12 +206,14 @@ def validate_invoice(data):
                     f"T.C. Kimlik Numarası hatalı. 11. hane (son rakam) her zaman çift sayı olmalıdır (Okunan son rakam: '{digits[10]}'). (Okunan TCKN: '{tax_id}')"
                 )
             elif digits[9] != tenth:
+                calc_details = f"(({sum_odd} x 7) - {sum_even}) mod 10 = {tenth}"
                 errors.append(
-                    f"T.C. Kimlik Numarası hatalı. İlk 9 rakamın formülüne göre 10. rakamın '{tenth}' olması gerekirken '{digits[9]}' okundu. Lütfen kontrol ediniz. (Okunan TCKN: '{tax_id}')"
+                    f"T.C. Kimlik Numarası hatalı. 10. rakam kuralı ihlali: (Tek haneler toplamı x 7 - Çift haneler toplamı) işleminin son basamağı {tenth} olmalıyken, faturada '{digits[9]}' okundu. Hesaplama: {calc_details} (Okunan TCKN: '{tax_id}')"
                 )
             elif digits[10] != eleventh:
+                calc_details = f"{sum(digits[0:10])} mod 10 = {eleventh}"
                 errors.append(
-                    f"T.C. Kimlik Numarası hatalı. İlk 10 rakamın toplamının birler basamağı 11. rakamı vermelidir (Beklenen: '{eleventh}', Okunan: '{digits[10]}'). Lütfen kontrol ediniz. (Okunan TCKN: '{tax_id}')"
+                    f"T.C. Kimlik Numarası hatalı. 11. rakam kuralı ihlali: İlk 10 rakamın toplamının son basamağı {eleventh} olmalıyken, faturada '{digits[10]}' okundu. Hesaplama: {calc_details} (Okunan TCKN: '{tax_id}')"
                 )
         
     customer_name = str(
