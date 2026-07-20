@@ -191,10 +191,19 @@ def validate_invoice(data):
             errors.append(
                 f"Alıcı VKN/TCKN bilgisi hatalı veya eksik. Lütfen 10 veya 11 haneli olacak şekilde faturayı düzenleyiniz. (Okunan: '{tax_id}')"
             )
-    elif len(tax_id) == 11 and int(tax_id[-1]) % 2 != 0:
-        errors.append(
-            f"T.C. Kimlik Numarası hatalı. 11 haneli TCKN'nin son rakamı çift sayı olmalıdır. Lütfen kontrol ediniz. (Okunan: '{tax_id}')"
-        )
+    elif len(tax_id) == 11:
+        if tax_id[0] == '0':
+            errors.append(f"T.C. Kimlik Numarası hatalı. TCKN '0' ile başlayamaz. (Okunan: '{tax_id}')")
+        else:
+            digits = [int(d) for d in tax_id]
+            sum_odd = sum(digits[0:9:2])
+            sum_even = sum(digits[1:8:2])
+            tenth = (sum_odd * 7 - sum_even) % 10
+            eleventh = sum(digits[0:10]) % 10
+            if digits[9] != tenth or digits[10] != eleventh:
+                errors.append(
+                    f"T.C. Kimlik Numarası hatalı. Matematiksel doğrulama algoritmasından geçemedi. Lütfen kontrol ediniz. (Okunan: '{tax_id}')"
+                )
         
     customer_name = str(
         data.get("customer_name") or data.get("customer_title") or ""
