@@ -183,6 +183,10 @@ def validate_invoice(data):
                 "Bu değer alıcının vergi/kimlik numarasıysa Müşteri VKN/TCKN "
                 "alanında kalmalıdır."
             )
+        elif tax_id and not tax_id.isdigit():
+            errors.append(
+                f"Alıcı VKN/TCKN bilgisi hatalı. Lütfen sadece sayı kullanarak yazınız. Harf kullanmayınız. (Okunan: '{tax_id}')"
+            )
         else:
             errors.append(
                 f"Alıcı VKN/TCKN bilgisi hatalı veya eksik. Lütfen 10 veya 11 haneli olacak şekilde faturayı düzenleyiniz. (Okunan: '{tax_id}')"
