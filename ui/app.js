@@ -1360,7 +1360,8 @@ if (sendAllBtn) {
             }
         }
         
-        sendAllBtn.disabled = false;
+        // Disable the button to prevent double-sending
+        sendAllBtn.disabled = true;
         sendAllBtn.textContent = "Tümünü Gönderildi";
     });
 }
