@@ -1386,12 +1386,7 @@ if (batchBackBtn) {
 const batchUyumsoftBtn = document.getElementById('batch-uyumsoft-btn');
 if (batchUyumsoftBtn) {
     batchUyumsoftBtn.addEventListener('click', () => {
-        const env = document.documentElement.dataset.uyumsoftEnvironment || 'test';
-        if (env === 'prod') {
-            window.open('https://efatura.uyumsoft.com.tr', '_blank');
-        } else {
-            window.open('https://efatura-test.uyumsoft.com.tr', '_blank');
-        }
+        openUyumsoftPortal();
     });
 }
 });
