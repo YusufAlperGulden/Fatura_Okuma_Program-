@@ -145,9 +145,9 @@ def validate_invoice(data):
     if not isinstance(data, dict):
         return False, ["Fatura verisi bir nesne olmalıdır."]
 
-    errors = []
-
     _infer_uniform_missing_tax_rate(data)
+    recalculate_invoice_totals(data)
+    errors = []
 
     try:
         data["currency"] = normalize_currency(data.get("currency"))

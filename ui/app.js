@@ -1237,7 +1237,13 @@ async function handleBatchFiles(files) {
                     const formattedTotal = new Intl.NumberFormat('tr-TR', { style: 'currency', currency: currencyCode }).format(numTotal);
                 row.querySelector('.b-amount').textContent = formattedTotal;
                 
-                row.querySelector('.b-status').innerHTML = '<span class="status-badge status-success">Başarılı</span>';
+                if (result.is_valid !== false) {
+                    row.querySelector('.b-status').innerHTML = '<span class="status-badge status-success">Başarılı</span>';
+                } else {
+                    const errs = (result.errors || ['Fatura verileri eksik veya hatalı.']).join('\\n');
+                    const errAlert = errs.replace(/'/g, '\\\'').replace(/"/g, '&quot;');
+                    row.querySelector('.b-status').innerHTML = `<span class="status-badge status-pending" title="${errAlert}" onclick="alert('${errAlert}')" style="cursor:help; text-decoration: underline dotted;">İnceleme (Tıkla)</span>`;
+                }
                 
                 row.addEventListener('click', () => {
                     openSingleResultFromBatch(i);
@@ -1325,7 +1331,7 @@ if (sendAllBtn) {
         
         for (let i = 0; i < batchResults.length; i++) {
             const item = batchResults[i];
-            if (!item || !item.success || item.sent) continue;
+            if (!item || !item.success || item.sent || item.result.is_valid === false) continue;
             
             const row = document.getElementById('batch-row-' + i);
             row.querySelector('.b-status').innerHTML = '<span class="status-badge status-pending">Gönderiliyor...</span>';
