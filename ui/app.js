@@ -139,17 +139,21 @@ document.addEventListener('DOMContentLoaded', () => {
     dropZone.addEventListener('drop', (e) => {
         e.preventDefault();
         dropZone.classList.remove('dragover');
-        if (e.dataTransfer.files.length) {
+        if (e.dataTransfer.files.length > 1) {
+            handleBatchFiles(Array.from(e.dataTransfer.files));
+        } else if (e.dataTransfer.files.length === 1) {
             handleFile(e.dataTransfer.files[0]);
         }
     });
     
     fileInput.addEventListener('change', (e) => {
-        const selectedFile = e.target.files && e.target.files[0];
-        // A file input does not emit change when the same file is selected
-        // twice unless its value is reset after every selection.
+        const files = e.target.files;
+        if (files && files.length > 1) {
+            handleBatchFiles(Array.from(files));
+        } else if (files && files.length === 1) {
+            handleFile(files[0]);
+        }
         e.target.value = '';
-        if (selectedFile) handleFile(selectedFile);
     });
     
     let pdfObjectUrl = null;
@@ -1158,4 +1162,185 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // UI event listeners initialized.
+
+// --- BATCH PROCESSING LOGIC ---
+let batchResults = [];
+let batchProcessing = false;
+
+async function handleBatchFiles(files) {
+    if (window.location.protocol === 'file:') {
+        showError("Bu sayfa dosya olarak açılmış. Lütfen uygulamayı sunucu üzerinden açın.");
+        return;
+    }
+
+    document.querySelector('.upload-section').classList.add('hidden');
+    document.getElementById('batch-section').classList.remove('hidden');
+    
+    const tbody = document.getElementById('batch-table-body');
+    tbody.innerHTML = '';
+    batchResults = [];
+    
+    files.forEach((file, index) => {
+        const tr = document.createElement('tr');
+        tr.id = 'batch-row-' + index;
+        tr.innerHTML = `
+            <td>${file.name}</td>
+            <td class="b-inv-no">-</td>
+            <td class="b-date">-</td>
+            <td class="b-vkn">-</td>
+            <td class="b-name">-</td>
+            <td class="b-amount">-</td>
+            <td class="b-status"><span class="status-badge status-pending">Bekliyor...</span></td>
+        `;
+        tbody.appendChild(tr);
+    });
+    
+    batchProcessing = true;
+    const sendAllBtn = document.getElementById('send-all-btn');
+    sendAllBtn.style.display = 'none';
+    
+    for (let i = 0; i < files.length; i++) {
+        const file = files[i];
+        const row = document.getElementById('batch-row-' + i);
+        
+        try {
+            row.querySelector('.b-status').innerHTML = '<span class="status-badge status-pending">Okunuyor...</span>';
+            
+            const formData = new FormData();
+            formData.append('file', file);
+            
+            const response = await fetch('/upload', { method: 'POST', body: formData });
+            
+            if (!response.ok) {
+                batchResults[i] = { file, success: false };
+                row.querySelector('.b-status').innerHTML = '<span class="status-badge status-error">Hata</span>';
+                continue;
+            }
+            
+            const result = await readJsonResponse(response);
+
+            if (result && result.data) {
+                const data = result.data;
+                batchResults[i] = { file, result, success: true };
+                
+                row.querySelector('.b-inv-no').textContent = data.invoice_no || '-';
+                row.querySelector('.b-date').textContent = data.date || '-';
+                row.querySelector('.b-vkn').textContent = data.customer_tax_id || '-';
+                row.querySelector('.b-name').textContent = (data.customer_name || '-').substring(0, 20);
+                
+                const formattedTotal = new Intl.NumberFormat('tr-TR', { style: 'currency', currency: 'TRY' }).format(data.total_amount || 0);
+                row.querySelector('.b-amount').textContent = formattedTotal;
+                
+                row.querySelector('.b-status').innerHTML = '<span class="status-badge status-success">Başarılı</span>';
+                
+                row.addEventListener('click', () => {
+                    openSingleResultFromBatch(i);
+                });
+            } else {
+                batchResults[i] = { file, result, success: false };
+                row.querySelector('.b-status').innerHTML = '<span class="status-badge status-error">Hata</span>';
+            }
+        } catch (error) {
+            batchResults[i] = { file, error, success: false };
+            row.querySelector('.b-status').innerHTML = '<span class="status-badge status-error">Bağlantı Hatası</span>';
+        }
+    }
+    
+    batchProcessing = false;
+    
+    if (batchResults.some(r => r && r.success)) {
+        sendAllBtn.style.display = 'inline-flex';
+    }
+}
+
+function openSingleResultFromBatch(index) {
+    const item = batchResults[index];
+    if (!item || !item.success) return;
+    
+    document.getElementById('batch-section').classList.add('hidden');
+    document.getElementById('split-container').classList.remove('hidden');
+    document.getElementById('split-container').classList.add('split-active');
+    document.getElementById('back-to-batch-btn').classList.remove('hidden');
+    
+    if (pdfObjectUrl) {
+        URL.revokeObjectURL(pdfObjectUrl);
+        pdfObjectUrl = null;
+    }
+    
+    if (item.file.type === 'application/pdf' || ['image/jpeg', 'image/png', 'image/webp'].includes(item.file.type)) {
+        pdfObjectUrl = URL.createObjectURL(item.file);
+        document.getElementById('pdf-iframe').src = pdfObjectUrl;
+        document.getElementById('pdf-viewer-section').classList.remove('hidden');
+        document.querySelector('.app-container').classList.add('wide-mode');
+        document.getElementById('toggle-pdf-btn').style.display = 'flex';
+    } else {
+        document.getElementById('pdf-viewer-section').classList.add('hidden');
+        document.querySelector('.app-container').classList.remove('wide-mode');
+        document.getElementById('toggle-pdf-btn').style.display = 'none';
+    }
+    
+    currentInvoiceData = item.result.data;
+    renderInvoice(item.result);
+    updateValidationUI(item.result);
+    document.getElementById('send-draft-btn').classList.remove('hidden');
+    document.getElementById('results-section').classList.remove('hidden');
+}
+
+const backBtn = document.getElementById('back-to-batch-btn');
+if (backBtn) {
+    backBtn.addEventListener('click', () => {
+        document.getElementById('split-container').classList.add('hidden');
+        document.getElementById('split-container').classList.remove('split-active');
+        document.getElementById('batch-section').classList.remove('hidden');
+        
+        if (pdfObjectUrl) {
+            URL.revokeObjectURL(pdfObjectUrl);
+            pdfObjectUrl = null;
+        }
+        document.getElementById('pdf-iframe').src = '';
+    });
+}
+
+const sendAllBtn = document.getElementById('send-all-btn');
+if (sendAllBtn) {
+    sendAllBtn.addEventListener('click', async () => {
+        if (batchProcessing) return;
+        
+        if (!confirm("Listedeki başarılı tüm faturaları Uyumsoft'a taslak olarak göndermek istediğinize emin misiniz?")) {
+            return;
+        }
+        
+        sendAllBtn.disabled = true;
+        sendAllBtn.textContent = 'Gönderiliyor...';
+        
+        for (let i = 0; i < batchResults.length; i++) {
+            const item = batchResults[i];
+            if (!item || !item.success || item.sent) continue;
+            
+            const row = document.getElementById('batch-row-' + i);
+            row.querySelector('.b-status').innerHTML = '<span class="status-badge status-pending">Gönderiliyor...</span>';
+            
+            try {
+                const response = await fetch('/api/uyumsoft/send', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ invoice_data: item.result.data, action: 'draft', environment: document.documentElement.dataset.uyumsoftEnvironment || 'test' })
+                });
+                const resData = await response.json();
+                
+                if (response.ok && resData.success !== false) {
+                    row.querySelector('.b-status').innerHTML = '<span class="status-badge status-success">Gönderildi</span>';
+                    item.sent = true;
+                } else {
+                    row.querySelector('.b-status').innerHTML = '<span class="status-badge status-error">Uyumsoft Hatası</span>';
+                }
+            } catch (e) {
+                row.querySelector('.b-status').innerHTML = '<span class="status-badge status-error">Ağ Hatası</span>';
+            }
+        }
+        
+        sendAllBtn.disabled = false;
+        sendAllBtn.textContent = "Tümünü Gönderildi";
+    });
+}
 });

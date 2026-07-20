@@ -42,7 +42,7 @@
                         <p>Dosyaları sürükleyip bırakın veya <span class="browse-link">göz atın</span></p>
                         <p class="file-hint">Desteklenen formatlar: PDF, XML, XLSX, CSV, JPG, PNG, WEBP</p>
                     </div>
-                    <input type="file" id="file-input" accept=".pdf,.xml,.xlsx,.xls,.csv,image/png,image/jpeg,image/webp" hidden>
+                    <input type="file" id="file-input" accept=".pdf,.xml,.xlsx,.xls,.csv,image/png,image/jpeg,image/webp" hidden multiple>
                 </div>
                 
                 <div id="loading" class="loading hidden">
@@ -54,6 +54,33 @@
                         </svg>
                         İptal Et
                     </button>
+                </div>
+            </section>
+
+            <!-- Batch Section -->
+            <section id="batch-section" class="glass-panel hidden" style="padding: 2rem;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">
+                    <h2 style="margin: 0; color: var(--text-primary);">Toplu Fatura İşlemleri</h2>
+                    <button id="send-all-btn" class="primary-btn" style="display: none;">Tümünü Uyumsoft'a Gönder</button>
+                </div>
+                
+                <div class="table-responsive">
+                    <table class="batch-table">
+                        <thead>
+                            <tr>
+                                <th>Dosya Adı</th>
+                                <th>Fatura No</th>
+                                <th>Tarih</th>
+                                <th>VKN</th>
+                                <th>Cari İsim</th>
+                                <th>Tutar</th>
+                                <th>Durum</th>
+                            </tr>
+                        </thead>
+                        <tbody id="batch-table-body">
+                            <!-- Rows will be injected here -->
+                        </tbody>
+                    </table>
                 </div>
             </section>
 
@@ -73,14 +100,19 @@
                 <section id="results-section" class="results-section">
                 
                 <div class="results-header">
-                    <div style="display: flex; align-items: center; gap: 12px;">
-                        <button id="toggle-pdf-btn" class="icon-btn" title="PDF Önizlemesini Gizle" style="background: var(--card-bg); border: 1px solid var(--border-color); color: var(--text-secondary); cursor: pointer; border-radius: 8px; padding: 6px; display: flex; align-items: center; justify-content: center; transition: all 0.2s;">
+                    <div style="display: flex; align-items: center; gap: 10px; flex: 1;">
+                        <button id="back-to-batch-btn" class="icon-btn hidden" title="Listeye Dön" style="background: rgba(59, 130, 246, 0.1); color: var(--accent-color); border: 1px solid rgba(59, 130, 246, 0.2); padding: 8px; border-radius: 8px; cursor: pointer; transition: all 0.2s;">
+                            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" width="20" height="20">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path>
+                            </svg>
+                        </button>
+                        <h2 style="margin:0; font-size: 1.3rem;">Fatura Bilgileri</h2>
+                    </div>
+                    <button class="toggle-pdf-btn" id="toggle-pdf-btn" title="PDF Önizlemesini Gizle/Göster" style="background: var(--card-bg); border: 1px solid var(--border-color); color: var(--text-secondary); cursor: pointer; border-radius: 8px; padding: 6px; display: flex; align-items: center; justify-content: center; transition: all 0.2s;">
                             <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" width="20" height="20">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path>
                             </svg>
                         </button>
-                        <h2 style="margin: 0;">Çıkarım Sonuçları</h2>
-                    </div>
                     <span id="validation-badge" class="badge">DURUM</span>
                 </div>
 

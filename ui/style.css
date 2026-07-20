@@ -943,3 +943,43 @@ tr:hover {
     color: #ffffff !important;
 }
 
+
+
+/* Batch Processing Styles */
+.table-responsive {
+    overflow-x: auto;
+    background: var(--card-bg);
+    border-radius: 12px;
+    border: 1px solid var(--border-color);
+}
+.batch-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.95rem;
+}
+.batch-table th, .batch-table td {
+    padding: 12px 16px;
+    text-align: left;
+    border-bottom: 1px solid var(--border-color);
+}
+.batch-table th {
+    background: rgba(255, 255, 255, 0.02);
+    font-weight: 600;
+    color: var(--text-secondary);
+}
+.batch-table tr:hover {
+    background: rgba(255, 255, 255, 0.02);
+    cursor: pointer;
+}
+.batch-table tr:last-child td {
+    border-bottom: none;
+}
+.status-badge {
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-size: 0.85rem;
+    font-weight: 600;
+}
+.status-pending { background: rgba(234, 179, 8, 0.1); color: #eab308; }
+.status-success { background: rgba(16, 185, 129, 0.1); color: #10b981; }
+.status-error { background: rgba(239, 68, 68, 0.1); color: #ef4444; }
