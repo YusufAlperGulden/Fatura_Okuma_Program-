@@ -985,3 +985,9 @@ tr:hover {
 .status-pending { background: rgba(234, 179, 8, 0.1); color: #eab308; }
 .status-success { background: rgba(16, 185, 129, 0.1); color: #10b981; }
 .status-error { background: rgba(239, 68, 68, 0.1); color: #ef4444; }
+
+#batch-back-btn:hover,
+#batch-uyumsoft-btn:hover {
+    transform: scale(1.05);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
