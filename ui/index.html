@@ -61,8 +61,13 @@
             <div id="split-container" class="hidden">
                 <!-- PDF Viewer Section -->
                 <section id="pdf-viewer-section" class="pdf-viewer-section hidden">
-                    <div class="pdf-header">
+                    <div class="pdf-header" style="display: flex; justify-content: space-between; align-items: center;">
                         <h2 style="font-size: 1.1rem; color: #f8fafc; margin: 0;">Fatura Önizlemesi</h2>
+                        <button id="close-pdf-btn" class="icon-btn" title="PDF Önizlemesini Gizle" style="background: var(--card-bg); border: 1px solid var(--border-color); color: var(--text-secondary); cursor: pointer; border-radius: 8px; padding: 6px; display: flex; align-items: center; justify-content: center; transition: all 0.2s;">
+                            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" width="20" height="20">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path>
+                            </svg>
+                        </button>
                     </div>
                     <div class="pdf-content">
                         <iframe id="pdf-iframe" style="width: 100%; height: 100%; border: none; border-radius: 0 0 8px 8px;"></iframe>
@@ -74,9 +79,9 @@
                 
                 <div class="results-header">
                     <div style="display: flex; align-items: center; gap: 12px;">
-                        <button id="toggle-pdf-btn" class="icon-btn" title="PDF Önizlemesini Gizle/Göster" style="background: var(--card-bg); border: 1px solid var(--border-color); color: var(--text-secondary); cursor: pointer; border-radius: 8px; padding: 6px; display: flex; align-items: center; justify-content: center; transition: all 0.2s;">
+                        <button id="toggle-pdf-btn" class="icon-btn hidden" title="PDF Önizlemesini Göster" style="background: var(--card-bg); border: 1px solid var(--border-color); color: var(--text-secondary); cursor: pointer; border-radius: 8px; padding: 6px; display: flex; align-items: center; justify-content: center; transition: all 0.2s;">
                             <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" width="20" height="20">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path>
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
                             </svg>
                         </button>
                         <h2 style="margin: 0;">Çıkarım Sonuçları</h2>
