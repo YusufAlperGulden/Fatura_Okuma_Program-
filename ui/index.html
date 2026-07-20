@@ -22,6 +22,20 @@
         }
     </script>
     <style>
+        /* Base Tinting Logic (Applies to all non-default themes) */
+        [data-color]:not([data-color="ocean"]) {
+            --bg-color: color-mix(in srgb, var(--accent-color) 8%, #0f172a);
+            --panel-bg: color-mix(in srgb, var(--accent-color) 8%, #1e293b);
+            --card-bg: color-mix(in srgb, var(--accent-color) 8%, #0f172a);
+            --border-color: color-mix(in srgb, var(--accent-color) 15%, #334155);
+        }
+        [data-theme="light"][data-color]:not([data-color="ocean"]) {
+            --bg-color: color-mix(in srgb, var(--accent-color) 8%, #f1f5f9);
+            --panel-bg: color-mix(in srgb, var(--accent-color) 3%, #ffffff);
+            --card-bg: color-mix(in srgb, var(--accent-color) 8%, #f8fafc);
+            --border-color: color-mix(in srgb, var(--accent-color) 20%, #e2e8f0);
+        }
+
         /* Color Themes (Dark Mode - Default) */
         [data-color="emerald"] { --accent-color: #34d399; --accent-hover: #10b981; }
         [data-color="amethyst"] { --accent-color: #a78bfa; --accent-hover: #8b5cf6; }
