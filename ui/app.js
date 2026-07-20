@@ -1213,7 +1213,7 @@ async function handleBatchFiles(files) {
             
             if (!response.ok) {
                 batchResults[i] = { file, success: false };
-                row.querySelector('.b-status').innerHTML = '<span class="status-badge status-error">Hata</span>';
+                row.querySelector('.b-status').innerHTML = '<span class="status-badge status-error" title="Sunucu yanıt vermedi veya API hatası oluştu." onclick="alert(\'Sunucu yanıt vermedi veya API hatası oluştu.\')" style="cursor:help; text-decoration: underline dotted;">Hata (Tıkla)</span>';
                 continue;
             }
             
@@ -1228,7 +1228,13 @@ async function handleBatchFiles(files) {
                 row.querySelector('.b-vkn').textContent = data.customer_tax_id || '-';
                 row.querySelector('.b-name').textContent = (data.customer_name || '-').substring(0, 20);
                 
-                const formattedTotal = new Intl.NumberFormat('tr-TR', { style: 'currency', currency: 'TRY' }).format(data.total_amount || 0);
+                let numTotal = data.total_amount || 0;
+                    if (typeof numTotal === 'string') {
+                        numTotal = window.InvoiceUiHelpers ? window.InvoiceUiHelpers.parseLocaleNumber(numTotal) : parseFloat(numTotal.replace(/\./g, '').replace(',', '.'));
+                        if (isNaN(numTotal)) numTotal = 0;
+                    }
+                    const currencyCode = data.currency || 'TRY';
+                    const formattedTotal = new Intl.NumberFormat('tr-TR', { style: 'currency', currency: currencyCode }).format(numTotal);
                 row.querySelector('.b-amount').textContent = formattedTotal;
                 
                 row.querySelector('.b-status').innerHTML = '<span class="status-badge status-success">Başarılı</span>';
@@ -1238,11 +1244,15 @@ async function handleBatchFiles(files) {
                 });
             } else {
                 batchResults[i] = { file, result, success: false };
-                row.querySelector('.b-status').innerHTML = '<span class="status-badge status-error">Hata</span>';
+                const errorMsg = (result && result.message) ? result.message : 'Dosya okunamadı veya bilinmeyen hata';
+                const fullError = errorMsg.replace(/"/g, '&quot;');
+                const alertEscaped = fullError.replace(/'/g, '\\\'').replace(/\n/g, '\\n');
+                row.querySelector('.b-status').innerHTML = `<span class="status-badge status-error" title="${fullError}" onclick="alert('${alertEscaped}')" style="cursor:help; text-decoration: underline dotted;">Hata (Tıkla)</span>`;
             }
         } catch (error) {
             batchResults[i] = { file, error, success: false };
-            row.querySelector('.b-status').innerHTML = '<span class="status-badge status-error">Bağlantı Hatası</span>';
+            const errMsg = error.message || 'Bağlantı Hatası';
+            row.querySelector('.b-status').innerHTML = `<span class="status-badge status-error" title="${errMsg}" onclick="alert('${errMsg}')" style="cursor:help; text-decoration: underline dotted;">Bağlantı Hatası</span>`;
         }
     }
     
@@ -1332,10 +1342,15 @@ if (sendAllBtn) {
                     row.querySelector('.b-status').innerHTML = '<span class="status-badge status-success">Gönderildi</span>';
                     item.sent = true;
                 } else {
-                    row.querySelector('.b-status').innerHTML = '<span class="status-badge status-error">Uyumsoft Hatası</span>';
+                    const errorMsg = resData.message || 'Uyumsoft Hatası';
+                    const errorDetails = resData.details || '';
+                    const fullError = (errorMsg + (errorDetails ? '\nDetaylar: ' + errorDetails : '')).replace(/"/g, '&quot;');
+                    const alertEscaped = fullError.replace(/'/g, '\\\'').replace(/\n/g, '\\n');
+                    row.querySelector('.b-status').innerHTML = `<span class="status-badge status-error" title="${fullError}" onclick="alert('${alertEscaped}')" style="cursor:help; text-decoration: underline dotted;">Hata (Tıkla)</span>`;
                 }
             } catch (e) {
-                row.querySelector('.b-status').innerHTML = '<span class="status-badge status-error">Ağ Hatası</span>';
+                const errMsg = e.message || 'Ağ Hatası';
+                row.querySelector('.b-status').innerHTML = `<span class="status-badge status-error" title="${errMsg}" onclick="alert('${errMsg}')" style="cursor:help; text-decoration: underline dotted;">Ağ Hatası</span>`;
             }
         }
         
