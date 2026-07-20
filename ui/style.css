@@ -248,8 +248,8 @@ header p {
 
 .card:hover, .card:focus-within {
     transform: translateY(-4px) scale(1.02);
-    box-shadow: 0 0 20px 8px rgba(59, 130, 246, 0.8);
-    border-color: rgba(66, 133, 244, 1);
+    box-shadow: 0 0 20px 8px color-mix(in srgb, var(--accent-color) 80%, transparent);
+    border-color: var(--accent-hover);
 }
 
 .card-label {
@@ -443,8 +443,8 @@ header p {
 
 .card:hover {
     transform: translateY(-4px) scale(1.02);
-    box-shadow: 0 8px 40px rgba(59, 130, 246, 0.6);
-    border-color: rgba(66, 133, 244, 1);
+    box-shadow: 0 8px 40px color-mix(in srgb, var(--accent-color) 60%, transparent);
+    border-color: var(--accent-hover);
 }
 
 .card-label {
@@ -480,10 +480,10 @@ header p {
 }
 
 .edit-input-top:hover, .edit-input-top:focus {
-    border-color: rgba(66, 133, 244, 1);
+    border-color: var(--accent-hover);
     background: rgba(66, 133, 244, 0.12);
     outline: none;
-    box-shadow: 0 0 20px 8px rgba(59, 130, 246, 0.8);
+    box-shadow: 0 0 20px 8px color-mix(in srgb, var(--accent-color) 80%, transparent);
 }
 
 .field-hint {
@@ -980,8 +980,8 @@ tr:hover {
 }
 
 #toggle-pdf-btn:hover {
-    box-shadow: 0 0 20px 8px rgba(59, 130, 246, 0.8) !important;
-    border-color: rgba(66, 133, 244, 1) !important;
+    box-shadow: 0 0 20px 8px color-mix(in srgb, var(--accent-color) 80%, transparent) !important;
+    border-color: var(--accent-hover) !important;
     color: #ffffff !important;
 }
 
@@ -1174,8 +1174,8 @@ tr:hover {
 }
 
 #toggle-pdf-btn:hover {
-    box-shadow: 0 0 20px 8px rgba(59, 130, 246, 0.8) !important;
-    border-color: rgba(66, 133, 244, 1) !important;
+    box-shadow: 0 0 20px 8px color-mix(in srgb, var(--accent-color) 80%, transparent) !important;
+    border-color: var(--accent-hover) !important;
     color: #ffffff !important;
 }
 
