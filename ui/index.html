@@ -21,6 +21,40 @@
             document.documentElement.setAttribute('data-color', savedColor);
         }
     </script>
+    <style>
+        /* Color Themes (Dark Mode - Default) */
+        [data-color="emerald"] { --accent-color: #34d399; --accent-hover: #10b981; }
+        [data-color="amethyst"] { --accent-color: #a78bfa; --accent-hover: #8b5cf6; }
+        [data-color="ruby"] { --accent-color: #fb7185; --accent-hover: #f43f5e; }
+        [data-color="amber"] { --accent-color: #fbbf24; --accent-hover: #f59e0b; }
+        
+        /* Color Themes (Light Mode) */
+        [data-theme="light"][data-color="emerald"] { --accent-color: #059669; --accent-hover: #047857; }
+        [data-theme="light"][data-color="amethyst"] { --accent-color: #7c3aed; --accent-hover: #6d28d9; }
+        [data-theme="light"][data-color="ruby"] { --accent-color: #e11d48; --accent-hover: #be123c; }
+        [data-theme="light"][data-color="amber"] { --accent-color: #d97706; --accent-hover: #b45309; }
+
+        .color-dot {
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            border: 2px solid transparent;
+            cursor: pointer;
+            transition: all 0.2s;
+            padding: 0;
+        }
+        .color-dot:hover {
+            transform: scale(1.15);
+        }
+        .color-dot.active {
+            border-color: var(--text-primary);
+            transform: scale(1.15);
+            box-shadow: 0 0 8px rgba(255, 255, 255, 0.2);
+        }
+        [data-theme="light"] .color-dot.active {
+            box-shadow: 0 0 8px rgba(0, 0, 0, 0.2);
+        }
+    </style>
 </head>
 <body>
     <div class="app-container">
