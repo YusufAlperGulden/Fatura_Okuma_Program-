@@ -44,7 +44,11 @@
         [data-color="sakura"] { --accent-color: #f472b6; --accent-hover: #db2777; }
         [data-color="cyan"] { --accent-color: #22d3ee; --accent-hover: #0891b2; }
         [data-color="obsidian"] { --accent-color: #f8fafc; --accent-hover: #cbd5e1; }
-        
+        [data-color="indigo"] { --accent-color: #6366f1; --accent-hover: #4f46e5; }
+        [data-color="topaz"] { --accent-color: #f97316; --accent-hover: #ea580c; }
+        [data-color="jade"] { --accent-color: #16a34a; --accent-hover: #15803d; }
+        [data-color="lavender"] { --accent-color: #c084fc; --accent-hover: #a855f7; }
+        [data-color="rainbow"] { --accent-color: #a855f7; --accent-hover: #db2777; }        
         /* Color Themes (Light Mode) */
         [data-theme="light"][data-color="emerald"] { --accent-color: #059669; --accent-hover: #047857; }
         [data-theme="light"][data-color="amethyst"] { --accent-color: #7c3aed; --accent-hover: #6d28d9; }
@@ -53,7 +57,11 @@
         [data-theme="light"][data-color="sakura"] { --accent-color: #db2777; --accent-hover: #be185d; }
         [data-theme="light"][data-color="cyan"] { --accent-color: #0891b2; --accent-hover: #0e7490; }
         [data-theme="light"][data-color="obsidian"] { --accent-color: #334155; --accent-hover: #0f172a; }
-
+        [data-theme="light"][data-color="indigo"] { --accent-color: #4f46e5; --accent-hover: #4338ca; }
+        [data-theme="light"][data-color="topaz"] { --accent-color: #ea580c; --accent-hover: #c2410c; }
+        [data-theme="light"][data-color="jade"] { --accent-color: #15803d; --accent-hover: #166534; }
+        [data-theme="light"][data-color="lavender"] { --accent-color: #a855f7; --accent-hover: #9333ea; }
+        [data-theme="light"][data-color="rainbow"] { --accent-color: #9333ea; --accent-hover: #be185d; }
         .color-dot {
             width: 20px;
             height: 20px;
@@ -109,6 +117,27 @@
             color: #059669;
             border-color: rgba(16, 185, 129, 0.4);
         }
+
+        /* Rainbow Theme Overrides */
+        @keyframes rainbow-bg {
+            0% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+            100% { background-position: 0% 50%; }
+        }
+        [data-color="rainbow"] .gradient-text {
+            background: linear-gradient(90deg, #ff0000, #ff7f00, #ffff00, #00ff00, #0000ff, #4b0082, #9400d3, #ff0000) !important;
+            background-size: 200% auto !important;
+            -webkit-background-clip: text !important;
+            -webkit-text-fill-color: transparent !important;
+            animation: rainbow-bg 4s linear infinite !important;
+        }
+        [data-color="rainbow"] .primary-btn {
+            background: linear-gradient(90deg, #ff0000, #ff7f00, #ffff00, #00ff00, #0000ff, #4b0082, #9400d3, #ff0000) !important;
+            background-size: 200% auto !important;
+            color: white !important;
+            border: none !important;
+            animation: rainbow-bg 4s linear infinite !important;
+        }
     </style>
 </head>
 <body>
@@ -124,6 +153,11 @@
                     <div class="color-dot" data-color="sakura" style="background-color: #ec4899;" title="Sakura"></div>
                     <div class="color-dot" data-color="cyan" style="background-color: #06b6d4;" title="Cyan"></div>
                     <div class="color-dot" data-color="obsidian" style="background-color: #94a3b8;" title="Obsidyen"></div>
+                    <div class="color-dot" data-color="indigo" style="background-color: #6366f1;" title="İndigo"></div>
+                    <div class="color-dot" data-color="topaz" style="background-color: #f97316;" title="Topaz"></div>
+                    <div class="color-dot" data-color="jade" style="background-color: #16a34a;" title="Orman Yeşili"></div>
+                    <div class="color-dot" data-color="lavender" style="background-color: #c084fc;" title="Lavanta"></div>
+                    <div class="color-dot" data-color="rainbow" style="background: linear-gradient(90deg, #ff0000, #ff7f00, #ffff00, #00ff00, #0000ff, #4b0082, #9400d3);" title="Rainbow Pride"></div>
                 </div>
                 <button id="theme-toggle" class="theme-btn" style="position: relative;" title="Temayı Değiştir">
                     <svg id="theme-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24" width="24" height="24">
