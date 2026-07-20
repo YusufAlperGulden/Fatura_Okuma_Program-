@@ -979,6 +979,8 @@ tr:hover {
     border-radius: 4px;
     font-size: 0.85rem;
     font-weight: 600;
+    white-space: nowrap;
+    display: inline-block;
 }
 .status-pending { background: rgba(234, 179, 8, 0.1); color: #eab308; }
 .status-success { background: rgba(16, 185, 129, 0.1); color: #10b981; }
