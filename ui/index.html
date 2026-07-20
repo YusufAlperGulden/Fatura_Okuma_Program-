@@ -51,7 +51,12 @@
         [data-color="gold"] { --accent-color: #fbbf24; --accent-hover: #d97706; }
         [data-color="sunset"] { --accent-color: #f43f5e; --accent-hover: #f97316; }
         [data-color="aurora"] { --accent-color: #10b981; --accent-hover: #06b6d4; }
-        [data-color="nebula"] { --accent-color: #8b5cf6; --accent-hover: #d946ef; }        
+        [data-color="nebula"] { --accent-color: #8b5cf6; --accent-hover: #d946ef; }
+        [data-color="cherry"] { --accent-color: #e11d48; --accent-hover: #be123c; }
+        [data-color="slate"] { --accent-color: #64748b; --accent-hover: #475569; }
+        [data-color="cyberpunk"] { --accent-color: #eab308; --accent-hover: #ec4899; }
+        [data-color="volcano"] { --accent-color: #dc2626; --accent-hover: #ea580c; }
+        [data-color="oceanic"] { --accent-color: #0284c7; --accent-hover: #0d9488; }        
         /* Color Themes (Light Mode) */
         [data-theme="light"][data-color="emerald"] { --accent-color: #059669; --accent-hover: #047857; }
         [data-theme="light"][data-color="amethyst"] { --accent-color: #7c3aed; --accent-hover: #6d28d9; }
@@ -68,6 +73,11 @@
         [data-theme="light"][data-color="sunset"] { --accent-color: #e11d48; --accent-hover: #ea580c; }
         [data-theme="light"][data-color="aurora"] { --accent-color: #059669; --accent-hover: #0891b2; }
         [data-theme="light"][data-color="nebula"] { --accent-color: #7c3aed; --accent-hover: #c026d3; }
+        [data-theme="light"][data-color="cherry"] { --accent-color: #be123c; --accent-hover: #9f1239; }
+        [data-theme="light"][data-color="slate"] { --accent-color: #475569; --accent-hover: #334155; }
+        [data-theme="light"][data-color="cyberpunk"] { --accent-color: #d97706; --accent-hover: #be185d; }
+        [data-theme="light"][data-color="volcano"] { --accent-color: #b91c1c; --accent-hover: #c2410c; }
+        [data-theme="light"][data-color="oceanic"] { --accent-color: #0369a1; --accent-hover: #0f766e; }
         .color-dot {
             width: 20px;
             height: 20px;
@@ -175,6 +185,51 @@
             border: none !important;
             animation: gradient-bg 4s linear infinite !important;
         }
+
+        [data-color="cyberpunk"] .gradient-text {
+            background: linear-gradient(90deg, #eab308, #ec4899, #06b6d4, #eab308) !important;
+            background-size: 200% auto !important;
+            -webkit-background-clip: text !important;
+            -webkit-text-fill-color: transparent !important;
+            animation: gradient-bg 4s linear infinite !important;
+        }
+        [data-color="cyberpunk"] .primary-btn {
+            background: linear-gradient(90deg, #eab308, #ec4899, #06b6d4, #eab308) !important;
+            background-size: 200% auto !important;
+            color: white !important;
+            border: none !important;
+            animation: gradient-bg 4s linear infinite !important;
+        }
+
+        [data-color="volcano"] .gradient-text {
+            background: linear-gradient(90deg, #7f1d1d, #dc2626, #f59e0b, #7f1d1d) !important;
+            background-size: 200% auto !important;
+            -webkit-background-clip: text !important;
+            -webkit-text-fill-color: transparent !important;
+            animation: gradient-bg 4s linear infinite !important;
+        }
+        [data-color="volcano"] .primary-btn {
+            background: linear-gradient(90deg, #7f1d1d, #dc2626, #f59e0b, #7f1d1d) !important;
+            background-size: 200% auto !important;
+            color: white !important;
+            border: none !important;
+            animation: gradient-bg 4s linear infinite !important;
+        }
+
+        [data-color="oceanic"] .gradient-text {
+            background: linear-gradient(90deg, #1e3a8a, #0369a1, #0d9488, #1e3a8a) !important;
+            background-size: 200% auto !important;
+            -webkit-background-clip: text !important;
+            -webkit-text-fill-color: transparent !important;
+            animation: gradient-bg 4s linear infinite !important;
+        }
+        [data-color="oceanic"] .primary-btn {
+            background: linear-gradient(90deg, #1e3a8a, #0369a1, #0d9488, #1e3a8a) !important;
+            background-size: 200% auto !important;
+            color: white !important;
+            border: none !important;
+            animation: gradient-bg 4s linear infinite !important;
+        }
     </style>
 </head>
 <body>
@@ -198,6 +253,11 @@
                     <div class="color-dot" data-color="sunset" style="background: linear-gradient(90deg, #f43f5e, #f97316, #fbbf24);" title="Günbatımı"></div>
                     <div class="color-dot" data-color="aurora" style="background: linear-gradient(90deg, #10b981, #06b6d4, #3b82f6);" title="Kuzey Işıkları"></div>
                     <div class="color-dot" data-color="nebula" style="background: linear-gradient(90deg, #8b5cf6, #d946ef, #f43f5e);" title="Galaksi (Nebula)"></div>
+                    <div class="color-dot" data-color="cherry" style="background-color: #e11d48;" title="Kiraz"></div>
+                    <div class="color-dot" data-color="slate" style="background-color: #64748b;" title="Kayrak (Gri)"></div>
+                    <div class="color-dot" data-color="cyberpunk" style="background: linear-gradient(90deg, #eab308, #ec4899, #06b6d4);" title="Siberpunk"></div>
+                    <div class="color-dot" data-color="volcano" style="background: linear-gradient(90deg, #7f1d1d, #dc2626, #f59e0b);" title="Volkan"></div>
+                    <div class="color-dot" data-color="oceanic" style="background: linear-gradient(90deg, #1e3a8a, #0369a1, #0d9488);" title="Derin Okyanus"></div>
                 </div>
                 <button id="theme-toggle" class="theme-btn" style="position: relative;" title="Temayı Değiştir">
                     <svg id="theme-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24" width="24" height="24">
