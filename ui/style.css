@@ -206,7 +206,7 @@ header p {
 
 .card:hover, .card:focus-within {
     transform: translateY(-4px) scale(1.02);
-    box-shadow: 0 8px 40px rgba(59, 130, 246, 0.6), 0 0 20px 5px rgba(59, 130, 246, 0.4);
+    box-shadow: 0 0 20px 8px rgba(59, 130, 246, 0.8);
     border-color: rgba(66, 133, 244, 1);
 }
 
@@ -936,3 +936,10 @@ tr:hover {
     0% { width: 0%; }
     100% { width: 95%; }
 }
+
+#toggle-pdf-btn:hover {
+    box-shadow: 0 0 20px 8px rgba(59, 130, 246, 0.8) !important;
+    border-color: rgba(66, 133, 244, 1) !important;
+    color: #ffffff !important;
+}
+
