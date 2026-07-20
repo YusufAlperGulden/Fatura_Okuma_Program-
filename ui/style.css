@@ -170,16 +170,7 @@ header p {
     justify-content: space-between;
     align-items: center;
     margin-bottom: 1.5rem;
-    position: sticky;
-    top: 0;
-    z-index: 100;
-    background-color: var(--bg-color);
-    padding: 1rem 0;
-    margin-top: -1rem;
-    border-bottom: 1px solid transparent;
-    transition: border-color 0.3s ease;
 }
-/* When scrolling, a tiny shadow or border could appear, but simple sticky is fine */
 
 .badge {
     padding: 0.3rem 1rem;
