@@ -1369,7 +1369,7 @@ const batchBackBtn = document.getElementById('batch-back-btn');
 if (batchBackBtn) {
     batchBackBtn.addEventListener('click', () => {
         document.getElementById('batch-section').classList.add('hidden');
-        document.getElementById('upload-section').classList.remove('hidden');
+        document.querySelector('.upload-section').classList.remove('hidden');
         
         // Reset the batch queue UI optionally
         batchResults = [];
