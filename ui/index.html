@@ -48,7 +48,11 @@
         [data-color="topaz"] { --accent-color: #f97316; --accent-hover: #ea580c; }
         [data-color="jade"] { --accent-color: #16a34a; --accent-hover: #15803d; }
         [data-color="lavender"] { --accent-color: #c084fc; --accent-hover: #a855f7; }
-        [data-color="rainbow"] { --accent-color: #a855f7; --accent-hover: #db2777; }        
+        [data-color="gold"] { --accent-color: #fbbf24; --accent-hover: #d97706; }
+        [data-color="rainbow"] { --accent-color: #a855f7; --accent-hover: #db2777; }
+        [data-color="sunset"] { --accent-color: #f43f5e; --accent-hover: #f97316; }
+        [data-color="aurora"] { --accent-color: #10b981; --accent-hover: #06b6d4; }
+        [data-color="nebula"] { --accent-color: #8b5cf6; --accent-hover: #d946ef; }        
         /* Color Themes (Light Mode) */
         [data-theme="light"][data-color="emerald"] { --accent-color: #059669; --accent-hover: #047857; }
         [data-theme="light"][data-color="amethyst"] { --accent-color: #7c3aed; --accent-hover: #6d28d9; }
@@ -61,7 +65,11 @@
         [data-theme="light"][data-color="topaz"] { --accent-color: #ea580c; --accent-hover: #c2410c; }
         [data-theme="light"][data-color="jade"] { --accent-color: #15803d; --accent-hover: #166534; }
         [data-theme="light"][data-color="lavender"] { --accent-color: #a855f7; --accent-hover: #9333ea; }
+        [data-theme="light"][data-color="gold"] { --accent-color: #d97706; --accent-hover: #b45309; }
         [data-theme="light"][data-color="rainbow"] { --accent-color: #9333ea; --accent-hover: #be185d; }
+        [data-theme="light"][data-color="sunset"] { --accent-color: #e11d48; --accent-hover: #ea580c; }
+        [data-theme="light"][data-color="aurora"] { --accent-color: #059669; --accent-hover: #0891b2; }
+        [data-theme="light"][data-color="nebula"] { --accent-color: #7c3aed; --accent-hover: #c026d3; }
         .color-dot {
             width: 20px;
             height: 20px;
@@ -118,25 +126,71 @@
             border-color: rgba(16, 185, 129, 0.4);
         }
 
-        /* Rainbow Theme Overrides */
-        @keyframes rainbow-bg {
+        /* Gradient Themes Overrides */
+        @keyframes gradient-bg {
             0% { background-position: 0% 50%; }
             50% { background-position: 100% 50%; }
             100% { background-position: 0% 50%; }
         }
+        
         [data-color="rainbow"] .gradient-text {
             background: linear-gradient(90deg, #ff0000, #ff7f00, #ffff00, #00ff00, #0000ff, #4b0082, #9400d3, #ff0000) !important;
             background-size: 200% auto !important;
             -webkit-background-clip: text !important;
             -webkit-text-fill-color: transparent !important;
-            animation: rainbow-bg 4s linear infinite !important;
+            animation: gradient-bg 4s linear infinite !important;
         }
         [data-color="rainbow"] .primary-btn {
             background: linear-gradient(90deg, #ff0000, #ff7f00, #ffff00, #00ff00, #0000ff, #4b0082, #9400d3, #ff0000) !important;
             background-size: 200% auto !important;
             color: white !important;
             border: none !important;
-            animation: rainbow-bg 4s linear infinite !important;
+            animation: gradient-bg 4s linear infinite !important;
+        }
+
+        [data-color="sunset"] .gradient-text {
+            background: linear-gradient(90deg, #f43f5e, #f97316, #fbbf24, #f43f5e) !important;
+            background-size: 200% auto !important;
+            -webkit-background-clip: text !important;
+            -webkit-text-fill-color: transparent !important;
+            animation: gradient-bg 4s linear infinite !important;
+        }
+        [data-color="sunset"] .primary-btn {
+            background: linear-gradient(90deg, #f43f5e, #f97316, #fbbf24, #f43f5e) !important;
+            background-size: 200% auto !important;
+            color: white !important;
+            border: none !important;
+            animation: gradient-bg 4s linear infinite !important;
+        }
+
+        [data-color="aurora"] .gradient-text {
+            background: linear-gradient(90deg, #10b981, #06b6d4, #3b82f6, #10b981) !important;
+            background-size: 200% auto !important;
+            -webkit-background-clip: text !important;
+            -webkit-text-fill-color: transparent !important;
+            animation: gradient-bg 4s linear infinite !important;
+        }
+        [data-color="aurora"] .primary-btn {
+            background: linear-gradient(90deg, #10b981, #06b6d4, #3b82f6, #10b981) !important;
+            background-size: 200% auto !important;
+            color: white !important;
+            border: none !important;
+            animation: gradient-bg 4s linear infinite !important;
+        }
+
+        [data-color="nebula"] .gradient-text {
+            background: linear-gradient(90deg, #8b5cf6, #d946ef, #f43f5e, #8b5cf6) !important;
+            background-size: 200% auto !important;
+            -webkit-background-clip: text !important;
+            -webkit-text-fill-color: transparent !important;
+            animation: gradient-bg 4s linear infinite !important;
+        }
+        [data-color="nebula"] .primary-btn {
+            background: linear-gradient(90deg, #8b5cf6, #d946ef, #f43f5e, #8b5cf6) !important;
+            background-size: 200% auto !important;
+            color: white !important;
+            border: none !important;
+            animation: gradient-bg 4s linear infinite !important;
         }
     </style>
 </head>
@@ -157,7 +211,11 @@
                     <div class="color-dot" data-color="topaz" style="background-color: #f97316;" title="Topaz"></div>
                     <div class="color-dot" data-color="jade" style="background-color: #16a34a;" title="Orman Yeşili"></div>
                     <div class="color-dot" data-color="lavender" style="background-color: #c084fc;" title="Lavanta"></div>
+                    <div class="color-dot" data-color="gold" style="background-color: #fbbf24;" title="Altın"></div>
                     <div class="color-dot" data-color="rainbow" style="background: linear-gradient(90deg, #ff0000, #ff7f00, #ffff00, #00ff00, #0000ff, #4b0082, #9400d3);" title="Rainbow Pride"></div>
+                    <div class="color-dot" data-color="sunset" style="background: linear-gradient(90deg, #f43f5e, #f97316, #fbbf24);" title="Günbatımı"></div>
+                    <div class="color-dot" data-color="aurora" style="background: linear-gradient(90deg, #10b981, #06b6d4, #3b82f6);" title="Kuzey Işıkları"></div>
+                    <div class="color-dot" data-color="nebula" style="background: linear-gradient(90deg, #8b5cf6, #d946ef, #f43f5e);" title="Galaksi (Nebula)"></div>
                 </div>
                 <button id="theme-toggle" class="theme-btn" style="position: relative;" title="Temayı Değiştir">
                     <svg id="theme-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24" width="24" height="24">
