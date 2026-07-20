@@ -517,6 +517,8 @@ document.addEventListener('DOMContentLoaded', () => {
             showError("Bu sayfa dosya olarak açılmış. Lütfen uygulamayı http://127.0.0.1:7860/ui/ adresinden açın.");
             return;
         }
+        
+        batchResults = [];
 
         // Reset UI
         if (pdfObjectUrl) {
@@ -1307,7 +1309,13 @@ if (backBtn) {
     backBtn.addEventListener('click', () => {
         document.getElementById('split-container').classList.add('hidden');
         document.getElementById('split-container').classList.remove('split-active');
-        document.getElementById('batch-section').classList.remove('hidden');
+        
+        if (typeof batchResults !== 'undefined' && batchResults.length > 0) {
+            document.getElementById('batch-section').classList.remove('hidden');
+        } else {
+            document.querySelector('.upload-section').classList.remove('hidden');
+            document.querySelector('.app-container').classList.remove('wide-mode');
+        }
         
         if (pdfObjectUrl) {
             URL.revokeObjectURL(pdfObjectUrl);
