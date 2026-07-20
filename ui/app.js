@@ -1331,7 +1331,7 @@ if (sendAllBtn) {
             row.querySelector('.b-status').innerHTML = '<span class="status-badge status-pending">Gönderiliyor...</span>';
             
             try {
-                const response = await fetch('/api/uyumsoft/send', {
+                const response = await fetch('/send-uyumsoft', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ invoice_data: item.result.data, action: 'draft', environment: document.documentElement.dataset.uyumsoftEnvironment || 'test' })
