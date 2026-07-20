@@ -401,8 +401,8 @@ header p {
 
 .card:hover {
     transform: translateY(-4px) scale(1.02);
-    box-shadow: 0 8px 32px rgba(59, 130, 246, 0.3);
-    border-color: rgba(66, 133, 244, 0.8);
+    box-shadow: 0 8px 40px rgba(59, 130, 246, 0.6);
+    border-color: rgba(66, 133, 244, 1);
 }
 
 .card-label {
@@ -438,10 +438,10 @@ header p {
 }
 
 .edit-input-top:hover, .edit-input-top:focus {
-    border-color: rgba(66, 133, 244, 0.9);
-    background: rgba(66, 133, 244, 0.08);
+    border-color: rgba(66, 133, 244, 1);
+    background: rgba(66, 133, 244, 0.12);
     outline: none;
-    box-shadow: 0 0 12px 4px rgba(59, 130, 246, 0.6);
+    box-shadow: 0 0 20px 8px rgba(59, 130, 246, 0.8);
 }
 
 .field-hint {
