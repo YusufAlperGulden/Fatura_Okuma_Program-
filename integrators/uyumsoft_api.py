@@ -537,7 +537,7 @@ class UyumsoftSoapClient:
         *,
         environment: str = "test",
         endpoint: str | None = None,
-        timeout: int = 30,
+        timeout: int = 60,
     ) -> None:
         self.username = username
         self.password = password
