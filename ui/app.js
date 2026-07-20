@@ -509,14 +509,12 @@ document.addEventListener('DOMContentLoaded', () => {
             document.getElementById('pdf-viewer-section').classList.remove('hidden');
             document.getElementById('split-container').classList.add('split-active');
             document.querySelector('.app-container').classList.add('wide-mode');
-            const openBtn = document.getElementById('open-pdf-btn');
-            if (openBtn) openBtn.classList.add('hidden');
+            document.getElementById('toggle-pdf-btn').style.display = 'flex';
         } else {
             document.getElementById('pdf-viewer-section').classList.add('hidden');
             document.getElementById('split-container').classList.remove('split-active');
             document.querySelector('.app-container').classList.remove('wide-mode');
-            const openBtn = document.getElementById('open-pdf-btn');
-            if (openBtn) openBtn.classList.add('hidden');
+            document.getElementById('toggle-pdf-btn').style.display = 'none';
         }
 
         dropZone.classList.add('hidden');
@@ -1072,29 +1070,25 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('split-container').classList.remove('hidden');
     }
 
-    const closePdfBtn = document.getElementById('close-pdf-btn');
-    const openPdfBtn = document.getElementById('open-pdf-btn');
-    const pdfSection = document.getElementById('pdf-viewer-section');
-    const splitContainer = document.getElementById('split-container');
-    const appContainer = document.querySelector('.app-container');
-
-    if (closePdfBtn) {
-        closePdfBtn.addEventListener('click', () => {
-            pdfSection.classList.add('hidden');
-            splitContainer.classList.remove('split-active');
-            appContainer.classList.remove('wide-mode');
-            if (openPdfBtn) openPdfBtn.classList.remove('hidden');
-        });
-    }
-
-    if (openPdfBtn) {
-        openPdfBtn.addEventListener('click', () => {
+    document.getElementById('toggle-pdf-btn').addEventListener('click', () => {
+        const pdfSection = document.getElementById('pdf-viewer-section');
+        const splitContainer = document.getElementById('split-container');
+        const appContainer = document.querySelector('.app-container');
+        const icon = document.querySelector('#toggle-pdf-btn svg');
+        
+        if (pdfSection.classList.contains('hidden')) {
             pdfSection.classList.remove('hidden');
             splitContainer.classList.add('split-active');
             appContainer.classList.add('wide-mode');
-            openPdfBtn.classList.add('hidden');
-        });
-    }
+            if (icon) icon.style.transform = 'rotate(0deg)';
+        } else {
+            pdfSection.classList.add('hidden');
+            splitContainer.classList.remove('split-active');
+            appContainer.classList.remove('wide-mode');
+            if (icon) icon.style.transform = 'rotate(180deg)';
+        }
+        if (icon) icon.style.transition = 'transform 0.3s ease';
+    });
 
     // UI event listeners initialized.
 });
