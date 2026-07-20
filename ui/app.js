@@ -1364,4 +1364,34 @@ if (sendAllBtn) {
         sendAllBtn.textContent = "Tümünü Gönderildi";
     });
 }
+
+const batchBackBtn = document.getElementById('batch-back-btn');
+if (batchBackBtn) {
+    batchBackBtn.addEventListener('click', () => {
+        document.getElementById('batch-section').classList.add('hidden');
+        document.getElementById('upload-section').classList.remove('hidden');
+        
+        // Reset the batch queue UI optionally
+        batchResults = [];
+        document.getElementById('batch-table-body').innerHTML = '';
+        const sendAllBtn = document.getElementById('send-all-btn');
+        if (sendAllBtn) {
+            sendAllBtn.style.display = 'none';
+            sendAllBtn.disabled = false;
+            sendAllBtn.textContent = "Tümünü Uyumsoft'a Gönder";
+        }
+    });
+}
+
+const batchUyumsoftBtn = document.getElementById('batch-uyumsoft-btn');
+if (batchUyumsoftBtn) {
+    batchUyumsoftBtn.addEventListener('click', () => {
+        const env = document.documentElement.dataset.uyumsoftEnvironment || 'test';
+        if (env === 'prod') {
+            window.open('https://efatura.uyumsoft.com.tr', '_blank');
+        } else {
+            window.open('https://efatura-test.uyumsoft.com.tr', '_blank');
+        }
+    });
+}
 });
