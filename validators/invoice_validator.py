@@ -206,14 +206,17 @@ def validate_invoice(data):
                     f"T.C. Kimlik Numarası hatalı. 11. hane (son rakam) her zaman çift sayı olmalıdır (Okunan son rakam: '{digits[10]}'). (Okunan TCKN: '{tax_id}')"
                 )
             elif digits[9] != tenth:
-                calc_details = f"(({sum_odd} x 7) - {sum_even}) mod 10 = {tenth}"
+                odd_digits_str = " + ".join(str(d) for d in digits[0:9:2])
+                even_digits_str = " + ".join(str(d) for d in digits[1:8:2])
+                calc_details = f"Tek haneler (1,3,5,7,9. sıralar): [{odd_digits_str}] = {sum_odd} | Çift haneler (2,4,6,8. sıralar): [{even_digits_str}] = {sum_even} | Formül: (({sum_odd} x 7) - {sum_even}) mod 10 = {tenth}"
                 errors.append(
-                    f"T.C. Kimlik Numarası hatalı. 10. rakam kuralı ihlali: (Tek haneler toplamı x 7 - Çift haneler toplamı) işleminin son basamağı {tenth} olmalıyken, faturada '{digits[9]}' okundu. Hesaplama: {calc_details} (Okunan TCKN: '{tax_id}')"
+                    f"T.C. Kimlik Numarası hatalı. 10. rakam kuralı ihlali: (Tek haneler toplamı x 7 - Çift haneler toplamı) işleminin son basamağı {tenth} olmalıyken, faturada '{digits[9]}' okundu. Hesaplama Detayı: {calc_details}. (Okunan TCKN: '{tax_id}')"
                 )
             elif digits[10] != eleventh:
-                calc_details = f"{sum(digits[0:10])} mod 10 = {eleventh}"
+                all_ten_str = " + ".join(str(d) for d in digits[0:10])
+                calc_details = f"İlk 10 rakam: [{all_ten_str}] = {sum(digits[0:10])} | Formül: {sum(digits[0:10])} mod 10 = {eleventh}"
                 errors.append(
-                    f"T.C. Kimlik Numarası hatalı. 11. rakam kuralı ihlali: İlk 10 rakamın toplamının son basamağı {eleventh} olmalıyken, faturada '{digits[10]}' okundu. Hesaplama: {calc_details} (Okunan TCKN: '{tax_id}')"
+                    f"T.C. Kimlik Numarası hatalı. 11. rakam kuralı ihlali: İlk 10 rakamın toplamının son basamağı {eleventh} olmalıyken, faturada '{digits[10]}' okundu. Hesaplama Detayı: {calc_details}. (Okunan TCKN: '{tax_id}')"
                 )
         
     customer_name = str(
