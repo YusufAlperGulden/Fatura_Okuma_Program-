@@ -813,7 +813,13 @@ def build_soap_envelope(username: str, password: str, operation_body: str) -> st
 </s:Envelope>"""
 
 
-def send_invoice_to_uyumsoft(invoice_data: dict[str, Any], action: str | None = None) -> dict[str, Any]:
+def send_invoice_to_uyumsoft(
+    invoice_data: dict[str, Any],
+    action: str | None = None,
+    environment: str = "test",
+    prod_username: str | None = None,
+    prod_password: str | None = None,
+) -> dict[str, Any]:
     if not isinstance(invoice_data, dict):
         return {
             "success": False,
@@ -822,9 +828,13 @@ def send_invoice_to_uyumsoft(invoice_data: dict[str, Any], action: str | None = 
             "response_code": 400,
         }
 
-    environment = normalize_uyumsoft_environment()
-    username = os.getenv("UYUMSOFT_USERNAME") or ("Uyumsoft" if environment == "test" else "")
-    password = os.getenv("UYUMSOFT_PASSWORD") or ("Uyumsoft" if environment == "test" else "")
+    environment = normalize_uyumsoft_environment(environment)
+    if environment == "prod":
+        username = prod_username or os.getenv("UYUMSOFT_PROD_USERNAME")
+        password = prod_password or os.getenv("UYUMSOFT_PROD_PASSWORD")
+    else:
+        username = os.getenv("UYUMSOFT_USERNAME") or "Uyumsoft"
+        password = os.getenv("UYUMSOFT_PASSWORD") or "Uyumsoft"
 
     if not username or not password:
         return {

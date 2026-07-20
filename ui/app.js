@@ -97,17 +97,25 @@ document.addEventListener('DOMContentLoaded', () => {
             }
             const environment = config.uyumsoft_environment === 'prod' ? 'prod' : 'test';
             document.documentElement.dataset.uyumsoftEnvironment = environment;
-            const environmentBadge = document.getElementById('uyumsoft-environment-badge');
-            environmentBadge.className = `integration-environment ${environment}`;
-            environmentBadge.textContent = environment === 'prod'
-                ? 'Uyumsoft ortamı: GERÇEK / CANLI'
-                : 'Uyumsoft ortamı: TEST';
+            const select = document.getElementById('environment-select');
+            if (select) {
+                select.value = environment;
+            }
         } catch (error) {
-            const environmentBadge = document.getElementById('uyumsoft-environment-badge');
-            environmentBadge.className = 'integration-environment unknown';
-            environmentBadge.textContent = 'Uyumsoft ortam bilgisi alınamadı';
             console.warn('Uyumsoft ortam ayarı okunamadı.', error);
         }
+    }
+
+    const environmentSelect = document.getElementById('environment-select');
+    if (environmentSelect) {
+        environmentSelect.addEventListener('change', (e) => {
+            document.documentElement.dataset.uyumsoftEnvironment = e.target.value;
+            // Clear cached prod credentials if switching back to test just in case, though optional
+            if (e.target.value === 'test') {
+                sessionStorage.removeItem('uyumsoft_prod_username');
+                sessionStorage.removeItem('uyumsoft_prod_password');
+            }
+        });
     }
 
     loadRuntimeConfig();
@@ -925,6 +933,21 @@ document.addEventListener('DOMContentLoaded', () => {
             showDraftValidationPopup();
             return;
         }
+
+        const env = document.documentElement.dataset.uyumsoftEnvironment || 'test';
+        let prodUsername = null;
+        let prodPassword = null;
+        
+        if (env === 'prod') {
+            const storedUser = sessionStorage.getItem('uyumsoft_prod_username');
+            const storedPass = sessionStorage.getItem('uyumsoft_prod_password');
+            if (!storedUser || !storedPass) {
+                document.getElementById('prod-credentials-modal').classList.remove('hidden');
+                return; // Stop here, modal submit will call this again
+            }
+            prodUsername = storedUser;
+            prodPassword = storedPass;
+        }
         const capturedUploadId = currentUploadId;
         const capturedValidationRevision = validationRevision;
         const invoiceSnapshot = JSON.parse(JSON.stringify(currentInvoiceData));
@@ -955,7 +978,13 @@ document.addEventListener('DOMContentLoaded', () => {
                 headers: {
                     'Content-Type': 'application/json'
                 },
-                body: JSON.stringify({ invoice_data: invoiceSnapshot, action })
+                body: JSON.stringify({
+                    invoice_data: invoiceSnapshot,
+                    action: action,
+                    environment: env,
+                    prod_username: prodUsername,
+                    prod_password: prodPassword
+                })
             });
             
             const result = await readJsonResponse(response);
@@ -1099,6 +1128,31 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         if (icon) icon.style.transition = 'transform 0.3s ease';
     });
+
+    const submitProdCredsBtn = document.getElementById('submit-prod-credentials');
+    const cancelProdCredsBtn = document.getElementById('cancel-prod-credentials');
+    const prodModal = document.getElementById('prod-credentials-modal');
+
+    if (submitProdCredsBtn) {
+        submitProdCredsBtn.addEventListener('click', () => {
+            const user = document.getElementById('prod-username').value.trim();
+            const pass = document.getElementById('prod-password').value.trim();
+            if (user && pass) {
+                sessionStorage.setItem('uyumsoft_prod_username', user);
+                sessionStorage.setItem('uyumsoft_prod_password', pass);
+                prodModal.classList.add('hidden');
+                runUyumsoftAction();
+            } else {
+                alert('Lütfen kullanıcı adı ve şifre girin.');
+            }
+        });
+    }
+    
+    if (cancelProdCredsBtn) {
+        cancelProdCredsBtn.addEventListener('click', () => {
+            prodModal.classList.add('hidden');
+        });
+    }
 
     // UI event listeners initialized.
 });

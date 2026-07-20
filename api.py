@@ -61,6 +61,9 @@ class ProcessResponse(BaseModel):
 class SendUyumsoftRequest(BaseModel):
     invoice_data: dict
     action: str | None = None
+    environment: str = "test"
+    prod_username: str | None = None
+    prod_password: str | None = None
 
 def _is_image_extension(ext: str) -> bool:
     return ext in [".jpg", ".jpeg", ".png", ".webp"]
@@ -318,7 +321,13 @@ async def send_uyumsoft_api(request: SendUyumsoftRequest):
         invoice_data["customer_name"] = customer_name
         invoice_data["customer_title"] = customer_name
 
-    result = send_invoice_to_uyumsoft(invoice_data, action="draft")
+    result = send_invoice_to_uyumsoft(
+        invoice_data,
+        action="draft",
+        environment=request.environment,
+        prod_username=request.prod_username,
+        prod_password=request.prod_password
+    )
     
     if isinstance(result, dict) and not result.get("success", True):
         status = result.get("response_code") or 500

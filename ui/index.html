@@ -175,8 +175,12 @@
                             Sonuçları CSV Olarak İndir
                         </button>
                     </div>
-                    <div id="uyumsoft-environment-badge" class="integration-environment unknown">
-                        Uyumsoft ortamı yükleniyor...
+                    <div class="environment-selector" style="margin-top: 1rem; text-align: center;">
+                        <label for="environment-select" style="font-size: 0.9rem; color: var(--text-secondary); margin-right: 0.5rem;">Uyumsoft Ortamı:</label>
+                        <select id="environment-select" style="background: var(--input-bg); border: 1px solid var(--border-color); color: var(--text-primary); padding: 0.5rem 1rem; border-radius: 8px; font-weight: 600; cursor: pointer; outline: none;">
+                            <option value="test">TEST (Ön Kabul)</option>
+                            <option value="prod">GERÇEK (CANLI)</option>
+                        </select>
                     </div>
                     <div id="api-status-box" class="hidden" style="width: 100%; padding: 1rem; border-radius: 8px; margin-top: 1rem; text-align: left;"></div>
                     <div id="error-box" class="error-box hidden"></div>
@@ -192,6 +196,29 @@
                 </section>
             </div>
         </main>
+    </div>
+    
+    <!-- PROD Credentials Modal -->
+    <div id="prod-credentials-modal" class="hidden" style="position: fixed; inset: 0; background: rgba(15, 23, 42, 0.8); backdrop-filter: blur(4px); z-index: 1000; display: flex; align-items: center; justify-content: center; padding: 1rem;">
+        <div style="background: var(--card-bg); border: 1px solid var(--border-color); border-radius: 12px; padding: 2rem; width: 100%; max-width: 400px; box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.5), 0 10px 10px -5px rgba(0, 0, 0, 0.2);">
+            <h3 style="margin-top: 0; margin-bottom: 0.5rem; color: var(--text-primary);">Gerçek Ortam Şifresi</h3>
+            <p style="margin-top: 0; margin-bottom: 1.5rem; color: var(--text-secondary); font-size: 0.9rem; line-height: 1.5;">Gerçek (Canlı) Uyumsoft sistemine fatura gönderebilmek için kullanıcı adı ve şifrenizi girmelisiniz.</p>
+            
+            <div style="margin-bottom: 1rem;">
+                <label for="prod-username" style="display: block; font-size: 0.85rem; font-weight: 500; color: var(--text-secondary); margin-bottom: 0.25rem;">Kullanıcı Adı</label>
+                <input type="text" id="prod-username" style="width: 100%; background: var(--input-bg); border: 1px solid var(--border-color); color: var(--text-primary); padding: 0.75rem; border-radius: 6px; box-sizing: border-box;">
+            </div>
+            
+            <div style="margin-bottom: 1.5rem;">
+                <label for="prod-password" style="display: block; font-size: 0.85rem; font-weight: 500; color: var(--text-secondary); margin-bottom: 0.25rem;">Şifre</label>
+                <input type="password" id="prod-password" style="width: 100%; background: var(--input-bg); border: 1px solid var(--border-color); color: var(--text-primary); padding: 0.75rem; border-radius: 6px; box-sizing: border-box;">
+            </div>
+            
+            <div style="display: flex; gap: 1rem; justify-content: flex-end;">
+                <button id="cancel-prod-credentials" style="background: transparent; border: 1px solid var(--border-color); color: var(--text-primary); padding: 0.5rem 1rem; border-radius: 6px; cursor: pointer;">İptal</button>
+                <button id="submit-prod-credentials" style="background: #10b981; border: none; color: white; padding: 0.5rem 1rem; border-radius: 6px; cursor: pointer; font-weight: 500;">Gönder</button>
+            </div>
+        </div>
     </div>
     
 
