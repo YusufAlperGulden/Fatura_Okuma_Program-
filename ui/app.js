@@ -1398,9 +1398,12 @@ if (sendAllBtn) {
             }
         }
         
-        // Disable the button to prevent double-sending
-        sendAllBtn.disabled = true;
-        sendAllBtn.textContent = "Tümünü Gönderildi";
+        // Hide the button and show success text
+        sendAllBtn.style.display = 'none';
+        const successText = document.getElementById('send-all-success-text');
+        if (successText) {
+            successText.style.display = 'flex';
+        }
     });
 }
 
@@ -1418,6 +1421,10 @@ if (batchBackBtn) {
             sendAllBtn.style.display = 'none';
             sendAllBtn.disabled = false;
             sendAllBtn.textContent = "Tümünü Uyumsoft'a Gönder";
+        }
+        const successText = document.getElementById('send-all-success-text');
+        if (successText) {
+            successText.style.display = 'none';
         }
     });
 }
