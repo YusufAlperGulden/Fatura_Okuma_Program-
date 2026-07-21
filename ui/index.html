@@ -268,7 +268,7 @@
         <header style="position: relative;">
             <div style="display: flex; justify-content: flex-end; align-items: center; gap: 15px; margin-bottom: 0.5rem; flex-wrap: wrap;">
                 <div style="display: flex; align-items: center; gap: 8px; background: var(--panel-bg); padding: 5px 10px; border-radius: 20px; border: 1px solid var(--border-color);">
-                    <button id="palette-toggle" class="palette-toggle" title="Temaları Göster/Gizle">
+                    <button id="palette-toggle" class="palette-toggle" title="Temaları Göster/Gizle" onclick="document.getElementById('color-picker').classList.toggle('expanded'); this.classList.toggle('expanded');" style="z-index: 50;">
                         <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" /></svg>
                     </button>
                     <div id="color-picker" class="color-picker">
