@@ -54,6 +54,20 @@
         [data-color="nebula"] { --accent-color: #8b5cf6; --accent-hover: #d946ef; }
         [data-color="cherry"] { --accent-color: #e11d48; --accent-hover: #be123c; }
         [data-color="slate"] { --accent-color: #64748b; --accent-hover: #475569; }
+        [data-color="rose"] { --accent-color: #f43f5e; --accent-hover: #e11d48; }
+        [data-color="fuchsia"] { --accent-color: #d946ef; --accent-hover: #c026d3; }
+        [data-color="violet"] { --accent-color: #8b5cf6; --accent-hover: #7c3aed; }
+        [data-color="sky"] { --accent-color: #0ea5e9; --accent-hover: #0284c7; }
+        [data-color="teal"] { --accent-color: #14b8a6; --accent-hover: #0d9488; }
+        [data-color="lime"] { --accent-color: #84cc16; --accent-hover: #65a30d; }
+        [data-color="zinc"] { --accent-color: #71717a; --accent-hover: #52525b; }
+        [data-color="stone"] { --accent-color: #78716c; --accent-hover: #57534e; }
+        [data-color="fire"] { --accent-color: #ef4444; --accent-hover: #f59e0b; }
+        [data-color="ice"] { --accent-color: #38bdf8; --accent-hover: #818cf8; }
+        [data-color="midnight"] { --accent-color: #6b21a8; --accent-hover: #312e81; }
+        [data-color="forest_glow"] { --accent-color: #059669; --accent-hover: #84cc16; }
+        [data-color="cotton_candy"] { --accent-color: #f472b6; --accent-hover: #c084fc; }
+        [data-color="supernova"] { --accent-color: #db2777; --accent-hover: #f97316; }
         [data-color="cyberpunk"] { --accent-color: #eab308; --accent-hover: #ec4899; }
         [data-color="volcano"] { --accent-color: #dc2626; --accent-hover: #ea580c; }
         [data-color="oceanic"] { --accent-color: #0284c7; --accent-hover: #0d9488; }        
@@ -75,10 +89,25 @@
         [data-theme="light"][data-color="nebula"] { --accent-color: #7c3aed; --accent-hover: #c026d3; }
         [data-theme="light"][data-color="cherry"] { --accent-color: #be123c; --accent-hover: #9f1239; }
         [data-theme="light"][data-color="slate"] { --accent-color: #475569; --accent-hover: #334155; }
+        [data-theme="light"][data-color="rose"] { --accent-color: #e11d48; --accent-hover: #be123c; }
+        [data-theme="light"][data-color="fuchsia"] { --accent-color: #c026d3; --accent-hover: #a21caf; }
+        [data-theme="light"][data-color="violet"] { --accent-color: #7c3aed; --accent-hover: #6d28d9; }
+        [data-theme="light"][data-color="sky"] { --accent-color: #0284c7; --accent-hover: #0369a1; }
+        [data-theme="light"][data-color="teal"] { --accent-color: #0d9488; --accent-hover: #0f766e; }
+        [data-theme="light"][data-color="lime"] { --accent-color: #65a30d; --accent-hover: #4d7c0f; }
+        [data-theme="light"][data-color="zinc"] { --accent-color: #52525b; --accent-hover: #3f3f46; }
+        [data-theme="light"][data-color="stone"] { --accent-color: #57534e; --accent-hover: #44403c; }
+        [data-theme="light"][data-color="fire"] { --accent-color: #b91c1c; --accent-hover: #ea580c; }
+        [data-theme="light"][data-color="ice"] { --accent-color: #0284c7; --accent-hover: #4f46e5; }
+        [data-theme="light"][data-color="midnight"] { --accent-color: #4c1d95; --accent-hover: #1e1b4b; }
+        [data-theme="light"][data-color="forest_glow"] { --accent-color: #047857; --accent-hover: #4d7c0f; }
+        [data-theme="light"][data-color="cotton_candy"] { --accent-color: #db2777; --accent-hover: #9333ea; }
+        [data-theme="light"][data-color="supernova"] { --accent-color: #be185d; --accent-hover: #c2410c; }
         [data-theme="light"][data-color="cyberpunk"] { --accent-color: #d97706; --accent-hover: #be185d; }
         [data-theme="light"][data-color="volcano"] { --accent-color: #b91c1c; --accent-hover: #c2410c; }
         [data-theme="light"][data-color="oceanic"] { --accent-color: #0369a1; --accent-hover: #0f766e; }
         .color-dot {
+            flex-shrink: 0;
             width: 20px;
             height: 20px;
             border-radius: 50%;
@@ -231,6 +260,24 @@
             animation: gradient-bg 4s linear infinite !important;
         }
 
+        [data-color="fire"] .gradient-text { background: linear-gradient(90deg, #b91c1c, #ef4444, #f59e0b, #b91c1c) !important; background-size: 200% auto !important; -webkit-background-clip: text !important; -webkit-text-fill-color: transparent !important; animation: gradient-bg 4s linear infinite !important; }
+        [data-color="fire"] .primary-btn { background: linear-gradient(90deg, #b91c1c, #ef4444, #f59e0b, #b91c1c) !important; background-size: 200% auto !important; color: white !important; border: none !important; animation: gradient-bg 4s linear infinite !important; }
+
+        [data-color="ice"] .gradient-text { background: linear-gradient(90deg, #38bdf8, #2dd4bf, #818cf8, #38bdf8) !important; background-size: 200% auto !important; -webkit-background-clip: text !important; -webkit-text-fill-color: transparent !important; animation: gradient-bg 4s linear infinite !important; }
+        [data-color="ice"] .primary-btn { background: linear-gradient(90deg, #38bdf8, #2dd4bf, #818cf8, #38bdf8) !important; background-size: 200% auto !important; color: white !important; border: none !important; animation: gradient-bg 4s linear infinite !important; }
+
+        [data-color="midnight"] .gradient-text { background: linear-gradient(90deg, #312e81, #6b21a8, #be185d, #312e81) !important; background-size: 200% auto !important; -webkit-background-clip: text !important; -webkit-text-fill-color: transparent !important; animation: gradient-bg 4s linear infinite !important; }
+        [data-color="midnight"] .primary-btn { background: linear-gradient(90deg, #312e81, #6b21a8, #be185d, #312e81) !important; background-size: 200% auto !important; color: white !important; border: none !important; animation: gradient-bg 4s linear infinite !important; }
+
+        [data-color="forest_glow"] .gradient-text { background: linear-gradient(90deg, #064e3b, #059669, #84cc16, #064e3b) !important; background-size: 200% auto !important; -webkit-background-clip: text !important; -webkit-text-fill-color: transparent !important; animation: gradient-bg 4s linear infinite !important; }
+        [data-color="forest_glow"] .primary-btn { background: linear-gradient(90deg, #064e3b, #059669, #84cc16, #064e3b) !important; background-size: 200% auto !important; color: white !important; border: none !important; animation: gradient-bg 4s linear infinite !important; }
+
+        [data-color="cotton_candy"] .gradient-text { background: linear-gradient(90deg, #f472b6, #c084fc, #38bdf8, #f472b6) !important; background-size: 200% auto !important; -webkit-background-clip: text !important; -webkit-text-fill-color: transparent !important; animation: gradient-bg 4s linear infinite !important; }
+        [data-color="cotton_candy"] .primary-btn { background: linear-gradient(90deg, #f472b6, #c084fc, #38bdf8, #f472b6) !important; background-size: 200% auto !important; color: white !important; border: none !important; animation: gradient-bg 4s linear infinite !important; }
+
+        [data-color="supernova"] .gradient-text { background: linear-gradient(90deg, #7e22ce, #db2777, #f97316, #7e22ce) !important; background-size: 200% auto !important; -webkit-background-clip: text !important; -webkit-text-fill-color: transparent !important; animation: gradient-bg 4s linear infinite !important; }
+        [data-color="supernova"] .primary-btn { background: linear-gradient(90deg, #7e22ce, #db2777, #f97316, #7e22ce) !important; background-size: 200% auto !important; color: white !important; border: none !important; animation: gradient-bg 4s linear infinite !important; }
+
         /* Collapsible Palette */
         .palette-toggle {
             background: none;
@@ -258,8 +305,25 @@
             transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
         }
         .color-picker.expanded {
-            max-width: 1000px;
+            max-width: 350px;
             opacity: 1;
+            overflow-x: auto;
+            padding-bottom: 5px;
+        }
+
+        /* Custom scrollbar for color picker */
+        .color-picker::-webkit-scrollbar {
+            height: 6px;
+        }
+        .color-picker::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        .color-picker::-webkit-scrollbar-thumb {
+            background: var(--border-color);
+            border-radius: 10px;
+        }
+        .color-picker::-webkit-scrollbar-thumb:hover {
+            background: var(--text-secondary);
         }
     </style>
 </head>
@@ -288,12 +352,26 @@
                     <div class="color-dot" data-color="gold" style="background-color: #fbbf24;" title="Altın"></div>
                     <div class="color-dot" data-color="cherry" style="background-color: #e11d48;" title="Kiraz"></div>
                     <div class="color-dot" data-color="slate" style="background-color: #64748b;" title="Kayrak (Gri)"></div>
+                    <div class="color-dot" data-color="rose" style="background-color: #f43f5e;" title="Gül"></div>
+                    <div class="color-dot" data-color="fuchsia" style="background-color: #d946ef;" title="Fuşya"></div>
+                    <div class="color-dot" data-color="violet" style="background-color: #8b5cf6;" title="Menekşe"></div>
+                    <div class="color-dot" data-color="sky" style="background-color: #0ea5e9;" title="Gökyüzü"></div>
+                    <div class="color-dot" data-color="teal" style="background-color: #14b8a6;" title="Çamurcun (Turkuaz)"></div>
+                    <div class="color-dot" data-color="lime" style="background-color: #84cc16;" title="Misket Limonu"></div>
+                    <div class="color-dot" data-color="zinc" style="background-color: #71717a;" title="Çinko (Koyu Gri)"></div>
+                    <div class="color-dot" data-color="stone" style="background-color: #78716c;" title="Taş (Toprak Gri)"></div>
                     <div class="color-dot" data-color="sunset" style="background: linear-gradient(90deg, #f43f5e, #f97316, #fbbf24);" title="Günbatımı"></div>
                     <div class="color-dot" data-color="aurora" style="background: linear-gradient(90deg, #10b981, #06b6d4, #3b82f6);" title="Kuzey Işıkları"></div>
                     <div class="color-dot" data-color="nebula" style="background: linear-gradient(90deg, #8b5cf6, #d946ef, #f43f5e);" title="Galaksi (Nebula)"></div>
                     <div class="color-dot" data-color="cyberpunk" style="background: linear-gradient(90deg, #eab308, #ec4899, #06b6d4);" title="Siberpunk"></div>
                     <div class="color-dot" data-color="volcano" style="background: linear-gradient(90deg, #7f1d1d, #dc2626, #f59e0b);" title="Volkan"></div>
                     <div class="color-dot" data-color="oceanic" style="background: linear-gradient(90deg, #1e3a8a, #0369a1, #0d9488);" title="Derin Okyanus"></div>
+                    <div class="color-dot" data-color="fire" style="background: linear-gradient(90deg, #ef4444, #f59e0b);" title="Ateş"></div>
+                    <div class="color-dot" data-color="ice" style="background: linear-gradient(90deg, #38bdf8, #818cf8);" title="Buz"></div>
+                    <div class="color-dot" data-color="midnight" style="background: linear-gradient(90deg, #312e81, #be185d);" title="Gece Yarısı"></div>
+                    <div class="color-dot" data-color="forest_glow" style="background: linear-gradient(90deg, #064e3b, #84cc16);" title="Orman Işıltısı"></div>
+                    <div class="color-dot" data-color="cotton_candy" style="background: linear-gradient(90deg, #f472b6, #38bdf8);" title="Pamuk Şeker"></div>
+                    <div class="color-dot" data-color="supernova" style="background: linear-gradient(90deg, #7e22ce, #f97316);" title="Süpernova"></div>
                 </div>
                 </div>
                 <button id="theme-toggle" class="theme-btn" style="position: relative;" title="Temayı Değiştir">
