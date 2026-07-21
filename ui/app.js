@@ -20,6 +20,16 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
+    // Palette toggle logic
+    const paletteToggle = document.getElementById('palette-toggle');
+    const colorPicker = document.getElementById('color-picker');
+    if (paletteToggle && colorPicker) {
+        paletteToggle.addEventListener('click', () => {
+            colorPicker.classList.toggle('expanded');
+            paletteToggle.classList.toggle('expanded');
+        });
+    }
+
     // Color theme logic
     const colorDots = document.querySelectorAll('.color-dot');
     const savedColor = localStorage.getItem('colorTheme') || 'ocean';

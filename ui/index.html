@@ -230,13 +230,48 @@
             border: none !important;
             animation: gradient-bg 4s linear infinite !important;
         }
+
+        /* Collapsible Palette */
+        .palette-toggle {
+            background: none;
+            border: none;
+            color: var(--text-secondary);
+            cursor: pointer;
+            padding: 5px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: transform 0.3s;
+        }
+        .palette-toggle:hover {
+            color: var(--text-primary);
+        }
+        .palette-toggle.expanded svg {
+            transform: rotate(180deg);
+        }
+        .color-picker {
+            display: flex;
+            gap: 8px;
+            max-width: 0;
+            opacity: 0;
+            overflow: hidden;
+            transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        .color-picker.expanded {
+            max-width: 1000px;
+            opacity: 1;
+        }
     </style>
 </head>
 <body>
     <div class="app-container">
         <header style="position: relative;">
             <div style="display: flex; justify-content: flex-end; align-items: center; gap: 15px; margin-bottom: 0.5rem; flex-wrap: wrap;">
-                <div class="color-picker" style="display: flex; gap: 8px;">
+                <div style="display: flex; align-items: center; gap: 8px; background: var(--panel-bg); padding: 5px 10px; border-radius: 20px; border: 1px solid var(--border-color);">
+                    <button id="palette-toggle" class="palette-toggle" title="Temaları Göster/Gizle">
+                        <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" /></svg>
+                    </button>
+                    <div id="color-picker" class="color-picker">
                     <div class="color-dot active" data-color="ocean" style="background-color: #0ea5e9;" title="Ocean (Varsayılan)"></div>
                     <div class="color-dot" data-color="emerald" style="background-color: #10b981;" title="Emerald"></div>
                     <div class="color-dot" data-color="amethyst" style="background-color: #8b5cf6;" title="Amethyst"></div>
@@ -258,6 +293,7 @@
                     <div class="color-dot" data-color="cyberpunk" style="background: linear-gradient(90deg, #eab308, #ec4899, #06b6d4);" title="Siberpunk"></div>
                     <div class="color-dot" data-color="volcano" style="background: linear-gradient(90deg, #7f1d1d, #dc2626, #f59e0b);" title="Volkan"></div>
                     <div class="color-dot" data-color="oceanic" style="background: linear-gradient(90deg, #1e3a8a, #0369a1, #0d9488);" title="Derin Okyanus"></div>
+                </div>
                 </div>
                 <button id="theme-toggle" class="theme-btn" style="position: relative;" title="Temayı Değiştir">
                     <svg id="theme-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24" width="24" height="24">
