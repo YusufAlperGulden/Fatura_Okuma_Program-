@@ -1,0 +1,591 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Fatura Veri Otomasyonu</title>
+    <link rel="stylesheet" href="style.css?v=16">
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <!-- Toastify for in-app notifications -->
+    <link rel="stylesheet" type="text/css" href="https://cdn.jsdelivr.net/npm/toastify-js/src/toastify.min.css">
+    <script type="text/javascript" src="https://cdn.jsdelivr.net/npm/toastify-js"></script>
+    <script>
+        // Check for saved theme preference or system preference
+        const savedTheme = localStorage.getItem('theme');
+        if (savedTheme === 'light' || (!savedTheme && window.matchMedia('(prefers-color-scheme: light)').matches)) {
+            document.documentElement.setAttribute('data-theme', 'light');
+        }
+        const savedColor = localStorage.getItem('colorTheme');
+        if (savedColor) {
+            document.documentElement.setAttribute('data-color', savedColor);
+        }
+    </script>
+    <style>
+        /* Base Tinting Logic (Applies to all non-default themes) */
+        [data-color]:not([data-color="ocean"]) {
+            --bg-color: color-mix(in srgb, var(--accent-color) 15%, #0f172a);
+            --panel-bg: color-mix(in srgb, var(--accent-color) 12%, #1e293b);
+            --card-bg: color-mix(in srgb, var(--accent-color) 12%, #0f172a);
+            --border-color: color-mix(in srgb, var(--accent-color) 25%, #334155);
+        }
+        [data-theme="light"][data-color]:not([data-color="ocean"]) {
+            --bg-color: color-mix(in srgb, var(--accent-color) 15%, #f1f5f9);
+            --panel-bg: color-mix(in srgb, var(--accent-color) 8%, #ffffff);
+            --card-bg: color-mix(in srgb, var(--accent-color) 12%, #f8fafc);
+            --border-color: color-mix(in srgb, var(--accent-color) 30%, #e2e8f0);
+        }
+
+        /* Color Themes (Dark Mode - Default) */
+        [data-color="emerald"] { --accent-color: #34d399; --accent-hover: #10b981; }
+        [data-color="amethyst"] { --accent-color: #a78bfa; --accent-hover: #8b5cf6; }
+        [data-color="ruby"] { --accent-color: #fb7185; --accent-hover: #f43f5e; }
+        [data-color="amber"] { --accent-color: #fbbf24; --accent-hover: #f59e0b; }
+        [data-color="sakura"] { --accent-color: #f472b6; --accent-hover: #db2777; }
+        [data-color="cyan"] { --accent-color: #22d3ee; --accent-hover: #0891b2; }
+        [data-color="obsidian"] { --accent-color: #f8fafc; --accent-hover: #cbd5e1; }
+        [data-color="indigo"] { --accent-color: #6366f1; --accent-hover: #4f46e5; }
+        [data-color="topaz"] { --accent-color: #f97316; --accent-hover: #ea580c; }
+        [data-color="jade"] { --accent-color: #16a34a; --accent-hover: #15803d; }
+        [data-color="lavender"] { --accent-color: #c084fc; --accent-hover: #a855f7; }
+        [data-color="gold"] { --accent-color: #fbbf24; --accent-hover: #d97706; }
+        [data-color="sunset"] { --accent-color: #f43f5e; --accent-hover: #f97316; }
+        [data-color="aurora"] { --accent-color: #10b981; --accent-hover: #06b6d4; }
+        [data-color="nebula"] { --accent-color: #8b5cf6; --accent-hover: #d946ef; }
+        [data-color="cherry"] { --accent-color: #e11d48; --accent-hover: #be123c; }
+        [data-color="slate"] { --accent-color: #64748b; --accent-hover: #475569; }
+        [data-color="rose"] { --accent-color: #f43f5e; --accent-hover: #e11d48; }
+        [data-color="fuchsia"] { --accent-color: #d946ef; --accent-hover: #c026d3; }
+        [data-color="violet"] { --accent-color: #8b5cf6; --accent-hover: #7c3aed; }
+        [data-color="sky"] { --accent-color: #0ea5e9; --accent-hover: #0284c7; }
+        [data-color="teal"] { --accent-color: #14b8a6; --accent-hover: #0d9488; }
+        [data-color="lime"] { --accent-color: #84cc16; --accent-hover: #65a30d; }
+        [data-color="zinc"] { --accent-color: #71717a; --accent-hover: #52525b; }
+        [data-color="stone"] { --accent-color: #78716c; --accent-hover: #57534e; }
+        [data-color="fire"] { --accent-color: #ef4444; --accent-hover: #f59e0b; }
+        [data-color="ice"] { --accent-color: #38bdf8; --accent-hover: #818cf8; }
+        [data-color="midnight"] { --accent-color: #6b21a8; --accent-hover: #312e81; }
+        [data-color="forest_glow"] { --accent-color: #059669; --accent-hover: #84cc16; }
+        [data-color="cotton_candy"] { --accent-color: #f472b6; --accent-hover: #c084fc; }
+        [data-color="supernova"] { --accent-color: #db2777; --accent-hover: #f97316; }
+        [data-color="cyberpunk"] { --accent-color: #eab308; --accent-hover: #ec4899; }
+        [data-color="volcano"] { --accent-color: #dc2626; --accent-hover: #ea580c; }
+        [data-color="oceanic"] { --accent-color: #0284c7; --accent-hover: #0d9488; }        
+        /* Color Themes (Light Mode) */
+        [data-theme="light"][data-color="emerald"] { --accent-color: #059669; --accent-hover: #047857; }
+        [data-theme="light"][data-color="amethyst"] { --accent-color: #7c3aed; --accent-hover: #6d28d9; }
+        [data-theme="light"][data-color="ruby"] { --accent-color: #e11d48; --accent-hover: #be123c; }
+        [data-theme="light"][data-color="amber"] { --accent-color: #d97706; --accent-hover: #b45309; }
+        [data-theme="light"][data-color="sakura"] { --accent-color: #db2777; --accent-hover: #be185d; }
+        [data-theme="light"][data-color="cyan"] { --accent-color: #0891b2; --accent-hover: #0e7490; }
+        [data-theme="light"][data-color="obsidian"] { --accent-color: #334155; --accent-hover: #0f172a; }
+        [data-theme="light"][data-color="indigo"] { --accent-color: #4f46e5; --accent-hover: #4338ca; }
+        [data-theme="light"][data-color="topaz"] { --accent-color: #ea580c; --accent-hover: #c2410c; }
+        [data-theme="light"][data-color="jade"] { --accent-color: #15803d; --accent-hover: #166534; }
+        [data-theme="light"][data-color="lavender"] { --accent-color: #a855f7; --accent-hover: #9333ea; }
+        [data-theme="light"][data-color="gold"] { --accent-color: #d97706; --accent-hover: #b45309; }
+        [data-theme="light"][data-color="sunset"] { --accent-color: #e11d48; --accent-hover: #ea580c; }
+        [data-theme="light"][data-color="aurora"] { --accent-color: #059669; --accent-hover: #0891b2; }
+        [data-theme="light"][data-color="nebula"] { --accent-color: #7c3aed; --accent-hover: #c026d3; }
+        [data-theme="light"][data-color="cherry"] { --accent-color: #be123c; --accent-hover: #9f1239; }
+        [data-theme="light"][data-color="slate"] { --accent-color: #475569; --accent-hover: #334155; }
+        [data-theme="light"][data-color="rose"] { --accent-color: #e11d48; --accent-hover: #be123c; }
+        [data-theme="light"][data-color="fuchsia"] { --accent-color: #c026d3; --accent-hover: #a21caf; }
+        [data-theme="light"][data-color="violet"] { --accent-color: #7c3aed; --accent-hover: #6d28d9; }
+        [data-theme="light"][data-color="sky"] { --accent-color: #0284c7; --accent-hover: #0369a1; }
+        [data-theme="light"][data-color="teal"] { --accent-color: #0d9488; --accent-hover: #0f766e; }
+        [data-theme="light"][data-color="lime"] { --accent-color: #65a30d; --accent-hover: #4d7c0f; }
+        [data-theme="light"][data-color="zinc"] { --accent-color: #52525b; --accent-hover: #3f3f46; }
+        [data-theme="light"][data-color="stone"] { --accent-color: #57534e; --accent-hover: #44403c; }
+        [data-theme="light"][data-color="fire"] { --accent-color: #b91c1c; --accent-hover: #ea580c; }
+        [data-theme="light"][data-color="ice"] { --accent-color: #0284c7; --accent-hover: #4f46e5; }
+        [data-theme="light"][data-color="midnight"] { --accent-color: #4c1d95; --accent-hover: #1e1b4b; }
+        [data-theme="light"][data-color="forest_glow"] { --accent-color: #047857; --accent-hover: #4d7c0f; }
+        [data-theme="light"][data-color="cotton_candy"] { --accent-color: #db2777; --accent-hover: #9333ea; }
+        [data-theme="light"][data-color="supernova"] { --accent-color: #be185d; --accent-hover: #c2410c; }
+        [data-theme="light"][data-color="cyberpunk"] { --accent-color: #d97706; --accent-hover: #be185d; }
+        [data-theme="light"][data-color="volcano"] { --accent-color: #b91c1c; --accent-hover: #c2410c; }
+        [data-theme="light"][data-color="oceanic"] { --accent-color: #0369a1; --accent-hover: #0f766e; }
+        .color-dot {
+            flex-shrink: 0;
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            border: 2px solid transparent;
+            cursor: pointer;
+            transition: all 0.2s;
+            padding: 0;
+        }
+        .color-dot:hover {
+            transform: scale(1.15);
+        }
+        .color-dot.active {
+            border-color: var(--text-primary);
+            transform: scale(1.15);
+            box-shadow: 0 0 8px rgba(255, 255, 255, 0.2);
+        }
+        [data-theme="light"] .color-dot.active {
+            box-shadow: 0 0 8px rgba(0, 0, 0, 0.2);
+        }
+
+        /* Secondary Button Styles (Inlined for cache busting) */
+        .secondary-btn {
+            padding: 0.5rem 1rem;
+            border-radius: 8px;
+            font-weight: 600;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s ease;
+            background: rgba(148, 163, 184, 0.1);
+            color: var(--text-secondary);
+            border: 1px solid rgba(148, 163, 184, 0.2);
+        }
+
+        .secondary-btn.green {
+            background: color-mix(in srgb, var(--accent-color) 10%, transparent);
+            color: var(--accent-color);
+            border-color: color-mix(in srgb, var(--accent-color) 20%, transparent);
+        }
+
+        .secondary-btn:hover {
+            transform: scale(1.15) !important;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15) !important;
+            background: color-mix(in srgb, var(--accent-color) 20%, transparent);
+            color: var(--text-primary);
+            border-color: var(--accent-hover);
+        }
+        
+        .secondary-btn.green:hover {
+            background: color-mix(in srgb, var(--accent-color) 20%, transparent);
+            color: var(--accent-hover);
+            border-color: color-mix(in srgb, var(--accent-color) 40%, transparent);
+        }
+
+        /* Gradient Themes Overrides */
+        @keyframes gradient-bg {
+            0% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+            100% { background-position: 0% 50%; }
+        }
+        
+        [data-color="sunset"] .gradient-text {
+            background: linear-gradient(90deg, #f43f5e, #f97316, #fbbf24, #f43f5e) !important;
+            background-size: 200% auto !important;
+            -webkit-background-clip: text !important;
+            -webkit-text-fill-color: transparent !important;
+            animation: gradient-bg 4s linear infinite !important;
+        }
+        [data-color="sunset"] .primary-btn {
+            background: linear-gradient(90deg, #f43f5e, #f97316, #fbbf24, #f43f5e) !important;
+            background-size: 200% auto !important;
+            color: white !important;
+            border: none !important;
+            animation: gradient-bg 4s linear infinite !important;
+        }
+
+        [data-color="aurora"] .gradient-text {
+            background: linear-gradient(90deg, #10b981, #06b6d4, #3b82f6, #10b981) !important;
+            background-size: 200% auto !important;
+            -webkit-background-clip: text !important;
+            -webkit-text-fill-color: transparent !important;
+            animation: gradient-bg 4s linear infinite !important;
+        }
+        [data-color="aurora"] .primary-btn {
+            background: linear-gradient(90deg, #10b981, #06b6d4, #3b82f6, #10b981) !important;
+            background-size: 200% auto !important;
+            color: white !important;
+            border: none !important;
+            animation: gradient-bg 4s linear infinite !important;
+        }
+
+        [data-color="nebula"] .gradient-text {
+            background: linear-gradient(90deg, #8b5cf6, #d946ef, #f43f5e, #8b5cf6) !important;
+            background-size: 200% auto !important;
+            -webkit-background-clip: text !important;
+            -webkit-text-fill-color: transparent !important;
+            animation: gradient-bg 4s linear infinite !important;
+        }
+        [data-color="nebula"] .primary-btn {
+            background: linear-gradient(90deg, #8b5cf6, #d946ef, #f43f5e, #8b5cf6) !important;
+            background-size: 200% auto !important;
+            color: white !important;
+            border: none !important;
+            animation: gradient-bg 4s linear infinite !important;
+        }
+
+        [data-color="cyberpunk"] .gradient-text {
+            background: linear-gradient(90deg, #eab308, #ec4899, #06b6d4, #eab308) !important;
+            background-size: 200% auto !important;
+            -webkit-background-clip: text !important;
+            -webkit-text-fill-color: transparent !important;
+            animation: gradient-bg 4s linear infinite !important;
+        }
+        [data-color="cyberpunk"] .primary-btn {
+            background: linear-gradient(90deg, #eab308, #ec4899, #06b6d4, #eab308) !important;
+            background-size: 200% auto !important;
+            color: white !important;
+            border: none !important;
+            animation: gradient-bg 4s linear infinite !important;
+        }
+
+        [data-color="volcano"] .gradient-text {
+            background: linear-gradient(90deg, #7f1d1d, #dc2626, #f59e0b, #7f1d1d) !important;
+            background-size: 200% auto !important;
+            -webkit-background-clip: text !important;
+            -webkit-text-fill-color: transparent !important;
+            animation: gradient-bg 4s linear infinite !important;
+        }
+        [data-color="volcano"] .primary-btn {
+            background: linear-gradient(90deg, #7f1d1d, #dc2626, #f59e0b, #7f1d1d) !important;
+            background-size: 200% auto !important;
+            color: white !important;
+            border: none !important;
+            animation: gradient-bg 4s linear infinite !important;
+        }
+
+        [data-color="oceanic"] .gradient-text {
+            background: linear-gradient(90deg, #1e3a8a, #0369a1, #0d9488, #1e3a8a) !important;
+            background-size: 200% auto !important;
+            -webkit-background-clip: text !important;
+            -webkit-text-fill-color: transparent !important;
+            animation: gradient-bg 4s linear infinite !important;
+        }
+        [data-color="oceanic"] .primary-btn {
+            background: linear-gradient(90deg, #1e3a8a, #0369a1, #0d9488, #1e3a8a) !important;
+            background-size: 200% auto !important;
+            color: white !important;
+            border: none !important;
+            animation: gradient-bg 4s linear infinite !important;
+        }
+
+        [data-color="fire"] .gradient-text { background: linear-gradient(90deg, #b91c1c, #ef4444, #f59e0b, #b91c1c) !important; background-size: 200% auto !important; -webkit-background-clip: text !important; -webkit-text-fill-color: transparent !important; animation: gradient-bg 4s linear infinite !important; }
+        [data-color="fire"] .primary-btn { background: linear-gradient(90deg, #b91c1c, #ef4444, #f59e0b, #b91c1c) !important; background-size: 200% auto !important; color: white !important; border: none !important; animation: gradient-bg 4s linear infinite !important; }
+
+        [data-color="ice"] .gradient-text { background: linear-gradient(90deg, #38bdf8, #2dd4bf, #818cf8, #38bdf8) !important; background-size: 200% auto !important; -webkit-background-clip: text !important; -webkit-text-fill-color: transparent !important; animation: gradient-bg 4s linear infinite !important; }
+        [data-color="ice"] .primary-btn { background: linear-gradient(90deg, #38bdf8, #2dd4bf, #818cf8, #38bdf8) !important; background-size: 200% auto !important; color: white !important; border: none !important; animation: gradient-bg 4s linear infinite !important; }
+
+        [data-color="midnight"] .gradient-text { background: linear-gradient(90deg, #312e81, #6b21a8, #be185d, #312e81) !important; background-size: 200% auto !important; -webkit-background-clip: text !important; -webkit-text-fill-color: transparent !important; animation: gradient-bg 4s linear infinite !important; }
+        [data-color="midnight"] .primary-btn { background: linear-gradient(90deg, #312e81, #6b21a8, #be185d, #312e81) !important; background-size: 200% auto !important; color: white !important; border: none !important; animation: gradient-bg 4s linear infinite !important; }
+
+        [data-color="forest_glow"] .gradient-text { background: linear-gradient(90deg, #064e3b, #059669, #84cc16, #064e3b) !important; background-size: 200% auto !important; -webkit-background-clip: text !important; -webkit-text-fill-color: transparent !important; animation: gradient-bg 4s linear infinite !important; }
+        [data-color="forest_glow"] .primary-btn { background: linear-gradient(90deg, #064e3b, #059669, #84cc16, #064e3b) !important; background-size: 200% auto !important; color: white !important; border: none !important; animation: gradient-bg 4s linear infinite !important; }
+
+        [data-color="cotton_candy"] .gradient-text { background: linear-gradient(90deg, #f472b6, #c084fc, #38bdf8, #f472b6) !important; background-size: 200% auto !important; -webkit-background-clip: text !important; -webkit-text-fill-color: transparent !important; animation: gradient-bg 4s linear infinite !important; }
+        [data-color="cotton_candy"] .primary-btn { background: linear-gradient(90deg, #f472b6, #c084fc, #38bdf8, #f472b6) !important; background-size: 200% auto !important; color: white !important; border: none !important; animation: gradient-bg 4s linear infinite !important; }
+
+        [data-color="supernova"] .gradient-text { background: linear-gradient(90deg, #7e22ce, #db2777, #f97316, #7e22ce) !important; background-size: 200% auto !important; -webkit-background-clip: text !important; -webkit-text-fill-color: transparent !important; animation: gradient-bg 4s linear infinite !important; }
+        [data-color="supernova"] .primary-btn { background: linear-gradient(90deg, #7e22ce, #db2777, #f97316, #7e22ce) !important; background-size: 200% auto !important; color: white !important; border: none !important; animation: gradient-bg 4s linear infinite !important; }
+
+        /* Collapsible Palette */
+        .palette-toggle {
+            background: none;
+            border: none;
+            color: var(--text-secondary);
+            cursor: pointer;
+            padding: 5px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: color 0.3s;
+        }
+        .palette-toggle:hover {
+            color: var(--text-primary);
+        }
+        .palette-toggle .icon-close { display: none; }
+        .palette-toggle.expanded .icon-open { display: none; }
+        .palette-toggle.expanded .icon-close { display: block; }
+        .color-picker {
+            display: flex;
+            gap: 8px;
+            max-width: 0;
+            opacity: 0;
+            overflow: hidden;
+            transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        .color-picker.expanded {
+            max-width: 350px;
+            opacity: 1;
+            overflow-x: auto;
+            padding-bottom: 5px;
+        }
+
+        </style>
+</head>
+<body>
+    <div class="app-container">
+        <header style="position: relative;">
+            <div style="display: flex; justify-content: flex-end; align-items: center; gap: 15px; margin-bottom: 0.5rem; flex-wrap: wrap;">
+                <div style="display: flex; align-items: center; gap: 8px; background: var(--panel-bg); padding: 5px 10px; border-radius: 20px; border: 1px solid var(--border-color);">
+                    <button id="palette-toggle" class="palette-toggle" title="Temaları Göster/Gizle" onclick="document.getElementById('color-picker').classList.toggle('expanded'); this.classList.toggle('expanded');" style="z-index: 50;">
+                        <svg class="icon-open" width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="13.5" cy="6.5" r="1.5"/><circle cx="17.5" cy="10.5" r="1.5"/><circle cx="8.5" cy="7.5" r="1.5"/><circle cx="6.5" cy="12.5" r="1.5"/><path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c.926 0 1.648-.746 1.648-1.688 0-.437-.18-.835-.437-1.125-.29-.289-.438-.652-.438-1.125a1.64 1.64 0 0 1 1.668-1.668h1.996c3.051 0 5.555-2.503 5.555-5.554C21.965 6.012 17.461 2 12 2z"/></svg>
+                        <svg class="icon-close" width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" /></svg>
+                    </button>
+                    <div id="color-picker" class="color-picker">
+                    <div class="color-dot active" data-color="ocean" style="background-color: #0ea5e9;" title="Ocean (Varsayılan)"></div>
+                    <div class="color-dot" data-color="emerald" style="background-color: #10b981;" title="Emerald"></div>
+                    <div class="color-dot" data-color="amethyst" style="background-color: #8b5cf6;" title="Amethyst"></div>
+                    <div class="color-dot" data-color="ruby" style="background-color: #f43f5e;" title="Ruby"></div>
+                    <div class="color-dot" data-color="amber" style="background-color: #f59e0b;" title="Amber"></div>
+                    <div class="color-dot" data-color="sakura" style="background-color: #ec4899;" title="Sakura"></div>
+                    <div class="color-dot" data-color="cyan" style="background-color: #06b6d4;" title="Cyan"></div>
+                    <div class="color-dot" data-color="obsidian" style="background-color: #94a3b8;" title="Obsidyen"></div>
+                    <div class="color-dot" data-color="indigo" style="background-color: #6366f1;" title="İndigo"></div>
+                    <div class="color-dot" data-color="topaz" style="background-color: #f97316;" title="Topaz"></div>
+                    <div class="color-dot" data-color="jade" style="background-color: #16a34a;" title="Orman Yeşili"></div>
+                    <div class="color-dot" data-color="lavender" style="background-color: #c084fc;" title="Lavanta"></div>
+                    <div class="color-dot" data-color="gold" style="background-color: #fbbf24;" title="Altın"></div>
+                    <div class="color-dot" data-color="cherry" style="background-color: #e11d48;" title="Kiraz"></div>
+                    <div class="color-dot" data-color="slate" style="background-color: #64748b;" title="Kayrak (Gri)"></div>
+                    <div class="color-dot" data-color="rose" style="background-color: #f43f5e;" title="Gül"></div>
+                    <div class="color-dot" data-color="fuchsia" style="background-color: #d946ef;" title="Fuşya"></div>
+                    <div class="color-dot" data-color="violet" style="background-color: #8b5cf6;" title="Menekşe"></div>
+                    <div class="color-dot" data-color="sky" style="background-color: #0ea5e9;" title="Gökyüzü"></div>
+                    <div class="color-dot" data-color="teal" style="background-color: #14b8a6;" title="Çamurcun (Turkuaz)"></div>
+                    <div class="color-dot" data-color="lime" style="background-color: #84cc16;" title="Misket Limonu"></div>
+                    <div class="color-dot" data-color="zinc" style="background-color: #71717a;" title="Çinko (Koyu Gri)"></div>
+                    <div class="color-dot" data-color="stone" style="background-color: #78716c;" title="Taş (Toprak Gri)"></div>
+                    <div class="color-dot" data-color="sunset" style="background: linear-gradient(90deg, #f43f5e, #f97316, #fbbf24);" title="Günbatımı"></div>
+                    <div class="color-dot" data-color="aurora" style="background: linear-gradient(90deg, #10b981, #06b6d4, #3b82f6);" title="Kuzey Işıkları"></div>
+                    <div class="color-dot" data-color="nebula" style="background: linear-gradient(90deg, #8b5cf6, #d946ef, #f43f5e);" title="Galaksi (Nebula)"></div>
+                    <div class="color-dot" data-color="cyberpunk" style="background: linear-gradient(90deg, #eab308, #ec4899, #06b6d4);" title="Siberpunk"></div>
+                    <div class="color-dot" data-color="volcano" style="background: linear-gradient(90deg, #7f1d1d, #dc2626, #f59e0b);" title="Volkan"></div>
+                    <div class="color-dot" data-color="oceanic" style="background: linear-gradient(90deg, #1e3a8a, #0369a1, #0d9488);" title="Derin Okyanus"></div>
+                    <div class="color-dot" data-color="fire" style="background: linear-gradient(90deg, #ef4444, #f59e0b);" title="Ateş"></div>
+                    <div class="color-dot" data-color="ice" style="background: linear-gradient(90deg, #38bdf8, #818cf8);" title="Buz"></div>
+                    <div class="color-dot" data-color="midnight" style="background: linear-gradient(90deg, #312e81, #be185d);" title="Gece Yarısı"></div>
+                    <div class="color-dot" data-color="forest_glow" style="background: linear-gradient(90deg, #064e3b, #84cc16);" title="Orman Işıltısı"></div>
+                    <div class="color-dot" data-color="cotton_candy" style="background: linear-gradient(90deg, #f472b6, #38bdf8);" title="Pamuk Şeker"></div>
+                    <div class="color-dot" data-color="supernova" style="background: linear-gradient(90deg, #7e22ce, #f97316);" title="Süpernova"></div>
+                </div>
+                </div>
+                <button id="theme-toggle" class="theme-btn" style="position: relative;" title="Temayı Değiştir">
+                    <svg id="theme-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24" width="24" height="24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z" />
+                    </svg>
+                </button>
+            </div>
+            
+            <h1 class="gradient-text">Fatura İşleme Sistemi</h1>
+            <p>Uyumsoft entegrasyonu için faturalarınızı (PDF/XML/Excel) yükleyin ve doğrulayın.</p>
+        </header>
+
+        <main>
+            <!-- Upload Section -->
+            <section class="upload-section glass-panel">
+                <div id="drop-zone" class="drop-zone">
+                    <div class="drop-content">
+                        <svg class="upload-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"></path>
+                        </svg>
+                        <p>Dosyaları sürükleyip bırakın veya <span class="browse-link">göz atın</span></p>
+                        <p class="file-hint">Desteklenen formatlar: PDF, XML, XLSX, CSV, JPG, PNG, WEBP</p>
+                    </div>
+                    <input type="file" id="file-input" accept=".pdf,.xml,.xlsx,.xls,.csv,image/png,image/jpeg,image/webp" hidden multiple>
+                </div>
+                
+                <div id="loading" class="loading hidden">
+                    <div class="spinner"></div>
+                    <p id="loading-text">Fatura işleniyor...</p>
+                    <button id="cancel-btn" style="margin-top: 15px; border: 1px solid #ef4444 !important; color: #ef4444 !important; background-color: rgba(239, 68, 68, 0.1) !important; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; padding: 8px 16px; border-radius: 6px; font-weight: 600; font-family: 'Inter', sans-serif;">
+                        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" style="width: 16px; height: 16px; margin-right: 6px;">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                        </svg>
+                        İptal Et
+                    </button>
+                </div>
+            </section>
+
+            <!-- Batch Section -->
+            <section id="batch-section" class="glass-panel hidden" style="padding: 2rem;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem; flex-wrap: wrap; gap: 1rem;">
+                    <h2 style="margin: 0; color: var(--text-primary);">Toplu Fatura İşlemleri</h2>
+                    <div style="display: flex; gap: 0.75rem; align-items: center; flex-wrap: wrap;">
+                        <button id="batch-back-btn" class="secondary-btn">
+                            <svg style="width: 16px; height: 16px; margin-right: 6px;" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path></svg>
+                            Geri Dön
+                        </button>
+                        <button id="batch-uyumsoft-btn" class="secondary-btn">
+                            <svg style="width: 16px; height: 16px; margin-right: 6px;" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"></path></svg>
+                            Uyumsoft'a Git
+                        </button>
+                        <span id="batch-uyumsoft-environment-badge" class="integration-environment unknown" role="status">Uyumsoft ortamı: YÜKLENİYOR</span>
+                        <button id="send-all-btn" class="primary-btn" style="display: none;">Tümünü Uyumsoft'a Gönder</button>
+                        <span id="send-all-success-text" style="display: none; font-weight: 600; color: var(--accent-color); padding: 0.5rem 1rem; align-items: center; gap: 0.5rem;">
+                            <svg style="width: 20px; height: 20px;" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
+                            Hepsi Gönderildi
+                        </span>
+                    </div>
+                </div>
+                
+                <div class="table-responsive">
+                    <table class="batch-table">
+                        <thead>
+                            <tr>
+                                <th>Dosya Adı</th>
+                                <th>Fatura No</th>
+                                <th>Tarih</th>
+                                <th>VKN</th>
+                                <th>Cari İsim</th>
+                                <th>Tutar</th>
+                                <th>Durum</th>
+                            </tr>
+                        </thead>
+                        <tbody id="batch-table-body">
+                            <!-- Rows will be injected here -->
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+
+            <!-- Split Container for Results & PDF -->
+            <div id="split-container" class="hidden">
+                <!-- PDF Viewer Section -->
+                <section id="pdf-viewer-section" class="pdf-viewer-section hidden">
+                    <div class="pdf-header">
+                        <h2 style="font-size: 1.1rem; color: var(--text-primary); margin: 0;">Fatura Önizlemesi</h2>
+                    </div>
+                    <div class="pdf-content">
+                        <iframe id="pdf-iframe" style="width: 100%; height: 100%; border: none; border-radius: 0 0 8px 8px;"></iframe>
+                    </div>
+                </section>
+
+                <!-- Results Section -->
+                <section id="results-section" class="results-section">
+                
+                <div class="results-header">
+                    <div style="display: flex; align-items: center; gap: 10px; flex: 1;">
+                        <button id="back-to-batch-btn" class="icon-btn hidden" title="Listeye Dön" style="background: rgba(59, 130, 246, 0.1); color: var(--accent-color); border: 1px solid rgba(59, 130, 246, 0.2); padding: 8px; border-radius: 8px; cursor: pointer; transition: all 0.2s;">
+                            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" width="20" height="20">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path>
+                            </svg>
+                        </button>
+                        <button class="toggle-pdf-btn" id="toggle-pdf-btn" title="PDF Önizlemesini Gizle/Göster" style="background: var(--card-bg); border: 1px solid var(--border-color); color: var(--text-secondary); cursor: pointer; border-radius: 8px; padding: 6px; display: flex; align-items: center; justify-content: center; transition: all 0.2s;">
+                            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" width="20" height="20">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path>
+                            </svg>
+                        </button>
+                        <h2 style="margin:0; font-size: 1.3rem;">Fatura Bilgileri</h2>
+                    </div>
+                    <span id="validation-badge" class="badge">DURUM</span>
+                </div>
+
+                <!-- Summary Cards -->
+                <div class="summary-cards">
+                    <div class="card">
+                        <span class="card-label">FATURA NO</span>
+                        <input type="text" id="res-invoice-no" class="edit-input-top" value="" placeholder="-">
+                    </div>
+                    <div class="card" style="display: flex; flex-direction: column;">
+                        <span class="card-label">TARİH & SAAT</span>
+                        <div style="display: flex; flex-direction: column; gap: 4px;">
+                            <input type="text" id="res-date" class="edit-input-top" value="" placeholder="Tarih">
+                            <input type="text" id="res-time" class="edit-input-top" value="" placeholder="Saat">
+                        </div>
+                    </div>
+                    <div id="customer-tax-card" class="card">
+                        <span class="card-label">MÜŞTERİ VKN/TCKN</span>
+                        <input type="text" id="res-vkn" class="edit-input-top" value="" placeholder="10 veya 11 hane" inputmode="numeric" autocomplete="off" aria-describedby="res-vkn-help">
+                        <small id="res-vkn-help" class="field-hint">VKN 10, TCKN 11 hanelidir.</small>
+                    </div>
+                    <div id="customer-name-card" class="card wide-card">
+                        <span class="card-label">MÜŞTERİ ADI</span>
+                        <input type="text" id="res-customer-name" class="edit-input-top" value="" placeholder="-">
+                    </div>
+                    <div class="card">
+                        <span class="card-label">ARA TOPLAM</span>
+                        <h3 id="res-subtotal">₺0,00</h3>
+                    </div>
+                    <div id="discount-card" class="card hidden">
+                        <span class="card-label">İSKONTO</span>
+                        <h3 id="res-discount">₺0,00</h3>
+                    </div>
+                    <div class="card" style="display: flex; flex-direction: column;">
+                        <span class="card-label">KDV</span>
+                        <div id="res-tax-breakdown" style="font-size: 1.1rem; margin-top: 0.5rem; font-weight: 500;">-</div>
+                    </div>
+                    <div class="card">
+                        <span class="card-label">GENEL TOPLAM</span>
+                        <h3 id="res-total">₺0,00</h3>
+                    </div>
+                    <div id="notes-card" class="card wide-card hidden" style="grid-column: 1 / -1;">
+                        <span class="card-label">AÇIKLAMA / NOT</span>
+                        <div id="res-notes" style="font-size: 0.95rem; font-weight: 400; color: var(--text-primary); line-height: 1.5; white-space: pre-wrap;">-</div>
+                    </div>
+                </div>
+
+                <!-- Items Table -->
+                <div class="items-panel glass-panel">
+                    <h3>Fatura Kalemleri</h3>
+                    <div class="table-container">
+                        <table id="items-table">
+                            <thead>
+                                <tr>
+                                    <th>Ürün Kodu</th>
+                                    <th>Ürün Açıklaması</th>
+                                    <th>Seri Numaraları</th>
+                                    <th>Miktar</th>
+                                    <th>Birim Fiyat</th>
+                                    <th>KDV Oranı</th>
+                                    <th>Satır Toplamı</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <!-- Rows injected via JS -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Automated Workflow Progress -->
+                <div id="workflow-progress" class="workflow-panel glass-panel hidden">
+                    <h3>Aktarım Süreci</h3>
+                    <ul id="checklist" class="checklist">
+                        <!-- Items injected via JS -->
+                    </ul>
+                </div>
+
+                <!-- Action Buttons -->
+                <div class="actions-panel">
+                    <div style="display: flex; flex-wrap: wrap; gap: 1rem; width: 100%; justify-content: center;">
+                        <button id="send-draft-btn" class="primary-btn hidden">
+                            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" style="width: 20px; height: 20px;"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
+                            Taslak Olarak Gönder
+                        </button>
+                        <button id="portal-btn" class="primary-btn hidden">
+                            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" style="width: 20px; height: 20px;"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.5 6H18m0 0v4.5M18 6l-7.5 7.5M6 8.25v9.75h9.75"></path></svg>
+                            Uyumsoft'a Git
+                        </button>
+                        <button id="csv-btn" class="primary-btn hidden">
+                            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" style="width: 20px; height: 20px;"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
+                            Sonuçları CSV Olarak İndir
+                        </button>
+                    </div>
+                    <div class="environment-selector" style="margin-top: 1rem; text-align: center;">
+                        <label for="environment-select" style="font-size: 0.9rem; color: var(--text-secondary); margin-right: 0.5rem;">Uyumsoft Ortamı:</label>
+                        <select id="environment-select" disabled aria-disabled="true" title="Uyumsoft ortamı sunucu ayarından yönetilir." style="background: var(--input-bg); border: 1px solid var(--border-color); color: var(--text-primary); padding: 0.5rem 1rem; border-radius: 8px; font-weight: 600; outline: none;">
+                            <option value="test" style="background-color: #ffffff; color: #000000;">TEST (Ön Kabul)</option>
+                            <option value="prod" style="background-color: #ffffff; color: #000000;">GERÇEK (CANLI)</option>
+                        </select>
+                    </div>
+                    <div id="uyumsoft-environment-badge" class="integration-environment unknown" role="status">Uyumsoft ortamı: YÜKLENİYOR</div>
+                    <div id="api-status-box" class="hidden" style="width: 100%; padding: 1rem; border-radius: 8px; margin-top: 1rem; text-align: left;"></div>
+                    <div id="error-box" class="error-box hidden"></div>
+                </div>
+
+                <!-- Extraction Method Footer -->
+                <div class="method-footer glass-panel" style="margin-top: 2rem; padding: 1rem; text-align: center; border-radius: 8px; font-size: 0.9rem; color: var(--text-secondary);">
+                    <span>Bu fatura </span>
+                    <strong id="res-method" style="color: #10b981;">-</strong>
+                    <span> kullanılarak okundu.</span>
+                </div>
+
+                </section>
+            </div>
+        </main>
+    </div>
+    <script src="helpers.js?v=17"></script>
+    <script src="app.js?v=17"></script>
+</body>
+</html>
