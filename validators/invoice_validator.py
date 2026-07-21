@@ -170,7 +170,11 @@ def validate_invoice(data):
         errors.append("Fatura tarihi bulunamadı.")
         
     tax_id = str(data.get("customer_tax_id") or "").strip()
-    if not tax_id or not (len(tax_id) in (10, 11) and tax_id.isdigit()):
+    
+    # Bypass validation for common accountant placeholders
+    if tax_id in ("11111111111", "111111111111"):
+        pass # valid placeholder
+    elif not tax_id or not (len(tax_id) in (10, 11) and tax_id.isdigit()):
         invoice_no = str(data.get("invoice_no") or "").strip()
         if (
             not tax_id

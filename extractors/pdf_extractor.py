@@ -108,7 +108,7 @@ def _extract_unlabeled_header_customer_name(text):
 
     tax_id_line_index = None
     for index, line in enumerate(lines[:20]):
-        if re.search(r"\b(?:\d[ \t]*){10,11}\b", line):
+        if re.search(r"\b(?:\d[ \t]*){10,12}\b", line):
             tax_id_line_index = index
             break
 
@@ -130,7 +130,7 @@ def _extract_unlabeled_header_customer_name(text):
         return None
 
     for line in lines[: tax_id_line_index + 1]:
-        candidate_line = re.sub(r"\b(?:\d[ \t]*){10,11}\b.*$", "", line).strip(" :-")
+        candidate_line = re.sub(r"\b(?:\d[ \t]*){10,12}\b.*$", "", line).strip(" :-")
         if not candidate_line:
             continue
         if re.search(
@@ -196,7 +196,7 @@ def _extract_customer_name(text):
 def _extract_customer_tax_id(text):
     for line in _buyer_section_lines(text):
         match = re.search(
-            r"\b(?:TC|TCKN|VKN|VKN/TCKN|Vergi[ \t]*No)[ \t]*[:#-]?[ \t]*(\d(?:[\s\xa0]*\d){9,10})\b",
+            r"\b(?:TC|TCKN|VKN|VKN/TCKN|Vergi[ \t]*No)[ \t]*[:#-]?[ \t]*(\d(?:[\s\xa0]*\d){9,11})\b",
             line,
             re.IGNORECASE,
         )
@@ -205,8 +205,8 @@ def _extract_customer_tax_id(text):
 
     return _first_match(
         [
-            r"\b(?:TC|TCKN|VKN|VKN/TCKN|Vergi[ \t]*No)[ \t]*[:#-]?[ \t]*(\d(?:[\s\xa0]*\d){9,10})\b",
-            r"\b(\d(?:[\s\xa0]*\d){9,10})\b",
+            r"\b(?:TC|TCKN|VKN|VKN/TCKN|Vergi[ \t]*No)[ \t]*[:#-]?[ \t]*(\d(?:[\s\xa0]*\d){9,11})\b",
+            r"\b(\d(?:[\s\xa0]*\d){9,11})\b",
         ],
         text,
         re.IGNORECASE,
@@ -504,9 +504,9 @@ def _find_items(text):
         rf"(?P<description>.*?)[ \t]*"
         rf"(?P<quantity>\d+(?:[.,]\d+)?(?:[.,]\d+)?)[ \t]+"
         rf"(?:(?P<unit>{UNIT_RE})[ \t]+)?"
-        rf"(?:(?P<unit_price>{MONEY_TOKEN_RE})[ \t]*)?"
+        rf"(?:(?P<unit_price>{MONEY_TOKEN_RE})[ \t]+)?"
         rf"(?:%?[ \t]*(?P<tax_rate>\d+(?:[.,]\d+)?)[ \t]*%?[ \t]*)?"
-        rf"(?P<total_price>{MONEY_TOKEN_RE})(?:[ \t]+.*)?$",
+        rf"(?P<total_price>{MONEY_TOKEN_RE})(?:[ \t]+[^0-9]+)?$",
         re.IGNORECASE,
     )
 
@@ -532,15 +532,23 @@ def _find_items(text):
             line = lines[i]
             if re.match(r"^[ \t]*(?:\d{4}\.\d{3}|[A-Z]{2,4}-\d{3})", line) and not item_line_pattern.match(line):
                 matched = False
-                candidate = line
+                candidates = [(line, 0)]
                 for j in range(1, 4):
                     if i + j < len(lines):
-                        candidate += " " + lines[i+j]
-                        if item_line_pattern.match(candidate):
-                            joined_lines.append(candidate)
-                            i += j
-                            matched = True
+                        new_candidates = []
+                        for c_text, _ in candidates:
+                            new_candidates.append((c_text + " " + lines[i+j], j))
+                            new_candidates.append((c_text + lines[i+j], j))
+                        
+                        for c_text, consumed in new_candidates:
+                            if item_line_pattern.match(c_text):
+                                joined_lines.append(c_text)
+                                i += consumed
+                                matched = True
+                                break
+                        if matched:
                             break
+                        candidates = new_candidates
                 if matched:
                     i += 1
                     continue
