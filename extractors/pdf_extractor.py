@@ -548,7 +548,7 @@ def _find_items(text):
                 "code": match.group("code"),
                 "description": re.sub(r"\s+", " ", match.group("description")).strip(),
                 "serial_numbers": [],
-                "quantity": match.group("quantity").replace(".", ","),
+                "quantity": match.group("quantity"),
                 "unit_price": _format_amount(unit_price_val),
                 "tax_rate": match.group("tax_rate"),
                 "total_price": _format_amount(total_price_val),
