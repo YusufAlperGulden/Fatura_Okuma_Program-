@@ -525,7 +525,31 @@ def _find_items(text):
                 segments.append(segment)
         return segments
 
-    cleaned_lines = [_clean_pdf_line(line).strip() for line in text.splitlines()]
+    def _join_wrapped_item_lines(lines):
+        joined_lines = []
+        i = 0
+        while i < len(lines):
+            line = lines[i]
+            if re.match(r"^[ \t]*(?:\d{4}\.\d{3}|[A-Z]{2,4}-\d{3})", line) and not item_line_pattern.match(line):
+                matched = False
+                candidate = line
+                for j in range(1, 4):
+                    if i + j < len(lines):
+                        candidate += " " + lines[i+j]
+                        if item_line_pattern.match(candidate):
+                            joined_lines.append(candidate)
+                            i += j
+                            matched = True
+                            break
+                if matched:
+                    i += 1
+                    continue
+            joined_lines.append(line)
+            i += 1
+        return joined_lines
+
+    raw_cleaned = [_clean_pdf_line(line).strip() for line in text.splitlines()]
+    cleaned_lines = _join_wrapped_item_lines(raw_cleaned)
     items = []
     seen = set()
     for line_idx, line in enumerate(cleaned_lines):
