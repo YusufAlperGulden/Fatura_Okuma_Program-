@@ -5,6 +5,9 @@ from typing import Any
 
 
 MONEY_QUANTUM = Decimal("0.01")
+# Deliberate business rule shared by local validation and Uyumsoft XML
+# generation: document-level rounding differences up to 1.00 TL are accepted.
+DOCUMENT_AMOUNT_TOLERANCE = Decimal("1.00")
 SUPPORTED_CURRENCIES = {"TRY", "USD", "EUR", "GBP"}
 
 _CURRENCY_ALIASES = {
@@ -93,9 +96,17 @@ def parse_localized_decimal(value: Any) -> Decimal | None:
         text = text.replace(grouping_separator, "")
         text = text.replace(decimal_separator, ".")
     elif comma_count == 1:
-        text = text.replace(",", ".")
+        parts = text.split(",")
+        if len(parts) == 2 and len(parts[1]) == 3 and parts[0] != "0" and not parts[0].startswith("0"):
+            text = "".join(parts)
+        else:
+            text = text.replace(",", ".")
     elif dot_count == 1:
-        pass
+        parts = text.split(".")
+        if len(parts) == 2 and len(parts[1]) == 3 and parts[0] != "0" and not parts[0].startswith("0"):
+            text = "".join(parts)
+        else:
+            pass
     elif comma_count > 1:
         parts = text.split(",")
         if not parts[0] or not all(len(part) == 3 for part in parts[1:]):
@@ -135,4 +146,3 @@ def format_decimal(value: Decimal, *, max_places: int, min_places: int = 0) -> s
     elif min_places:
         text = f"{text}.{'0' * min_places}"
     return text
-

@@ -42,6 +42,15 @@ def _invoice(**overrides):
     return invoice
 
 
+def _local_values(xml_text, local_name):
+    root = ET.fromstring(xml_text)
+    return [
+        element.text
+        for element in root.iter()
+        if element.tag.rsplit("}", 1)[-1] == local_name
+    ]
+
+
 def _nodes(root, local_name):
     return [
         node
@@ -113,13 +122,24 @@ def test_foreign_currency_rate_lookup_failure_stops_the_draft():
             build_ubl_invoice(invoice)
 
 
-def test_one_lira_header_difference_is_rejected_instead_of_rewritten():
-    invoice = _invoice(tax_amount="19,01", total_amount="119,01")
+def test_header_difference_beyond_configured_tolerance_is_rejected():
+    invoice = _invoice(tax_amount="21,01", total_amount="121,01")
 
     is_valid, errors = validate_invoice(invoice)
 
     assert is_valid is False
     assert any("KDV" in error for error in errors)
+    assert invoice["tax_amount"] == "21,01"
+    assert invoice["total_amount"] == "121,01"
+
+
+def test_one_lira_document_difference_is_accepted_by_business_rule():
+    invoice = _invoice(tax_amount="21,00", total_amount="121,00")
+
+    is_valid, errors = validate_invoice(invoice)
+
+    assert is_valid is True
+    assert errors == []
 
 
 def test_send_uses_server_owned_supplier_identity_not_payload_values():
@@ -221,3 +241,42 @@ def test_malformed_items_returns_validation_errors_instead_of_crashing():
     assert is_valid is False
     assert any("kalem" in error.lower() for error in errors)
 
+
+def test_serial_count_must_match_integral_item_quantity():
+    invoice = _invoice()
+    invoice["items"][0]["serial_numbers"] = ["SERIAL-1", "SERIAL-2"]
+
+    is_valid, errors = validate_invoice(invoice)
+
+    assert is_valid is False
+    assert any("seri numarası adedi" in error for error in errors)
+
+
+def test_uyumsoft_builder_honors_one_lira_tolerance_with_canonical_xml_totals():
+    invoice = _invoice(tax_amount="20,50", total_amount="120,50")
+
+    assert validate_invoice(invoice) == (True, [])
+    xml_text = build_ubl_invoice(invoice)
+
+    assert _local_values(xml_text, "PayableAmount") == ["120.00"]
+    assert set(_local_values(xml_text, "TaxAmount")) == {"20.00"}
+
+
+def test_invalid_vkn_checksum_is_rejected_before_uyumsoft():
+    invoice = _invoice(customer_tax_id="0000000000")
+
+    is_valid, errors = validate_invoice(invoice)
+
+    assert is_valid is False
+    assert any("kontrol basamağı" in error for error in errors)
+
+
+def test_item_name_fallback_is_consistent_in_validator_and_ubl_builder():
+    invoice = _invoice()
+    invoice["items"][0]["description"] = None
+    invoice["items"][0]["name"] = "Fallback ürün"
+
+    assert validate_invoice(invoice) == (True, [])
+    xml_text = build_ubl_invoice(invoice)
+
+    assert "<cbc:Name>Fallback ürün</cbc:Name>" in xml_text

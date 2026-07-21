@@ -10,13 +10,13 @@ from pydantic import BaseModel
 from extractors.excel_extractor import parse_excel_invoice
 from extractors.pdf_extractor import parse_pdf_invoice
 from extractors.xml_extractor import parse_xml_invoice
-from validators.invoice_validator import validate_invoice
+from validators.invoice_validator import recalculate_invoice_totals, validate_invoice
 from integrators.uyumsoft_api import (
     enrich_invoice_customer_from_uyumsoft,
     normalize_uyumsoft_environment,
     send_invoice_to_uyumsoft,
 )
-from utils.serial_numbers import merge_invoice_serial_numbers
+from utils.serial_numbers import safe_merge_ai_data
 
 app = FastAPI(title="Invoice Pipeline API")
 
@@ -61,9 +61,38 @@ class ProcessResponse(BaseModel):
 class SendUyumsoftRequest(BaseModel):
     invoice_data: dict
     action: str | None = None
-    environment: str = "test"
-    prod_username: str | None = None
-    prod_password: str | None = None
+
+
+DEFAULT_MAX_UPLOAD_BYTES = 20 * 1024 * 1024
+
+
+class _UploadTooLargeError(Exception):
+    pass
+
+
+class _LimitedUploadReader:
+    def __init__(self, source, limit: int):
+        self.source = source
+        self.limit = limit
+        self.total = 0
+
+    def read(self, size=-1):
+        chunk = self.source.read(size)
+        self.total += len(chunk)
+        if self.total > self.limit:
+            raise _UploadTooLargeError
+        return chunk
+
+
+def _max_upload_bytes() -> int:
+    raw_value = os.getenv("MAX_UPLOAD_BYTES", "").strip()
+    if not raw_value:
+        return DEFAULT_MAX_UPLOAD_BYTES
+    try:
+        value = int(raw_value)
+    except ValueError:
+        return DEFAULT_MAX_UPLOAD_BYTES
+    return value if value > 0 else DEFAULT_MAX_UPLOAD_BYTES
 
 def _is_image_extension(ext: str) -> bool:
     return ext in [".jpg", ".jpeg", ".png", ".webp"]
@@ -113,7 +142,8 @@ def _try_gemini_extraction(file_path: str, ext: str) -> tuple[dict, bool, list[s
 async def upload_invoice(file: UploadFile = File(...)):
     import traceback
     from fastapi.responses import JSONResponse
-    
+
+    temp_path = None
     try:
         # Save the file temporarily
         file_id = str(uuid.uuid4())
@@ -125,12 +155,33 @@ async def upload_invoice(file: UploadFile = File(...)):
         
         try:
             with open(temp_path, "wb") as buffer:
-                shutil.copyfileobj(file.file, buffer)
+                shutil.copyfileobj(
+                    _LimitedUploadReader(file.file, _max_upload_bytes()),
+                    buffer,
+                    length=1024 * 1024,
+                )
+        except _UploadTooLargeError:
+            return JSONResponse(
+                status_code=413,
+                content={
+                    "is_valid": False,
+                    "errors": [
+                        f"Dosya boyutu izin verilen {_max_upload_bytes()} bayt sınırını aşıyor."
+                    ],
+                    "data": None,
+                    "filename": file.filename or "",
+                },
+            )
         except Exception as e:
-            if os.path.exists(temp_path):
-                os.remove(temp_path)
-            from fastapi.responses import JSONResponse
-            return JSONResponse(status_code=500, content={"is_valid": False, "errors": [f"File write error: {str(e)}"], "data": None, "filename": file.filename})
+            return JSONResponse(
+                status_code=500,
+                content={
+                    "is_valid": False,
+                    "errors": [f"File write error: {str(e)}"],
+                    "data": None,
+                    "filename": file.filename or "",
+                },
+            )
             
         file_path = temp_path
         data = {}
@@ -208,7 +259,7 @@ async def upload_invoice(file: UploadFile = File(...)):
                 elif ext == '.webp': mime_type = "image/webp"
                 
                 ai_data = extract_invoice_with_ai(file_bytes, mime_type)
-                data = merge_invoice_serial_numbers(ai_data, local_data_for_serials)
+                data = safe_merge_ai_data(ai_data, local_data_for_serials)
                 data["_extraction_method"] = "Google Gemini Yapay Zeka"
             except Exception as e:
                 if _is_gemini_quota_error(e):
@@ -238,12 +289,6 @@ async def upload_invoice(file: UploadFile = File(...)):
             if raw_text and os.getenv("DEBUG_PDF_TEXT", "").lower() in {"1", "true", "yes"}:
                 errors.append(f"DEBUG RAW TEXT:\n{raw_text}")
             
-        # Clean up file asynchronously or let OS handle temp folder
-        try:
-            os.remove(file_path)
-        except:
-            pass
-
         # Database save removed
             
         return ProcessResponse(
@@ -256,7 +301,7 @@ async def upload_invoice(file: UploadFile = File(...)):
         print("UPLOAD_FATAL_ERROR")
         print(traceback.format_exc())
         return JSONResponse(
-            status_code=200,
+            status_code=500,
             content={
                 "filename": file.filename if file else "",
                 "is_valid": False,
@@ -266,6 +311,12 @@ async def upload_invoice(file: UploadFile = File(...)):
                 ],
             },
         )
+    finally:
+        if temp_path and os.path.exists(temp_path):
+            try:
+                os.remove(temp_path)
+            except OSError:
+                pass
 
 @app.post("/validate")
 async def api_validate(invoice_data: dict):
@@ -274,6 +325,7 @@ async def api_validate(invoice_data: dict):
     
     try:
         data_copy = copy.deepcopy(invoice_data)
+        recalculate_invoice_totals(data_copy)
         is_valid, errors = validate_invoice(data_copy)
     except Exception as e:
         return JSONResponse(status_code=422, content={"is_valid": False, "errors": [str(e)], "data": None})
@@ -324,9 +376,6 @@ async def send_uyumsoft_api(request: SendUyumsoftRequest):
     result = send_invoice_to_uyumsoft(
         invoice_data,
         action="draft",
-        environment=request.environment,
-        prod_username=request.prod_username,
-        prod_password=request.prod_password
     )
     
     if isinstance(result, dict) and not result.get("success", True):

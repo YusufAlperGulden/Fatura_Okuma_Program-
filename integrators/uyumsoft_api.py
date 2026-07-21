@@ -5,11 +5,11 @@ import copy
 import uuid
 from dataclasses import dataclass
 from datetime import datetime, timezone
-from decimal import Decimal, ROUND_HALF_UP
+from decimal import Decimal, ROUND_FLOOR, ROUND_HALF_UP
 from typing import Any
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
-from xml.etree import ElementTree as ET
+from defusedxml import ElementTree as ET
 
 from xml.sax.saxutils import escape
 import urllib.request
@@ -17,6 +17,7 @@ from datetime import datetime, timedelta
 from utils.money_to_text import amount_to_turkish_text
 from utils.serial_numbers import normalize_serial_numbers
 from utils.invoice_values import (
+    DOCUMENT_AMOUNT_TOLERANCE,
     MONEY_QUANTUM,
     format_decimal,
     normalize_currency as normalize_invoice_currency,
@@ -78,6 +79,25 @@ def normalize_uyumsoft_environment(value: Any = None) -> str:
     return "prod" if str(raw).strip().lower() == "prod" else "test"
 
 
+def _server_credentials(environment: str) -> tuple[str, str]:
+    """Resolve credentials exclusively from server-side environment variables."""
+    if environment == "prod":
+        username = os.getenv("UYUMSOFT_PROD_USERNAME") or os.getenv("UYUMSOFT_USERNAME")
+        password = os.getenv("UYUMSOFT_PROD_PASSWORD") or os.getenv("UYUMSOFT_PASSWORD")
+    else:
+        username = (
+            os.getenv("UYUMSOFT_TEST_USERNAME")
+            or os.getenv("UYUMSOFT_USERNAME")
+            or "Uyumsoft"
+        )
+        password = (
+            os.getenv("UYUMSOFT_TEST_PASSWORD")
+            or os.getenv("UYUMSOFT_PASSWORD")
+            or "Uyumsoft"
+        )
+    return username or "", password or ""
+
+
 class UyumsoftSoapError(RuntimeError):
     pass
 
@@ -115,6 +135,22 @@ def _fmt_quantity(value: Decimal) -> str:
 
 def _fmt_unit_price(value: Decimal) -> str:
     return format_decimal(value, max_places=8, min_places=2)
+
+
+def _fmt_tax_rate(value: Decimal) -> str:
+    """Keep the tax precision used by the calculation in the emitted UBL."""
+    return format_decimal(value, max_places=4, min_places=2)
+
+
+def _xml_attribute(value: Any) -> str:
+    """Escape a value that is interpolated into a double-quoted XML attribute."""
+    return escape(str(value), {'"': "&quot;", "'": "&apos;"})
+
+
+def _resolve_invoice_no(value: Any) -> str:
+    # An empty number is intentional: Uyumsoft may assign it while creating
+    # the draft.  The wrapper and embedded UBL must carry the same value.
+    return str(value or "").strip()
 
 
 def _parse_date(value: Any) -> str:
@@ -214,25 +250,54 @@ def _allocate_discount_shares(
     if subtotal <= 0 or discount <= 0:
         return [Decimal("0.00") for _ in line_totals]
 
-    shares: list[Decimal] = []
-    allocated = Decimal("0.00")
-    for index, line_total in enumerate(line_totals):
-        if index == len(line_totals) - 1:
-            share = discount - allocated
-        else:
-            share = quantize_money(discount * line_total / subtotal)
-            allocated += share
-        shares.append(share)
-    return shares
+    capacities = [
+        int((quantize_money(max(line_total, Decimal("0.00"))) * 100).to_integral_value())
+        for line_total in line_totals
+    ]
+    discount_cents = int((quantize_money(discount) * 100).to_integral_value())
+    capacity_cents = sum(capacities)
+    if discount_cents > capacity_cents:
+        raise ValueError("discount_amount cannot exceed line totals")
+
+    exact_shares = [
+        Decimal(discount_cents) * Decimal(capacity) / Decimal(capacity_cents)
+        for capacity in capacities
+    ]
+    allocated_cents = [
+        min(capacity, int(exact.to_integral_value(rounding=ROUND_FLOOR)))
+        for capacity, exact in zip(capacities, exact_shares)
+    ]
+    remaining = discount_cents - sum(allocated_cents)
+    distribution_order = sorted(
+        range(len(capacities)),
+        key=lambda index: (
+            exact_shares[index] - Decimal(allocated_cents[index]),
+            capacities[index],
+            -index,
+        ),
+        reverse=True,
+    )
+    while remaining:
+        progressed = False
+        for index in distribution_order:
+            if allocated_cents[index] >= capacities[index]:
+                continue
+            allocated_cents[index] += 1
+            remaining -= 1
+            progressed = True
+            if remaining == 0:
+                break
+        if not progressed:
+            raise ValueError("discount_amount could not be allocated across invoice lines")
+
+    return [Decimal(cents) / Decimal("100") for cents in allocated_cents]
 
 
 def build_ubl_invoice(invoice: dict[str, Any]) -> str:
     if not isinstance(invoice, dict):
         raise ValueError("invoice must be an object")
 
-    invoice_no = str(invoice.get("invoice_no") or "").strip()
-    #if not invoice_no:
-    #    invoice_no = f"AUTO-{uuid.uuid4().hex[:12].upper()}"
+    invoice_no = _resolve_invoice_no(invoice.get("invoice_no"))
     issue_date = _parse_date(invoice.get("date"))
     issue_time = _parse_time(invoice.get("time"))
     issue_time_xml = (
@@ -250,17 +315,22 @@ def build_ubl_invoice(invoice: dict[str, Any]) -> str:
     extracted_notes = str(invoice.get("notes") or "").strip()
     notes_xml = f"\n  <cbc:Note>{escape(extracted_notes)}</cbc:Note>" if extracted_notes else ""
 
+    environment = normalize_uyumsoft_environment()
+    default_supplier_vkn = "9000068418" if environment == "test" else ""
+    default_supplier_name = (
+        "UYUMSOFT BILGI SISTEMLERI VE TEKNOLOJILERI TICARET ANONIM SIRKETI"
+        if environment == "test"
+        else ""
+    )
     supplier_tax_id = "".join(filter(str.isdigit, str(
-        invoice.get("supplier_tax_id") or os.getenv("UYUMSOFT_SUPPLIER_VKN", "9000068418")
+        invoice.get("supplier_tax_id")
+        or os.getenv("UYUMSOFT_SUPPLIER_VKN", default_supplier_vkn)
     )))
     if len(supplier_tax_id) not in (10, 11):
         raise ValueError("supplier_tax_id must contain 10 or 11 digits")
     supplier_name = str(
         invoice.get("supplier_name")
-        or os.getenv(
-            "UYUMSOFT_SUPPLIER_NAME",
-            "UYUMSOFT BILGI SISTEMLERI VE TEKNOLOJILERI TICARET ANONIM SIRKETI",
-        )
+        or os.getenv("UYUMSOFT_SUPPLIER_NAME", default_supplier_name)
     )
     supplier_tax_office = str(
         invoice.get("supplier_tax_office") or os.getenv("UYUMSOFT_SUPPLIER_TAX_OFFICE", "")
@@ -297,12 +367,21 @@ def build_ubl_invoice(invoice: dict[str, Any]) -> str:
         if item_rate < 0 or item_rate > 100:
             raise ValueError(f"item {index} tax_rate must be between 0 and 100")
 
-        description_value = (
-            item.get("description") if "description" in item else item.get("name")
-        )
+        description_value = item.get("description") or item.get("name")
         description_text = str(description_value or "").strip()
         if not description_text:
             raise ValueError(f"item {index} description cannot be empty")
+        serial_numbers = normalize_serial_numbers(item.get("serial_numbers"))
+        if serial_numbers:
+            if quantity != quantity.to_integral_value():
+                raise ValueError(
+                    f"item {index} quantity must be an integer when serial numbers are supplied"
+                )
+            if len(serial_numbers) != int(quantity):
+                raise ValueError(
+                    f"item {index} serial count must equal its quantity"
+                )
+
         parsed_items.append(
             {
                 "quantity": quantity,
@@ -311,7 +390,7 @@ def build_ubl_invoice(invoice: dict[str, Any]) -> str:
                 "tax_rate": item_rate,
                 "description": description_text,
                 "code": str(item.get("code") or "").strip(),
-                "serial_numbers": normalize_serial_numbers(item.get("serial_numbers")),
+                "serial_numbers": serial_numbers,
             }
         )
 
@@ -327,7 +406,11 @@ def build_ubl_invoice(invoice: dict[str, Any]) -> str:
     supplied_subtotal = _money(invoice.get("subtotal"), field_name="subtotal")
     if invoice.get("subtotal") not in (None, ""):
         supplied_q = quantize_money(supplied_subtotal)
-        if supplied_q != calculated_subtotal and supplied_q != quantize_money(calculated_subtotal - discount_amount):
+        if (
+            abs(supplied_q - calculated_subtotal) > DOCUMENT_AMOUNT_TOLERANCE
+            and abs(supplied_q - quantize_money(calculated_subtotal - discount_amount))
+            > DOCUMENT_AMOUNT_TOLERANCE
+        ):
             raise ValueError("invoice subtotal does not match line totals")
 
     discount_shares = _allocate_discount_shares(
@@ -383,7 +466,7 @@ def build_ubl_invoice(invoice: dict[str, Any]) -> str:
       <cac:TaxSubtotal>
         <cbc:TaxableAmount currencyID="{currency}">{_fmt_money(taxable_amount)}</cbc:TaxableAmount>
         <cbc:TaxAmount currencyID="{currency}">{_fmt_money(line_tax)}</cbc:TaxAmount>
-        <cbc:Percent>{_fmt_money(item_rate)}</cbc:Percent>
+        <cbc:Percent>{_fmt_tax_rate(item_rate)}</cbc:Percent>
         <cac:TaxCategory>
           <cac:TaxScheme>
             <cbc:Name>KDV</cbc:Name>
@@ -403,13 +486,21 @@ def build_ubl_invoice(invoice: dict[str, Any]) -> str:
 
     calculated_tax = quantize_money(calculated_tax)
     supplied_tax = _money(invoice.get("tax_amount"), field_name="tax_amount")
-    if invoice.get("tax_amount") not in (None, "") and quantize_money(supplied_tax) != calculated_tax:
+    if (
+        invoice.get("tax_amount") not in (None, "")
+        and abs(quantize_money(supplied_tax) - calculated_tax)
+        > DOCUMENT_AMOUNT_TOLERANCE
+    ):
         raise ValueError("invoice tax_amount does not match line tax calculation")
     line_extension_amount = calculated_subtotal
     taxable_amount = calculated_subtotal - discount_amount
     total_amount = quantize_money(taxable_amount + calculated_tax)
     supplied_total = _money(invoice.get("total_amount"), field_name="total_amount")
-    if invoice.get("total_amount") not in (None, "") and quantize_money(supplied_total) != total_amount:
+    if (
+        invoice.get("total_amount") not in (None, "")
+        and abs(quantize_money(supplied_total) - total_amount)
+        > DOCUMENT_AMOUNT_TOLERANCE
+    ):
         raise ValueError("invoice total_amount does not match calculated total")
     tax_amount = calculated_tax
 
@@ -427,7 +518,7 @@ def build_ubl_invoice(invoice: dict[str, Any]) -> str:
     <cbc:ChargeIndicator>false</cbc:ChargeIndicator>
     <cbc:Amount currencyID="{currency}">{_fmt_money(amounts["discount"])}</cbc:Amount>
     <cac:TaxCategory>
-      <cbc:Percent>{_fmt_money(tax_rate)}</cbc:Percent>
+      <cbc:Percent>{_fmt_tax_rate(tax_rate)}</cbc:Percent>
       <cac:TaxScheme><cbc:Name>KDV</cbc:Name><cbc:TaxTypeCode>0015</cbc:TaxTypeCode></cac:TaxScheme>
     </cac:TaxCategory>
   </cac:AllowanceCharge>""")
@@ -442,7 +533,7 @@ def build_ubl_invoice(invoice: dict[str, Any]) -> str:
     <cac:TaxSubtotal>
       <cbc:TaxableAmount currencyID="{currency}">{_fmt_money(t_amounts["taxable"])}</cbc:TaxableAmount>
       <cbc:TaxAmount currencyID="{currency}">{_fmt_money(t_amounts["tax"])}</cbc:TaxAmount>
-      <cbc:Percent>{_fmt_money(t_rate)}</cbc:Percent>
+      <cbc:Percent>{_fmt_tax_rate(t_rate)}</cbc:Percent>
       <cac:TaxCategory>
         <cac:TaxScheme>
           <cbc:Name>KDV</cbc:Name>
@@ -653,17 +744,29 @@ def build_filter_e_invoice_users_body(vkn_tckn: str, page_size: int = 10) -> str
 
 
 def _extract_system_user_values(result: UyumsoftResult) -> list[dict[str, Any]]:
-    users: list[dict[str, Any]] = []
+    users: list[dict[str, Any]] = [
+        dict(value) for value in result.values if isinstance(value, dict)
+    ]
     try:
         root = ET.fromstring(result.raw_xml)
     except ET.ParseError:
         return users
 
     for node in root.iter():
-        if _local_name(node.tag) not in {"Items", "Definition"}:
-            continue
         attrs = dict(node.attrib)
-        if attrs.get("Title") or attrs.get("Identifier"):
+        for child in node:
+            child_name = _local_name(child.tag)
+            if child.text and child.text.strip() and child_name in {
+                "Identifier",
+                "Title",
+                "PostboxAlias",
+                "Alias",
+            }:
+                attrs[child_name] = child.text.strip()
+        if any(
+            attrs.get(key)
+            for key in ("Title", "Identifier", "PostboxAlias", "Alias")
+        ):
             users.append(attrs)
     return users
 
@@ -681,6 +784,29 @@ def _best_uyumsoft_user_match(result: UyumsoftResult, vkn_tckn: str) -> dict[str
     return None
 
 
+def _best_uyumsoft_alias_match(
+    result: UyumsoftResult, vkn_tckn: str
+) -> dict[str, Any] | None:
+    """Find an alias returned for a queried taxpayer, including alias-only rows."""
+    target = "".join(filter(str.isdigit, str(vkn_tckn or "")))
+    if len(target) not in (10, 11):
+        return None
+
+    alias_only_match = None
+    for user in _extract_system_user_values(result):
+        alias = str(user.get("PostboxAlias") or user.get("Alias") or "").strip()
+        if not alias:
+            continue
+        identifier = "".join(filter(str.isdigit, str(user.get("Identifier") or "")))
+        if identifier == target:
+            return user
+        if not identifier and alias_only_match is None:
+            # GetUserAliasses is already scoped by the queried VKN/TCKN, and
+            # some Uyumsoft responses contain only the alias value.
+            alias_only_match = user
+    return alias_only_match
+
+
 def enrich_invoice_customer_from_uyumsoft(invoice_data: dict[str, Any]) -> dict[str, Any]:
     """Fill customer name/title from Uyumsoft taxpayer list when VKN/TCKN is available.
 
@@ -694,6 +820,7 @@ def enrich_invoice_customer_from_uyumsoft(invoice_data: dict[str, Any]) -> dict[
     if (
         invoice_data.get("_uyumsoft_customer_lookup") == "matched"
         and invoice_data.get("customer_alias_tax_id") == target_vkn
+        and invoice_data.get("customer_alias")
         and (
         invoice_data.get("customer_title") or invoice_data.get("customer_name")
         )
@@ -712,8 +839,7 @@ def enrich_invoice_customer_from_uyumsoft(invoice_data: dict[str, Any]) -> dict[
         return invoice_data
 
     environment = normalize_uyumsoft_environment()
-    username = os.getenv("UYUMSOFT_USERNAME") or ("Uyumsoft" if environment == "test" else "")
-    password = os.getenv("UYUMSOFT_PASSWORD") or ("Uyumsoft" if environment == "test" else "")
+    username, password = _server_credentials(environment)
     if not username or not password:
         return invoice_data
 
@@ -724,30 +850,55 @@ def enrich_invoice_customer_from_uyumsoft(invoice_data: dict[str, Any]) -> dict[
         timeout=int(os.getenv("UYUMSOFT_LOOKUP_TIMEOUT", "8")),
     )
 
+    lookup_failures = []
+    result = None
+    aliases_result = None
     try:
         result = client.filter_e_invoice_users(target_vkn, page_size=10)
-        match = _best_uyumsoft_user_match(result, target_vkn)
-        if not match:
-            aliases_result = client.get_user_aliases(target_vkn)
-            match = _best_uyumsoft_user_match(aliases_result, target_vkn)
     except Exception as exc:
-        invoice_data["_uyumsoft_customer_lookup"] = f"failed: {type(exc).__name__}: {str(exc)}"
+        lookup_failures.append(f"filter: {type(exc).__name__}: {str(exc)}")
+    try:
+        aliases_result = client.get_user_aliases(target_vkn)
+    except Exception as exc:
+        lookup_failures.append(f"aliases: {type(exc).__name__}: {str(exc)}")
+
+    title_match = (
+        _best_uyumsoft_user_match(result, target_vkn) if result is not None else None
+    )
+    alias_match = (
+        _best_uyumsoft_alias_match(aliases_result, target_vkn)
+        if aliases_result is not None
+        else None
+    ) or (
+        _best_uyumsoft_alias_match(result, target_vkn) if result is not None else None
+    )
+
+    if not title_match and not alias_match:
+        invoice_data["_uyumsoft_customer_lookup"] = (
+            f"failed: {'; '.join(lookup_failures)}"
+            if lookup_failures
+            else "not_found"
+        )
         return invoice_data
 
-    if not match:
-        invoice_data["_uyumsoft_customer_lookup"] = "not_found"
-        return invoice_data
-
-    title = str(match.get("Title") or "").strip()
+    title = str((title_match or {}).get("Title") or "").strip()
     if title:
         invoice_data["customer_name"] = title
         invoice_data["customer_title"] = title
         invoice_data["_uyumsoft_customer_lookup"] = "matched"
 
-    alias = str(match.get("PostboxAlias") or match.get("Alias") or "").strip()
+    alias = str(
+        (alias_match or {}).get("PostboxAlias")
+        or (alias_match or {}).get("Alias")
+        or ""
+    ).strip()
     if alias:
         invoice_data["customer_alias"] = alias
         invoice_data["customer_alias_tax_id"] = target_vkn
+        invoice_data["_uyumsoft_customer_lookup"] = "matched"
+
+    if lookup_failures:
+        invoice_data["_uyumsoft_customer_lookup_warning"] = "; ".join(lookup_failures)
 
     return invoice_data
 
@@ -762,27 +913,25 @@ def build_invoice_info_body(operation: str, invoice: dict[str, Any]) -> str:
         raise ValueError("operation must be SaveAsDraft or SendInvoice")
 
     invoice_for_build = dict(invoice)
-    resolved_invoice_no = str(invoice.get("invoice_no") or "").strip()
-    # if not resolved_invoice_no:
-    #     resolved_invoice_no = f"AUTO-{uuid.uuid4().hex[:12].upper()}"
+    resolved_invoice_no = _resolve_invoice_no(invoice.get("invoice_no"))
     invoice_for_build["invoice_no"] = resolved_invoice_no
     ubl = build_uyumsoft_invoice_element(invoice_for_build, "Invoice")
-    local_document_id = escape(resolved_invoice_no)
+    local_document_id = _xml_attribute(resolved_invoice_no)
     
     target_vkn_raw = str(invoice.get("customer_tax_id") or "").strip()
     target_vkn = "".join(filter(str.isdigit, target_vkn_raw))
     if len(target_vkn) not in (10, 11):
         raise ValueError("customer_tax_id must contain 10 or 11 digits")
-    target_vkn = escape(target_vkn)
+    target_vkn = _xml_attribute(target_vkn)
     
-    target_title = escape(_customer_display_name(invoice, target_vkn))
+    target_title = _xml_attribute(_customer_display_name(invoice, target_vkn))
     alias_tax_id = "".join(
         filter(str.isdigit, str(invoice.get("customer_alias_tax_id") or ""))
     )
     target_alias = (
         invoice.get("customer_alias") if alias_tax_id == target_vkn else None
     )
-    alias_attr = f' Alias="{escape(str(target_alias))}"' if target_alias else ""
+    alias_attr = f' Alias="{_xml_attribute(target_alias)}"' if target_alias else ""
     scenario = escape(str(invoice.get("scenario") or os.getenv("UYUMSOFT_SCENARIO", "Automated")))
     created_at = datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
 
@@ -816,7 +965,7 @@ def build_soap_envelope(username: str, password: str, operation_body: str) -> st
 def send_invoice_to_uyumsoft(
     invoice_data: dict[str, Any],
     action: str | None = None,
-    environment: str = "test",
+    environment: str | None = None,
     prod_username: str | None = None,
     prod_password: str | None = None,
 ) -> dict[str, Any]:
@@ -828,13 +977,12 @@ def send_invoice_to_uyumsoft(
             "response_code": 400,
         }
 
-    environment = normalize_uyumsoft_environment(environment)
-    if environment == "prod":
-        username = prod_username or os.getenv("UYUMSOFT_PROD_USERNAME")
-        password = prod_password or os.getenv("UYUMSOFT_PROD_PASSWORD")
-    else:
-        username = os.getenv("UYUMSOFT_USERNAME") or "Uyumsoft"
-        password = os.getenv("UYUMSOFT_PASSWORD") or "Uyumsoft"
+    # Legacy arguments stay in the signature only for Python call-site
+    # compatibility. Deployment configuration exclusively owns endpoint and
+    # credentials; callers cannot override either value.
+    _ = (environment, prod_username, prod_password)
+    server_environment = normalize_uyumsoft_environment()
+    username, password = _server_credentials(server_environment)
 
     if not username or not password:
         return {
@@ -844,10 +992,42 @@ def send_invoice_to_uyumsoft(
             "response_code": 401,
         }
 
-    default_supplier_vkn = "9000068418" if environment == "test" else ""
+    selected_action = (action or os.getenv("UYUMSOFT_ACTION", "test_connection")).lower()
+    if selected_action in {"test", "test_connection"}:
+        client = UyumsoftSoapClient(
+            username,
+            password,
+            environment=server_environment,
+        )
+        try:
+            result = client.test_connection()
+        except UyumsoftSoapError as exc:
+            return {
+                "success": False,
+                "message": "Uyumsoft SOAP request failed.",
+                "details": str(exc),
+                "response_code": 502,
+            }
+        except Exception as exc:
+            return {
+                "success": False,
+                "message": "Internal Uyumsoft Integration Error.",
+                "details": f"{type(exc).__name__}: {str(exc)}",
+                "response_code": 500,
+            }
+        return {
+            "success": result.success,
+            "message": result.message,
+            "operation": result.operation,
+            "values": result.values,
+            "details": result.raw_xml[:2000],
+            "response_code": result.status_code,
+        }
+
+    default_supplier_vkn = "9000068418" if server_environment == "test" else ""
     default_supplier_name = (
         "UYUMSOFT BILGI SISTEMLERI VE TEKNOLOJILERI TICARET ANONIM SIRKETI"
-        if environment == "test"
+        if server_environment == "test"
         else ""
     )
     supplier_tax_id = "".join(
@@ -863,7 +1043,7 @@ def send_invoice_to_uyumsoft(
         os.getenv("UYUMSOFT_SUPPLIER_TAX_OFFICE", "")
     ).strip()
     if len(supplier_tax_id) not in (10, 11) or not supplier_name:
-        if environment == "prod":
+        if server_environment == "prod":
             return {
                 "success": False,
                 "message": "Canlı Uyumsoft gönderimi için işyeri bilgileri eksik.",
@@ -893,8 +1073,37 @@ def send_invoice_to_uyumsoft(
         if configured:
             prepared_invoice[key] = configured
 
-    selected_action = (action or os.getenv("UYUMSOFT_ACTION", "test_connection")).lower()
-    client = UyumsoftSoapClient(username, password, environment=environment)
+    client = UyumsoftSoapClient(username, password, environment=server_environment)
+
+    if selected_action in {"dry_run", "preview"}:
+        try:
+            preview_currency = normalize_currency(
+                prepared_invoice.get("currency")
+                or os.getenv("UYUMSOFT_CURRENCY", "TRY")
+            )
+            raw_rate = prepared_invoice.get("exchange_rate")
+            preview_rate = (
+                _money(raw_rate, field_name="exchange rate")
+                if raw_rate not in (None, "")
+                else Decimal("0")
+            )
+        except ValueError as exc:
+            return {
+                "success": False,
+                "message": "Dry-run invoice data is invalid.",
+                "details": str(exc),
+                "response_code": 422,
+            }
+        if preview_currency != "TRY" and preview_rate <= 0:
+            return {
+                "success": False,
+                "message": "Exchange rate is required for an offline dry-run.",
+                "details": (
+                    f"Provide a positive exchange_rate for {preview_currency}; "
+                    "dry-run never performs a hidden TCMB network lookup."
+                ),
+                "response_code": 422,
+            }
 
     try:
         if selected_action in {"test", "test_connection"}:

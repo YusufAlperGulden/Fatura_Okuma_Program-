@@ -25,7 +25,7 @@ def _first_match(patterns, text, flags=0):
     for pattern in patterns:
         match = re.search(pattern, text, flags)
         if match:
-            return match.group(1).strip()
+            return re.sub(r"[\s\xa0]+", "", match.group(1)).strip()
     return None
 
 
@@ -108,7 +108,7 @@ def _extract_unlabeled_header_customer_name(text):
 
     tax_id_line_index = None
     for index, line in enumerate(lines[:20]):
-        if re.search(r"\b\d{10,11}\b", line):
+        if re.search(r"\b(?:\d[ \t]*){10,11}\b", line):
             tax_id_line_index = index
             break
 
@@ -130,7 +130,7 @@ def _extract_unlabeled_header_customer_name(text):
         return None
 
     for line in lines[: tax_id_line_index + 1]:
-        candidate_line = re.sub(r"\b\d{10,11}\b.*$", "", line).strip(" :-")
+        candidate_line = re.sub(r"\b(?:\d[ \t]*){10,11}\b.*$", "", line).strip(" :-")
         if not candidate_line:
             continue
         if re.search(
@@ -196,17 +196,17 @@ def _extract_customer_name(text):
 def _extract_customer_tax_id(text):
     for line in _buyer_section_lines(text):
         match = re.search(
-            r"\b(?:TC|TCKN|VKN|VKN/TCKN|Vergi[ \t]*No)[ \t]*[:#-]?[ \t]*(\d{10,11})\b",
+            r"\b(?:TC|TCKN|VKN|VKN/TCKN|Vergi[ \t]*No)[ \t]*[:#-]?[ \t]*(\d(?:[\s\xa0]*\d){9,10})\b",
             line,
             re.IGNORECASE,
         )
         if match:
-            return match.group(1)
+            return re.sub(r"[\s\xa0]+", "", match.group(1))
 
     return _first_match(
         [
-            r"\b(?:TC|TCKN|VKN|VKN/TCKN|Vergi[ \t]*No)[ \t]*[:#-]?[ \t]*(\d{10,11})\b",
-            r"\b(\d{10,11})\b",
+            r"\b(?:TC|TCKN|VKN|VKN/TCKN|Vergi[ \t]*No)[ \t]*[:#-]?[ \t]*(\d(?:[\s\xa0]*\d){9,10})\b",
+            r"\b(\d(?:[\s\xa0]*\d){9,10})\b",
         ],
         text,
         re.IGNORECASE,
@@ -440,8 +440,6 @@ def _is_likely_item_description(line):
         return False
     if _extract_item_serial_numbers(candidate) or "~" in candidate:
         return False
-    if re.search(rf"{MONEY_TOKEN_RE}", candidate, re.IGNORECASE):
-        return False
     if re.match(
         r"(?i)^(?:kodu|kod\b|aciklama|mal\s*/?\s*hizmet|urun|miktar|birim|ara\s*toplam|kdv|yekun|genel\s*toplam|odenecek)",
         candidate,
@@ -506,7 +504,7 @@ def _find_items(text):
         rf"(?P<description>.+?)[ \t]+"
         rf"(?P<quantity>\d+(?:[.,]\d+)?)[ \t]+"
         rf"(?:(?P<unit>{UNIT_RE})[ \t]+)?"
-        rf"(?P<unit_price>{MONEY_TOKEN_RE})[ \t]+"
+        rf"(?:(?P<unit_price>{MONEY_TOKEN_RE})[ \t]+)?"
         rf"(?:%?[ \t]*(?P<tax_rate>\d+(?:[.,]\d+)?)[ \t]*%?[ \t]+)?"
         rf"(?P<total_price>{MONEY_TOKEN_RE})(?:[ \t]+.*)?$",
         re.IGNORECASE,
@@ -536,14 +534,24 @@ def _find_items(text):
             if not match:
                 continue
 
+            unit_price_str = match.group("unit_price")
+            total_price_str = match.group("total_price")
+            qty_val = float(match.group("quantity").replace(".", "").replace(",", "."))
+            total_price_val = _parse_money_number(total_price_str)
+
+            if unit_price_str:
+                unit_price_val = _parse_money_number(unit_price_str)
+            else:
+                unit_price_val = total_price_val / qty_val if qty_val else 0.0
+
             item = {
                 "code": match.group("code"),
                 "description": re.sub(r"\s+", " ", match.group("description")).strip(),
                 "serial_numbers": [],
                 "quantity": match.group("quantity").replace(".", ","),
-                "unit_price": _format_amount(_parse_money_number(match.group("unit_price"))),
+                "unit_price": _format_amount(unit_price_val),
                 "tax_rate": match.group("tax_rate"),
-                "total_price": _format_amount(_parse_money_number(match.group("total_price"))),
+                "total_price": _format_amount(total_price_val),
                 "_line_idx": line_idx,
             }
             key = (item["code"], item["description"], item["quantity"], item["unit_price"], item["total_price"])
@@ -569,31 +577,26 @@ def _find_items(text):
         serial_context = [item["description"]]
         open_group = item["description"].count("(") + item["description"].count("[")
         open_group -= item["description"].count(")") + item["description"].count("]")
-        for continuation in cleaned_lines[line_idx + 1 : next_line_idx]:
-            if not continuation or section_stop.match(continuation):
-                break
-            if open_group > 0 or "~" in continuation or SERIAL_LABEL_RE.search(continuation):
-                serial_context.append(continuation)
-                open_group += continuation.count("(") + continuation.count("[")
-                open_group -= continuation.count(")") + continuation.count("]")
-                if open_group <= 0 and _extract_item_serial_numbers(" ".join(serial_context)):
-                    break
-            else:
-                break
-
-        item_text = " ".join(serial_context)
-        item["serial_numbers"] = _extract_item_serial_numbers(item_text)
-        cleaned_description = _description_without_serials(item_text)
-
-        # Some PDF generators draw the product name a few points above the
-        # numeric row. pdfplumber consequently emits it on the previous text
-        # line, while the row's description column contains only serials.
-        if item["serial_numbers"] and not cleaned_description:
+        desc_no_serials = _description_without_serials(item["description"]).strip()
+        if not desc_no_serials or re.fullmatch(r"[\(\)\[\]\-~,; ]+", desc_no_serials):
             previous_idx = line_idx - 1
             while previous_idx >= 0 and not cleaned_lines[previous_idx]:
                 previous_idx -= 1
             if previous_idx >= 0 and _is_likely_item_description(cleaned_lines[previous_idx]):
-                cleaned_description = cleaned_lines[previous_idx]
+                serial_context.insert(0, cleaned_lines[previous_idx])
+
+        for continuation in cleaned_lines[line_idx + 1 : next_line_idx]:
+            if not continuation or section_stop.search(continuation):
+                break
+            
+            if re.match(r"(?i)^(?:Notlar|İrsaliye|Irsaliye|Fatura\s+Tarihi|Sipariş|Siparis|Banka|IBAN|Hesap|Döviz|Doviz|Yalnız|Yalniz|Yazıyla|Yaziyla|Fatura|İ\s*Bu|Is\s*Bu|İş\s*Bu)\b", continuation):
+                break
+
+            serial_context.append(continuation)
+
+        item_text = " ".join(serial_context)
+        item["serial_numbers"] = _extract_item_serial_numbers(item_text)
+        cleaned_description = _description_without_serials(item_text)
 
         if cleaned_description:
             item["description"] = cleaned_description
@@ -817,6 +820,23 @@ def parse_pdf_invoice(file_path: str) -> dict:
                     plain_text += plain_extracted + "\n"
                 if layout_extracted:
                     layout_text += layout_extracted + "\n"
+
+            if pdf.pages:
+                first_page = pdf.pages[0]
+                if first_page.width > first_page.height * 1.1:
+                    # Possible landscape multi-copy layout. Let's check for repeated columns.
+                    if plain_text.count("Ara Toplam") >= 2 or plain_text.count("Genel Toplam") >= 2 or plain_text.count("KDV") >= 3:
+                        print("Detected multi-copy landscape layout. Cropping to the left third to prevent horizontal bleed...")
+                        plain_text = ""
+                        layout_text = ""
+                        for page in pdf.pages:
+                            # Crop to left 34%
+                            bbox = (0, 0, page.width * 0.34, page.height)
+                            cropped = page.crop(bbox)
+                            pt = cropped.extract_text()
+                            lt = cropped.extract_text(layout=True)
+                            if pt: plain_text += pt + "\n"
+                            if lt: layout_text += lt + "\n"
 
             candidate_texts = [text.strip() for text in (plain_text, layout_text) if text and text.strip()]
             if not candidate_texts:

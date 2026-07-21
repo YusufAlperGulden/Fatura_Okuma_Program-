@@ -1,6 +1,8 @@
 import os
 import unicodedata
 from datetime import date, datetime
+from decimal import Decimal, InvalidOperation
+from numbers import Number
 
 import pandas as pd
 
@@ -37,6 +39,23 @@ def _as_text(value):
     if value is None or pd.isna(value):
         return None
     return str(value).strip()
+
+
+def _as_identifier_text(value):
+    """Render numeric VKN/TCKN cells without Excel's artificial `.0`."""
+    if value is None or pd.isna(value):
+        return None
+    if isinstance(value, Number) and not isinstance(value, bool):
+        try:
+            decimal_value = Decimal(str(value))
+            if decimal_value.is_finite() and decimal_value == decimal_value.to_integral():
+                return format(decimal_value, "f").split(".", 1)[0]
+        except (InvalidOperation, ValueError):
+            pass
+    text = str(value).strip()
+    if text.endswith(".0") and text[:-2].isdigit():
+        return text[:-2]
+    return text
 
 
 def _as_date_text(value):
@@ -186,7 +205,9 @@ def parse_excel_invoice(file_path: str) -> dict:
         first = df.iloc[0]
         data["invoice_no"] = _as_text(_first_present(first, column_sets["invoice_no"]))
         data["date"] = _as_date_text(_first_present(first, column_sets["date"]))
-        data["customer_tax_id"] = _as_text(_first_present(first, column_sets["customer_tax_id"]))
+        data["customer_tax_id"] = _as_identifier_text(
+            _first_present(first, column_sets["customer_tax_id"])
+        )
         data["customer_name"] = _as_text(_first_present(first, column_sets["customer_name"]))
         data["customer_title"] = data["customer_name"]
         data["subtotal"] = _as_text(_first_present(first, column_sets["subtotal"]))

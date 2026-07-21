@@ -128,6 +128,7 @@ class PipelineTests(unittest.TestCase):
         self.assertEqual(data["items"][0]["description"], "NFC Silver Kart")
         self.assertEqual(data["items"][0]["serial_numbers"], [])
         data["customer_name"] = "Mock Customer"
+        data["customer_tax_id"] = "9000068418"
         data["invoice_no"] = "INV-123"
         self.assertEqual(validate_invoice(data), (True, []))
 
@@ -319,6 +320,7 @@ class PipelineTests(unittest.TestCase):
         self.assertEqual(data["tax_amount"], "24,00")
         self.assertEqual(data["total_amount"], "144,00")
         data["customer_name"] = "Mock Customer"
+        data["customer_tax_id"] = "9000068418"
         data["invoice_no"] = "INV-123"
         self.assertEqual(validate_invoice(data), (True, []))
 
@@ -346,6 +348,7 @@ class PipelineTests(unittest.TestCase):
         self.assertEqual(len(data["items"]), 1)
         self.assertEqual(data["items"][0]["description"], "NFC Silver Kart")
         data["customer_name"] = "Mock Customer"
+        data["customer_tax_id"] = "9000068418"
         data["invoice_no"] = "INV-123"
         self.assertEqual(validate_invoice(data), (True, []))
 
@@ -469,13 +472,14 @@ class PipelineTests(unittest.TestCase):
 
     def test_build_ubl_invoice_is_valid_xml(self):
         data = parse_xml_invoice(os.path.join(ROOT, "ornek.xml"))
+        data["customer_tax_id"] = "9000068418"
 
         ubl = build_ubl_invoice(data)
         root = ET.fromstring(ubl)
 
         self.assertTrue(root.tag.endswith("Invoice"))
         self.assertIn("GIB2026000000001", ubl)
-        self.assertIn("12345678901", ubl)
+        self.assertIn("9000068418", ubl)
         self.assertIn("144.00", ubl)
 
     def test_ubl_discount_is_not_subtracted_twice(self):
@@ -484,7 +488,7 @@ class PipelineTests(unittest.TestCase):
                 data = {
                     "invoice_no": "TEST-DISCOUNT-1",
                     "date": "10.07.2026",
-                    "customer_tax_id": "1111111111",
+                    "customer_tax_id": "9000068418",
                     "currency": "TRY",
                     "subtotal": reported_subtotal,
                     "discount_amount": "10,00",
@@ -607,7 +611,7 @@ class PipelineTests(unittest.TestCase):
 
     def test_uyumsoft_target_customer_never_uses_unknown_customer(self):
         data = {
-            "customer_tax_id": "11111111111",
+            "customer_tax_id": "9000068418",
             "items": [{"description": "Test", "quantity": "1", "unit_price": "1", "total_price": "1"}],
             "subtotal": "1",
             "tax_amount": "0",
@@ -617,7 +621,7 @@ class PipelineTests(unittest.TestCase):
         body = build_invoice_info_body("SaveAsDraft", data)
 
         self.assertNotIn("UNKNOWN CUSTOMER", body)
-        self.assertIn('Title="MUSTERI 11111111111"', body)
+        self.assertIn('Title="MUSTERI 9000068418"', body)
 
     def test_uyumsoft_taxpayer_lookup_matches_identifier(self):
         raw_xml = """

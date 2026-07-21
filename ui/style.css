@@ -628,7 +628,7 @@ tr:hover {
 .primary-btn:hover {
     background-color: var(--accent-hover);
     transform: scale(1.15);
-    box-shadow: 0 8px 24px rgba(16, 185, 129, 0.3);
+    box-shadow: 0 8px 24px color-mix(in srgb, var(--accent-color) 30%, transparent);
 }
 
 .primary-btn svg {
@@ -1024,6 +1024,8 @@ tr:hover {
     font-weight: 600;
     white-space: nowrap;
     display: inline-block;
+}
+
 #split-container.split-active {
     display: grid;
     grid-template-columns: 1.2fr 1fr;
@@ -1247,3 +1249,62 @@ tr:hover {
 [data-theme="light"] .color-dot.active {
     box-shadow: 0 0 8px rgba(0, 0, 0, 0.2);
 }
+
+/* Global Scrollbar */
+* {
+    scrollbar-color: var(--accent-color) transparent;
+}
+::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+}
+::-webkit-scrollbar-track {
+    background: transparent;
+}
+::-webkit-scrollbar-thumb {
+    background: var(--accent-color);
+    border-radius: 10px;
+}
+::-webkit-scrollbar-thumb:hover {
+    background: var(--accent-hover);
+}
+
+/* Fix for PDF Header text in light mode */
+.pdf-header h2 {
+    color: var(--text-primary) !important;
+}
+[data-theme="light"] .pdf-header h2 {
+    color: #0f172a !important;
+}
+
+
+/* Progress Bar */
+.progress-row td {
+    padding: 0 !important;
+    height: 4px !important;
+    border: none !important;
+    line-height: 0;
+    font-size: 0;
+}
+.progress-row {
+    background: transparent !important;
+}
+.progress-bar-container {
+    width: 100%;
+    height: 4px;
+    background-color: var(--border-color);
+    overflow: hidden;
+    position: relative;
+}
+.progress-bar {
+    width: 30%;
+    height: 100%;
+    background-color: var(--accent-color);
+    position: absolute;
+    animation: indeterminate 1.5s infinite linear;
+}
+@keyframes indeterminate {
+    0% { left: -30%; }
+    100% { left: 100%; }
+}
+

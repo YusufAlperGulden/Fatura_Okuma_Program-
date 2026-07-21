@@ -42,7 +42,7 @@ def test_uyumsoft_portal_and_environment_are_loaded_from_runtime_config():
     html = (PROJECT_ROOT / "ui" / "index.html").read_text(encoding="utf-8")
     javascript = (PROJECT_ROOT / "ui" / "app.js").read_text(encoding="utf-8")
 
-    assert 'id="uyumsoft-environment-badge"' in html
+    assert 'id="environment-select"' in html
     assert "fetch('/runtime-config')" in javascript
     assert "config.uyumsoft_portal_url" in javascript
     assert "Uyumsoft ortamı: GERÇEK / CANLI" in javascript

@@ -11,7 +11,7 @@ from extractors.xml_extractor import parse_xml_invoice
 from integrators.uyumsoft_api import build_invoice_info_body, build_ubl_invoice
 from integrators.uyumsoft_excel import export_to_uyumsoft_excel
 from utils.serial_numbers import (
-    merge_invoice_serial_numbers,
+    safe_merge_ai_data,
     normalize_invoice_serial_numbers,
     normalize_serial_numbers,
 )
@@ -247,7 +247,7 @@ class SerialNumberTests(unittest.TestCase):
             ]
         }
 
-        merged = merge_invoice_serial_numbers(target, source)
+        merged = safe_merge_ai_data(target, source)
 
         self.assertIs(merged, target)
         self.assertEqual(

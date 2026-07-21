@@ -86,15 +86,23 @@ def _normalized_item_code(item: Any) -> str:
     return str(item.get("code") or "").strip().casefold()
 
 
-def merge_invoice_serial_numbers(
+def safe_merge_ai_data(
     target: dict[str, Any], source: dict[str, Any] | None
 ) -> dict[str, Any]:
-    """Merge source line serials into target, preferring code then line index.
+    """Merge source local data into target AI data, preserving high-confidence fields and serials."""
 
-    The API uses this when an AI fallback replaces a partially parsed local
-    result. AI-provided serials stay first, while deterministic local serials
-    are appended without duplicates. Source items are consumed at most once.
-    """
+    if isinstance(source, dict):
+        # Preserve high-confidence fields from local extraction
+        for field in ["customer_tax_id", "invoice_no", "date", "time", "currency"]:
+            val = source.get(field)
+            if not val:
+                continue
+            # Only preserve tax IDs if they look like real tax IDs (10 or 11 digits)
+            if field == "customer_tax_id":
+                val_str = str(val).strip()
+                if not (val_str.isdigit() and len(val_str) in (10, 11)):
+                    continue
+            target[field] = val
 
     normalize_invoice_serial_numbers(target)
     if not isinstance(source, dict):

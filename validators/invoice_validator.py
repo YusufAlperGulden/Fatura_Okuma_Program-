@@ -285,9 +285,11 @@ def validate_invoice(data):
             quantity is not None
             and unit_price is not None
             and total_price is not None
-            and abs(quantize_money(quantity * unit_price) - quantize_money(total_price)) > Decimal("0.05")
         ):
-            errors.append(f"Kalem Matematik Hatası: '{item.get('description')}' satırında (Miktar: {quantity} x Fiyat: {unit_price} = {total_price}) tutmuyor.")
+            # Calculate a dynamic tolerance that scales with quantity to allow for small unit price rounding differences
+            dynamic_tolerance = max(Decimal("0.05"), quantize_money(quantity * Decimal("0.005")))
+            if abs(quantize_money(quantity * unit_price) - quantize_money(total_price)) > dynamic_tolerance:
+                errors.append(f"Kalem Matematik Hatası: '{item.get('description')}' satırında (Miktar: {quantity} x Fiyat: {unit_price} = {total_price}) tutmuyor.")
 
     subtotal_raw = _parse_decimal(data.get("subtotal"))
     discount_raw = _parse_decimal(data.get("discount_amount"))

@@ -61,6 +61,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let currentValidationErrors = [];
     let currentValidationState = 'idle';
     let draftSendInProgress = false;
+    let currentSendAbortController = null;
 
     // Add event listener for draft send
     document.getElementById('send-draft-btn').addEventListener('click', () => {
@@ -130,22 +131,37 @@ document.addEventListener('DOMContentLoaded', () => {
             const select = document.getElementById('environment-select');
             if (select) {
                 select.value = environment;
+                select.disabled = true;
             }
+            updateEnvironmentBadges(environment);
         } catch (error) {
             console.warn('Uyumsoft ortam ayarı okunamadı.', error);
+            delete document.documentElement.dataset.uyumsoftEnvironment;
+            updateEnvironmentBadges(null);
         }
     }
 
-    const environmentSelect = document.getElementById('environment-select');
-    if (environmentSelect) {
-        environmentSelect.addEventListener('change', (e) => {
-            document.documentElement.dataset.uyumsoftEnvironment = e.target.value;
-            // Clear cached prod credentials if switching back to test just in case, though optional
-            if (e.target.value === 'test') {
-                sessionStorage.removeItem('uyumsoft_prod_username');
-                sessionStorage.removeItem('uyumsoft_prod_password');
-            }
+    function updateEnvironmentBadges(environment) {
+        const isProd = environment === 'prod';
+        const isTest = environment === 'test';
+        const text = isProd
+            ? 'Uyumsoft ortamı: GERÇEK / CANLI'
+            : isTest
+                ? 'Uyumsoft ortamı: TEST / ÖN KABUL'
+                : 'Uyumsoft ortamı: BİLİNMİYOR — gönderim kapalı';
+        document.querySelectorAll(
+            '#uyumsoft-environment-badge, #batch-uyumsoft-environment-badge'
+        ).forEach(badge => {
+            badge.textContent = text;
+            badge.classList.toggle('prod', isProd);
+            badge.classList.toggle('test', isTest);
+            badge.classList.toggle('unknown', !isProd && !isTest);
         });
+    }
+
+    function getRuntimeEnvironment() {
+        const environment = document.documentElement.dataset.uyumsoftEnvironment;
+        return environment === 'prod' || environment === 'test' ? environment : null;
     }
 
     loadRuntimeConfig();
@@ -187,12 +203,6 @@ document.addEventListener('DOMContentLoaded', () => {
     });
     
     let pdfObjectUrl = null;
-
-    function escapeHtml(value) {
-        const div = document.createElement('div');
-        div.textContent = value == null ? '' : String(value);
-        return div.innerHTML;
-    }
 
     function normalizeSerialNumbers(value) {
         const serials = Array.isArray(value)
@@ -427,17 +437,18 @@ document.addEventListener('DOMContentLoaded', () => {
     function appendWorkflowItem(list, state, message) {
         const item = document.createElement('li');
         item.className = state;
-        let iconHtml = '';
-        if (state === 'success') {
-            iconHtml = `<svg fill="none" stroke="currentColor" viewBox="0 0 24 24" width="20" height="20" style="flex-shrink:0;"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>`;
-        } else if (state === 'error') {
-            iconHtml = `<svg fill="none" stroke="currentColor" viewBox="0 0 24 24" width="20" height="20" style="flex-shrink:0;"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>`;
-        } else if (state === 'pending') {
-            iconHtml = `<svg fill="none" stroke="currentColor" viewBox="0 0 24 24" width="20" height="20" style="flex-shrink:0;"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>`;
-        } else if (state === 'warning') {
-            iconHtml = `<svg fill="none" stroke="currentColor" viewBox="0 0 24 24" width="20" height="20" style="flex-shrink:0;"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>`;
-        }
-        item.innerHTML = `${iconHtml}<span>${message}</span>`;
+        const icon = document.createElement('span');
+        icon.setAttribute('aria-hidden', 'true');
+        icon.style.flexShrink = '0';
+        icon.textContent = {
+            success: '✓',
+            error: '✕',
+            pending: '◷',
+            warning: '⚠',
+        }[state] || '•';
+        const label = document.createElement('span');
+        label.textContent = message;
+        item.append(icon, label);
         list.appendChild(item);
     }
 
@@ -475,6 +486,16 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
 
+        if (state === 'send_error') {
+            appendWorkflowItem(checklist, 'error', message || 'Uyumsoft gönderimi başarısız oldu. Tekrar deneyebilirsiniz.');
+            return;
+        }
+
+        if (state === 'sent') {
+            appendWorkflowItem(checklist, 'success', message || 'Fatura Uyumsoft taslaklarına gönderildi.');
+            return;
+        }
+
         appendWorkflowItem(
             checklist,
             'error',
@@ -495,6 +516,8 @@ document.addEventListener('DOMContentLoaded', () => {
         setCsvValidationState('invalid');
         renderValidationErrors(currentValidationErrors);
         updateWorkflowUI('invalid', currentInvoiceData, message);
+        persistActiveBatchItem();
+        if (!draftSendInProgress) setBatchNavigationDisabled(false);
     }
 
     function showDraftValidationPopup(errors = currentValidationErrors, title = 'Taslak gönderilemedi.') {
@@ -542,13 +565,21 @@ document.addEventListener('DOMContentLoaded', () => {
 
     let currentAbortController = null;
 
+    document.getElementById('cancel-btn').addEventListener('click', () => {
+        if (currentAbortController) currentAbortController.abort();
+    });
+
     async function handleFile(file) {
         if (window.location.protocol === 'file:') {
             showError("Bu sayfa dosya olarak açılmış. Lütfen uygulamayı http://127.0.0.1:7860/ui/ adresinden açın.");
             return;
         }
         
-        batchResults = [];
+        invalidateBatchForSingleUpload();
+        if (currentSendAbortController) {
+            currentSendAbortController.abort();
+            currentSendAbortController = null;
+        }
 
         // Reset UI
         if (pdfObjectUrl) {
@@ -614,14 +645,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
         document.getElementById('res-subtotal').textContent = '-';
         if (document.getElementById('res-tax-breakdown')) {
-            document.getElementById('res-tax-breakdown').innerHTML = '-';
+            document.getElementById('res-tax-breakdown').textContent = '-';
         }
         document.getElementById('res-total').textContent = '-';
         if (document.getElementById('notes-card')) {
             document.getElementById('notes-card').classList.add('hidden');
             document.getElementById('res-notes').textContent = '-';
         }
-        document.querySelector('#items-table tbody').innerHTML = '';
+        document.querySelector('#items-table tbody').replaceChildren();
         
         const formData = new FormData();
         formData.append('file', file);
@@ -632,12 +663,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         currentAbortController = new AbortController();
         const signal = currentAbortController.signal;
-        
-        document.getElementById('cancel-btn').onclick = () => {
-            if (currentAbortController) {
-                currentAbortController.abort();
-            }
-        };
         
         try {
             // Because we are serving from /ui, the API endpoint is at /upload
@@ -788,6 +813,8 @@ document.addEventListener('DOMContentLoaded', () => {
         badge.textContent = 'Doğrulanıyor...';
         badge.className = 'badge';
         updateWorkflowUI('pending');
+        persistActiveBatchItem();
+        setBatchNavigationDisabled(true);
 
         clearTimeout(validationTimeout);
         validationTimeout = setTimeout(() => {
@@ -819,6 +846,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     currentInvoiceData = result.data;
                 }
                 updateValidationUI(result);
+                persistActiveBatchItem();
             } else {
                 setValidationFailure(formatApiError(result) || 'Fatura doğrulaması tamamlanamadı.');
             }
@@ -836,7 +864,7 @@ document.addEventListener('DOMContentLoaded', () => {
     function renderInvoice(result) {
         const data = result.data || {};
         const tbody = document.querySelector('#items-table tbody');
-        tbody.innerHTML = '';
+        tbody.replaceChildren();
         
         const items = data.items || [];
         if (items.length === 0) {
@@ -888,6 +916,7 @@ document.addEventListener('DOMContentLoaded', () => {
         renderValidationErrors(result.is_valid ? [] : result.errors);
         document.getElementById('csv-btn').classList.remove('hidden');
         updateWorkflowUI(currentValidationState, result.data || currentInvoiceData);
+        if (!draftSendInProgress) setBatchNavigationDisabled(false);
 
         // Ensure data exists before accessing properties
         const data = result.data || {};
@@ -962,6 +991,72 @@ document.addEventListener('DOMContentLoaded', () => {
 
     }
     
+    function renderApiProgress(statusBox, label) {
+        const progressBar = document.createElement('div');
+        progressBar.className = 'fake-progress-bar';
+        const content = document.createElement('div');
+        content.style.position = 'relative';
+        content.style.zIndex = '1';
+        content.style.display = 'flex';
+        content.style.alignItems = 'center';
+        const spinner = document.createElement('div');
+        spinner.className = 'spinner';
+        spinner.style.width = '20px';
+        spinner.style.height = '20px';
+        spinner.style.borderWidth = '2px';
+        spinner.style.display = 'inline-block';
+        spinner.style.marginRight = '10px';
+        const text = document.createElement('span');
+        text.textContent = `${label} çalışıyor...`;
+        content.append(spinner, text);
+        statusBox.replaceChildren(progressBar, content);
+    }
+
+    function renderApiMessage(statusBox, message, backgroundColor) {
+        statusBox.style.backgroundColor = backgroundColor;
+        statusBox.textContent = message;
+    }
+
+    function markActiveBatchSendResult(sent, message = '') {
+        if (activeBatchIndex === null) return;
+        const batchItem = batchResults[activeBatchIndex];
+        if (!batchItem || batchItem.generation !== batchGenerationId) return;
+        batchItem.sent = sent;
+        if (sent) {
+            setBatchStatus(activeBatchIndex, 'success', 'Gönderildi');
+        } else if (message) {
+            setBatchStatus(activeBatchIndex, 'error', 'Gönderim Hatası (Tıkla)', message);
+        }
+        updateBatchActions();
+    }
+
+    function setSendFailureState(message, validationErrors = null) {
+        draftSendInProgress = false;
+        setEditingDisabled(false);
+        setBatchNavigationDisabled(false);
+        const sendBtn = document.getElementById('send-draft-btn');
+        sendBtn.classList.remove('hidden');
+        sendBtn.disabled = false;
+        document.getElementById('portal-btn').classList.add('hidden');
+
+        if (Array.isArray(validationErrors) && validationErrors.length > 0) {
+            currentInvoiceIsValid = false;
+            currentValidationErrors = validationErrors;
+            currentValidationState = 'invalid';
+            setDraftButtonValidationState('invalid');
+            setCsvValidationState('invalid');
+            renderValidationErrors(validationErrors);
+        }
+
+        const badge = document.getElementById('validation-badge');
+        badge.textContent = Array.isArray(validationErrors) && validationErrors.length > 0
+            ? 'HATALI'
+            : 'GÖNDERİM HATASI';
+        badge.className = 'badge error';
+        updateWorkflowUI('send_error', currentInvoiceData, message);
+        markActiveBatchSendResult(false, message);
+    }
+
     // Send only the immutable, user-reviewed snapshot after validation.
     async function runUyumsoftAction() {
         if (!currentInvoiceData || draftSendInProgress) return;
@@ -970,19 +1065,13 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
 
-        const env = document.documentElement.dataset.uyumsoftEnvironment || 'test';
-        let prodUsername = null;
-        let prodPassword = null;
-        
-        if (env === 'prod') {
-            const storedUser = sessionStorage.getItem('uyumsoft_prod_username');
-            const storedPass = sessionStorage.getItem('uyumsoft_prod_password');
-            if (!storedUser || !storedPass) {
-                document.getElementById('prod-credentials-modal').classList.remove('hidden');
-                return; // Stop here, modal submit will call this again
-            }
-            prodUsername = storedUser;
-            prodPassword = storedPass;
+        const env = getRuntimeEnvironment();
+        if (!env) {
+            showDraftValidationPopup(
+                ['Sunucunun Uyumsoft ortam ayarı okunamadı. Sayfayı yenileyip tekrar deneyin.'],
+                'Uyumsoft ortamı doğrulanamadı.'
+            );
+            return;
         }
         const capturedUploadId = currentUploadId;
         const capturedValidationRevision = validationRevision;
@@ -991,6 +1080,10 @@ document.addEventListener('DOMContentLoaded', () => {
         draftSendInProgress = true;
         sendBtn.disabled = true;
         setEditingDisabled(true);
+        setBatchNavigationDisabled(true);
+        if (currentSendAbortController) currentSendAbortController.abort();
+        const sendAbortController = new AbortController();
+        currentSendAbortController = sendAbortController;
         
         const statusBox = document.getElementById('api-status-box');
         const action = 'draft';
@@ -1000,13 +1093,7 @@ document.addEventListener('DOMContentLoaded', () => {
         statusBox.style.overflow = 'hidden';
         statusBox.style.backgroundColor = '#3b82f6';
         statusBox.style.color = '#fff';
-        statusBox.innerHTML = `
-            <div class="fake-progress-bar"></div>
-            <div style="position: relative; z-index: 1; display: flex; align-items: center;">
-                <div class="spinner" style="width:20px;height:20px;border-width:2px;display:inline-block;margin-right:10px;"></div> 
-                ${actionLabel} çalışıyor...
-            </div>
-        `;
+        renderApiProgress(statusBox, actionLabel);
         
         try {
             const response = await fetch('/send-uyumsoft', {
@@ -1016,33 +1103,34 @@ document.addEventListener('DOMContentLoaded', () => {
                 },
                 body: JSON.stringify({
                     invoice_data: invoiceSnapshot,
-                    action: action,
-                    environment: env,
-                    prod_username: prodUsername,
-                    prod_password: prodPassword
-                })
+                    action: action
+                }),
+                signal: sendAbortController.signal
             });
             
             const result = await readJsonResponse(response);
             
-                        if (result.success) {
+            if (response.ok && result.success === true) {
                 if (
                     currentUploadId !== capturedUploadId
                     || validationRevision !== capturedValidationRevision
                 ) return;
                 document.getElementById('send-draft-btn').classList.add('hidden');
-                statusBox.style.backgroundColor = '#059669';
-                statusBox.innerHTML = `✓  ${escapeHtml(result.message)} (HTTP ${escapeHtml(result.response_code)})`;
+                draftSendInProgress = false;
+                setBatchNavigationDisabled(false);
+                renderApiMessage(statusBox, `✓ ${result.message || 'Taslak oluşturuldu.'} (HTTP ${result.response_code || response.status})`, '#059669');
+                updateWorkflowUI('sent', currentInvoiceData);
+                markActiveBatchSendResult(true);
                 
                 if (window.Notification && Notification.permission === 'granted') {
                     const notification = new Notification("Uyumsoft Entegrasyonu", {
                         body: "Fatura başarıyla Uyumsoft'a aktarıldı. Portalı açmak için tıklayın."
                     });
-                    notification.onclick = () => {
+                    notification.addEventListener('click', () => {
                         window.focus();
                         openUyumsoftPortal();
                         notification.close();
-                    };
+                    });
                 }
                 
                 // In-app Toast Notification as a guaranteed fallback
@@ -1065,29 +1153,24 @@ document.addEventListener('DOMContentLoaded', () => {
             } else {
                 const details = formatDetails(result.details);
                 if (currentUploadId !== capturedUploadId) return;
-                draftSendInProgress = false;
-                setEditingDisabled(false);
-                statusBox.style.backgroundColor = '#dc2626';
-                statusBox.innerHTML = `❌ Hata: ${escapeHtml(result.message)}${details ? ` <br> <small>${escapeHtml(details)}</small>` : ''}`;
-                sendBtn.disabled = false;
-                if (Number(result.response_code) === 400) {
-                    currentInvoiceIsValid = false;
-                    currentValidationErrors = Array.isArray(result.details) ? result.details : [];
-                    currentValidationState = 'invalid';
-                    setDraftButtonValidationState('invalid');
-                    showDraftValidationPopup(
-                        result.details,
-                        'Fatura doğrulama hataları nedeniyle taslak gönderilemedi.'
-                    );
-                }
+                const message = `Uyumsoft gönderimi başarısız: ${result.message || 'Bilinmeyen hata'}${details ? ` — ${details}` : ''}`;
+                renderApiMessage(statusBox, `❌ ${message}`, '#dc2626');
+                const validationErrors = Number(result.response_code || response.status) === 400 && Array.isArray(result.details)
+                    ? result.details
+                    : null;
+                setSendFailureState(message, validationErrors);
+                if (validationErrors) showDraftValidationPopup(validationErrors, 'Fatura doğrulama hataları nedeniyle taslak gönderilemedi.');
             }
         } catch (error) {
             if (currentUploadId !== capturedUploadId) return;
-            draftSendInProgress = false;
-            setEditingDisabled(false);
-            statusBox.style.backgroundColor = '#dc2626';
-            statusBox.textContent = `❌ Bağlantı Hatası: ${error && error.message ? error.message : 'Bilinmeyen hata'}`;
-            sendBtn.disabled = false;
+            if (error.name === 'AbortError') return;
+            const message = `Bağlantı Hatası: ${error && error.message ? error.message : 'Bilinmeyen hata'}`;
+            renderApiMessage(statusBox, `❌ ${message}`, '#dc2626');
+            setSendFailureState(message);
+        } finally {
+            if (currentSendAbortController === sendAbortController) {
+                currentSendAbortController = null;
+            }
         }
     }
 
@@ -1168,153 +1251,327 @@ document.addEventListener('DOMContentLoaded', () => {
         if (icon) icon.style.transition = 'transform 0.3s ease';
     });
 
-    const submitProdCredsBtn = document.getElementById('submit-prod-credentials');
-    const cancelProdCredsBtn = document.getElementById('cancel-prod-credentials');
-    const prodModal = document.getElementById('prod-credentials-modal');
-
-    if (submitProdCredsBtn) {
-        submitProdCredsBtn.addEventListener('click', () => {
-            const user = document.getElementById('prod-username').value.trim();
-            const pass = document.getElementById('prod-password').value.trim();
-            if (user && pass) {
-                sessionStorage.setItem('uyumsoft_prod_username', user);
-                sessionStorage.setItem('uyumsoft_prod_password', pass);
-                prodModal.classList.add('hidden');
-                runUyumsoftAction();
-            } else {
-                alert('Lütfen kullanıcı adı ve şifre girin.');
-            }
-        });
-    }
-    
-    if (cancelProdCredsBtn) {
-        cancelProdCredsBtn.addEventListener('click', () => {
-            prodModal.classList.add('hidden');
-        });
-    }
-
     // UI event listeners initialized.
 
 // --- BATCH PROCESSING LOGIC ---
 let batchResults = [];
 let batchProcessing = false;
+let batchGenerationId = null;
+let batchUploadAbortController = null;
+let batchSendAbortController = null;
+let activeBatchIndex = null;
+let batchDetailRevision = 0;
+
+function isCurrentBatchGeneration(generation) {
+    return Boolean(generation) && batchGenerationId === generation;
+}
+
+function setBatchNavigationDisabled(disabled) {
+    const batchBackButton = document.getElementById('batch-back-btn');
+    const detailBackButton = document.getElementById('back-to-batch-btn');
+    if (batchBackButton) batchBackButton.disabled = disabled;
+    if (detailBackButton) detailBackButton.disabled = disabled;
+}
+
+function cancelBatchRequests() {
+    if (batchUploadAbortController) batchUploadAbortController.abort();
+    if (batchSendAbortController) batchSendAbortController.abort();
+    batchUploadAbortController = null;
+    batchSendAbortController = null;
+}
+
+function invalidateBatchForSingleUpload() {
+    cancelBatchRequests();
+    batchGenerationId = null;
+    batchProcessing = false;
+    activeBatchIndex = null;
+    batchResults = [];
+    document.getElementById('batch-section').classList.add('hidden');
+    document.getElementById('back-to-batch-btn').classList.add('hidden');
+    document.getElementById('batch-table-body').replaceChildren();
+    document.getElementById('send-all-btn').style.display = 'none';
+    document.getElementById('send-all-success-text').style.display = 'none';
+    setBatchNavigationDisabled(false);
+}
+
+function resetSingleViewForBatch(generation) {
+    if (currentAbortController) currentAbortController.abort();
+    if (currentSendAbortController) currentSendAbortController.abort();
+    if (validationAbortController) validationAbortController.abort();
+    currentAbortController = null;
+    currentSendAbortController = null;
+    validationAbortController = null;
+    clearTimeout(validationTimeout);
+    validationRevision += 1;
+    currentUploadId = `batch:${generation}`;
+    currentInvoiceData = null;
+    currentInvoiceIsValid = false;
+    currentValidationErrors = [];
+    currentValidationState = 'idle';
+    draftSendInProgress = false;
+    activeBatchIndex = null;
+    if (pdfObjectUrl) URL.revokeObjectURL(pdfObjectUrl);
+    pdfObjectUrl = null;
+    document.getElementById('pdf-iframe').src = '';
+    document.getElementById('loading').classList.add('hidden');
+    document.getElementById('split-container').classList.add('hidden');
+    document.getElementById('split-container').classList.remove('split-active');
+    document.getElementById('results-section').classList.add('hidden');
+    document.getElementById('back-to-batch-btn').classList.add('hidden');
+    document.getElementById('send-draft-btn').classList.add('hidden');
+    document.getElementById('portal-btn').classList.add('hidden');
+    document.getElementById('csv-btn').classList.add('hidden');
+    document.getElementById('api-status-box').classList.add('hidden');
+    document.getElementById('error-box').classList.add('hidden');
+    document.getElementById('workflow-progress').classList.add('hidden');
+    document.querySelector('.app-container').classList.remove('wide-mode');
+}
+
+function createBatchCell(className, value = '-') {
+    const cell = document.createElement('td');
+    cell.className = className;
+    cell.textContent = value;
+    return cell;
+}
+
+function createBatchRow(file, index, generation) {
+    const row = document.createElement('tr');
+    row.id = `batch-row-${index}`;
+    row.dataset.batchGeneration = generation;
+    row.append(
+        createBatchCell('b-file', file.name),
+        createBatchCell('b-inv-no'),
+        createBatchCell('b-date'),
+        createBatchCell('b-vkn'),
+        createBatchCell('b-name'),
+        createBatchCell('b-amount'),
+        createBatchCell('b-status', ''),
+    );
+    row.addEventListener('click', () => {
+        if (!isCurrentBatchGeneration(generation) || batchProcessing) return;
+        const item = batchResults[index];
+        if (item && item.success) openSingleResultFromBatch(index);
+    });
+    setBatchStatus(index, 'pending', 'Bekliyor...', '', row);
+    return row;
+}
+
+function setBatchStatus(index, state, label, details = '', suppliedRow = null) {
+    const row = suppliedRow || document.getElementById(`batch-row-${index}`);
+    if (!row || row.dataset.batchGeneration !== batchGenerationId) return;
+    const cell = row.querySelector('.b-status');
+    const badge = document.createElement('span');
+    badge.className = `status-badge status-${state}`;
+    badge.textContent = label;
+    if (details) {
+        badge.title = details;
+        badge.style.cursor = 'help';
+        badge.style.textDecoration = 'underline dotted';
+        badge.addEventListener('click', event => {
+            event.stopPropagation();
+            window.alert(details);
+        });
+    }
+    cell.replaceChildren(badge);
+
+    const progRow = document.getElementById(`batch-progress-${index}`);
+    if (progRow) {
+        if (state === 'pending' && (label.includes('kunuyor') || label.includes('nderiliyor'))) {
+            progRow.style.display = 'table-row';
+        } else {
+            progRow.style.display = 'none';
+        }
+    }
+}
+
+function formatBatchAmount(data) {
+    const amount = parseLocaleNumber(data && data.total_amount);
+    const currency = data && ['TRY', 'USD', 'EUR', 'GBP'].includes(data.currency)
+        ? data.currency
+        : 'TRY';
+    if (amount === null) return '-';
+    return new Intl.NumberFormat('tr-TR', { style: 'currency', currency }).format(amount);
+}
+
+function updateBatchRow(index) {
+    const item = batchResults[index];
+    const row = document.getElementById(`batch-row-${index}`);
+    if (!item || !row || item.generation !== batchGenerationId) return;
+    const data = item.result && item.result.data;
+    if (data) {
+        row.querySelector('.b-inv-no').textContent = data.invoice_no || '-';
+        row.querySelector('.b-date').textContent = data.date || '-';
+        row.querySelector('.b-vkn').textContent = data.customer_tax_id || '-';
+        row.querySelector('.b-name').textContent = (data.customer_name || data.customer_title || '-').substring(0, 20);
+        row.querySelector('.b-amount').textContent = formatBatchAmount(data);
+    }
+
+    if (item.sent) {
+        setBatchStatus(index, 'success', 'Gönderildi');
+    } else if (!item.success) {
+        setBatchStatus(index, 'error', 'Hata (Tıkla)', item.errorMessage || 'Dosya işlenemedi.');
+    } else if (item.validationPending) {
+        setBatchStatus(index, 'pending', 'Doğrulanıyor...');
+    } else if (item.result.is_valid === false) {
+        const details = (item.result.errors || ['Fatura verileri eksik veya hatalı.']).join('\n');
+        setBatchStatus(index, 'pending', 'İnceleme (Tıkla)', details);
+    } else {
+        setBatchStatus(index, 'success', 'Gönderime Hazır');
+    }
+}
+
+function updateBatchActions() {
+    const sendAllButton = document.getElementById('send-all-btn');
+    const successText = document.getElementById('send-all-success-text');
+    const liveItems = batchResults.filter(item => item && item.generation === batchGenerationId);
+    const retryableItems = liveItems.filter(item => (
+        item.success && !item.sent && !item.validationPending && item.result.is_valid !== false
+    ));
+    const sentCount = liveItems.filter(item => item.sent).length;
+    const allRowsSent = liveItems.length > 0 && liveItems.every(item => (
+        item.success && item.result.is_valid !== false && item.sent
+    ));
+
+    if (successText) {
+        successText.style.display = allRowsSent ? 'flex' : 'none';
+    }
+
+    if (batchProcessing && typeof batchSendAbortController !== 'undefined' && batchSendAbortController) {
+        sendAllButton.style.display = 'inline-flex';
+        sendAllButton.disabled = true;
+        sendAllButton.innerHTML = '<span class="loading-spinner" style="margin-right: 0.5rem;"></span> Taslak Oluştur çalışıyor...';
+    } else {
+        sendAllButton.style.display = !batchProcessing && retryableItems.length > 0 ? 'inline-flex' : 'none';
+        sendAllButton.disabled = batchProcessing || retryableItems.length === 0;
+        sendAllButton.innerHTML = sentCount > 0
+            ? '<svg fill="none" stroke="currentColor" viewBox="0 0 24 24" style="width: 20px; height: 20px;"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg> Kalanları Uyumsoft\'a Gönder'
+            : '<svg fill="none" stroke="currentColor" viewBox="0 0 24 24" style="width: 20px; height: 20px;"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg> Tümünü Uyumsoft\'a Gönder';
+    }
+}
+
+function persistActiveBatchItem() {
+    if (activeBatchIndex === null || !currentInvoiceData) return;
+    const batchItem = batchResults[activeBatchIndex];
+    if (!batchItem || batchItem.generation !== batchGenerationId || !batchItem.result) return;
+    batchItem.result.data = currentInvoiceData;
+    batchItem.result.is_valid = currentValidationState === 'valid';
+    batchItem.result.errors = [...currentValidationErrors];
+    batchItem.validationPending = currentValidationState === 'pending';
+    if (currentValidationState === 'pending') batchItem.sent = false;
+    updateBatchRow(activeBatchIndex);
+    updateBatchActions();
+}
 
 async function handleBatchFiles(files) {
     if (window.location.protocol === 'file:') {
-        showError("Bu sayfa dosya olarak açılmış. Lütfen uygulamayı sunucu üzerinden açın.");
+        showError('Bu sayfa dosya olarak açılmış. Lütfen uygulamayı sunucu üzerinden açın.');
         return;
     }
+    if (!Array.isArray(files) || files.length === 0) return;
 
+    cancelBatchRequests();
+    const capturedBatchGeneration = crypto.randomUUID();
+    batchGenerationId = capturedBatchGeneration;
+    resetSingleViewForBatch(capturedBatchGeneration);
     document.querySelector('.upload-section').classList.add('hidden');
     document.getElementById('batch-section').classList.remove('hidden');
-    
     const tbody = document.getElementById('batch-table-body');
-    tbody.innerHTML = '';
-    batchResults = [];
-    
+    tbody.replaceChildren();
+    batchResults = files.map(file => ({
+        file,
+        result: null,
+        success: false,
+        sent: false,
+        validationPending: false,
+        generation: capturedBatchGeneration,
+        errorMessage: '',
+    }));
     files.forEach((file, index) => {
-        const tr = document.createElement('tr');
-        tr.id = 'batch-row-' + index;
-        tr.innerHTML = `
-            <td>${file.name}</td>
-            <td class="b-inv-no">-</td>
-            <td class="b-date">-</td>
-            <td class="b-vkn">-</td>
-            <td class="b-name">-</td>
-            <td class="b-amount">-</td>
-            <td class="b-status"><span class="status-badge status-pending">Bekliyor...</span></td>
-        `;
-        tbody.appendChild(tr);
+        tbody.appendChild(createBatchRow(file, index, capturedBatchGeneration));
+        const progTr = document.createElement('tr');
+        progTr.className = 'progress-row';
+        progTr.id = `batch-progress-${index}`;
+        progTr.style.display = 'none';
+        const progTd = document.createElement('td');
+        progTd.colSpan = 7;
+        const barContainer = document.createElement('div');
+        barContainer.className = 'progress-bar-container';
+        const bar = document.createElement('div');
+        bar.className = 'progress-bar';
+        barContainer.appendChild(bar);
+        progTd.appendChild(barContainer);
+        progTr.appendChild(progTd);
+        tbody.appendChild(progTr);
     });
-    
-    batchProcessing = true;
-    const sendAllBtn = document.getElementById('send-all-btn');
-    sendAllBtn.style.display = 'none';
-    
-    for (let i = 0; i < files.length; i++) {
-        const file = files[i];
-        const row = document.getElementById('batch-row-' + i);
-        
-        try {
-            row.querySelector('.b-status').innerHTML = '<span class="status-badge status-pending">Okunuyor...</span>';
-            
-            const formData = new FormData();
-            formData.append('file', file);
-            
-            const response = await fetch('/upload', { method: 'POST', body: formData });
-            
-            if (!response.ok) {
-                batchResults[i] = { file, success: false };
-                row.querySelector('.b-status').innerHTML = '<span class="status-badge status-error" title="Sunucu yanıt vermedi veya API hatası oluştu." onclick="alert(\'Sunucu yanıt vermedi veya API hatası oluştu.\')" style="cursor:help; text-decoration: underline dotted;">Hata (Tıkla)</span>';
-                continue;
-            }
-            
-            const result = await readJsonResponse(response);
 
-            if (result && result.data) {
-                const data = result.data;
-                batchResults[i] = { file, result, success: true };
-                
-                row.querySelector('.b-inv-no').textContent = data.invoice_no || '-';
-                row.querySelector('.b-date').textContent = data.date || '-';
-                row.querySelector('.b-vkn').textContent = data.customer_tax_id || '-';
-                row.querySelector('.b-name').textContent = (data.customer_name || '-').substring(0, 20);
-                
-                let numTotal = data.total_amount || 0;
-                    if (typeof numTotal === 'string') {
-                        numTotal = window.InvoiceUiHelpers ? window.InvoiceUiHelpers.parseLocaleNumber(numTotal) : parseFloat(numTotal.replace(/\./g, '').replace(',', '.'));
-                        if (isNaN(numTotal)) numTotal = 0;
-                    }
-                    const currencyCode = data.currency || 'TRY';
-                    const formattedTotal = new Intl.NumberFormat('tr-TR', { style: 'currency', currency: currencyCode }).format(numTotal);
-                row.querySelector('.b-amount').textContent = formattedTotal;
-                
-                if (result.is_valid !== false) {
-                    row.querySelector('.b-status').innerHTML = '<span class="status-badge status-success">Başarılı</span>';
-                } else {
-                    const errs = (result.errors || ['Fatura verileri eksik veya hatalı.']).join('\\n');
-                    const errAlert = errs.replace(/'/g, '\\\'').replace(/"/g, '&quot;');
-                    row.querySelector('.b-status').innerHTML = `<span class="status-badge status-pending" title="${errAlert}" onclick="alert('${errAlert}')" style="cursor:help; text-decoration: underline dotted;">İnceleme (Tıkla)</span>`;
-                }
-                
-                row.addEventListener('click', () => {
-                    openSingleResultFromBatch(i);
+    batchProcessing = true;
+    batchUploadAbortController = new AbortController();
+    setBatchNavigationDisabled(true);
+    updateBatchActions();
+
+    try {
+        for (let index = 0; index < files.length; index += 1) {
+            if (!isCurrentBatchGeneration(capturedBatchGeneration)) return;
+            const item = batchResults[index];
+            setBatchStatus(index, 'pending', 'Okunuyor...');
+            const formData = new FormData();
+            formData.append('file', item.file);
+
+            try {
+                const response = await fetch('/upload', {
+                    method: 'POST',
+                    body: formData,
+                    signal: batchUploadAbortController.signal,
                 });
-            } else {
-                batchResults[i] = { file, result, success: false };
-                const errorMsg = (result && result.message) ? result.message : 'Dosya okunamadı veya bilinmeyen hata';
-                const fullError = errorMsg.replace(/"/g, '&quot;');
-                const alertEscaped = fullError.replace(/'/g, '\\\'').replace(/\n/g, '\\n');
-                row.querySelector('.b-status').innerHTML = `<span class="status-badge status-error" title="${fullError}" onclick="alert('${alertEscaped}')" style="cursor:help; text-decoration: underline dotted;">Hata (Tıkla)</span>`;
+                const result = await readJsonResponse(response);
+                if (!isCurrentBatchGeneration(capturedBatchGeneration)) return;
+                if (!response.ok || !result || !result.data) {
+                    item.success = false;
+                    item.result = result || null;
+                    item.errorMessage = formatApiError(result) || `Sunucu Hatası (HTTP ${response.status})`;
+                } else {
+                    item.success = true;
+                    item.result = result;
+                    item.errorMessage = '';
+                }
+            } catch (error) {
+                if (error.name === 'AbortError' || !isCurrentBatchGeneration(capturedBatchGeneration)) return;
+                item.success = false;
+                item.errorMessage = error.message || 'Bağlantı Hatası';
             }
-        } catch (error) {
-            batchResults[i] = { file, error, success: false };
-            const errMsg = error.message || 'Bağlantı Hatası';
-            row.querySelector('.b-status').innerHTML = `<span class="status-badge status-error" title="${errMsg}" onclick="alert('${errMsg}')" style="cursor:help; text-decoration: underline dotted;">Bağlantı Hatası</span>`;
+            updateBatchRow(index);
         }
-    }
-    
-    batchProcessing = false;
-    
-    if (batchResults.some(r => r && r.success)) {
-        sendAllBtn.style.display = 'inline-flex';
+    } finally {
+        if (isCurrentBatchGeneration(capturedBatchGeneration)) {
+            batchProcessing = false;
+            batchUploadAbortController = null;
+            setBatchNavigationDisabled(false);
+            updateBatchActions();
+        }
     }
 }
 
 function openSingleResultFromBatch(index) {
     const item = batchResults[index];
-    if (!item || !item.success) return;
-    
+    if (!item || !item.success || item.generation !== batchGenerationId || batchProcessing) return;
+
+    activeBatchIndex = index;
+    batchDetailRevision += 1;
+    currentUploadId = `batch-detail:${batchGenerationId}:${index}:${batchDetailRevision}`;
+    validationRevision += 1;
+    clearTimeout(validationTimeout);
+    if (validationAbortController) validationAbortController.abort();
+    validationAbortController = null;
+    currentInvoiceData = JSON.parse(JSON.stringify(item.result.data));
+    draftSendInProgress = false;
+
     document.getElementById('batch-section').classList.add('hidden');
     document.getElementById('split-container').classList.remove('hidden');
     document.getElementById('split-container').classList.add('split-active');
     document.getElementById('back-to-batch-btn').classList.remove('hidden');
-    
-    if (pdfObjectUrl) {
-        URL.revokeObjectURL(pdfObjectUrl);
-        pdfObjectUrl = null;
-    }
-    
+    if (pdfObjectUrl) URL.revokeObjectURL(pdfObjectUrl);
+    pdfObjectUrl = null;
+
     if (item.file.type === 'application/pdf' || ['image/jpeg', 'image/png', 'image/webp'].includes(item.file.type)) {
         pdfObjectUrl = URL.createObjectURL(item.file);
         document.getElementById('pdf-iframe').src = pdfObjectUrl;
@@ -1322,117 +1579,126 @@ function openSingleResultFromBatch(index) {
         document.querySelector('.app-container').classList.add('wide-mode');
         document.getElementById('toggle-pdf-btn').style.display = 'flex';
     } else {
+        document.getElementById('pdf-iframe').src = '';
         document.getElementById('pdf-viewer-section').classList.add('hidden');
         document.querySelector('.app-container').classList.remove('wide-mode');
         document.getElementById('toggle-pdf-btn').style.display = 'none';
     }
-    
-    currentInvoiceData = item.result.data;
-    renderInvoice(item.result);
-    updateValidationUI(item.result);
-    document.getElementById('send-draft-btn').classList.remove('hidden');
+
+    const detailResult = { ...item.result, data: currentInvoiceData };
+    renderInvoice(detailResult);
+    updateValidationUI(detailResult);
+    if (item.sent) {
+        setEditingDisabled(true);
+        document.getElementById('send-draft-btn').classList.add('hidden');
+        updateWorkflowUI('sent', currentInvoiceData, 'Bu fatura Uyumsoft taslaklarına gönderildi.');
+    } else {
+        setEditingDisabled(false);
+        document.getElementById('send-draft-btn').classList.remove('hidden');
+    }
     document.getElementById('results-section').classList.remove('hidden');
+    setBatchNavigationDisabled(false);
 }
 
-const backBtn = document.getElementById('back-to-batch-btn');
-if (backBtn) {
-    backBtn.addEventListener('click', () => {
-        document.getElementById('split-container').classList.add('hidden');
-        document.getElementById('split-container').classList.remove('split-active');
-        
-        if (typeof batchResults !== 'undefined' && batchResults.length > 0) {
-            document.getElementById('batch-section').classList.remove('hidden');
-        } else {
-            document.querySelector('.upload-section').classList.remove('hidden');
-            document.querySelector('.app-container').classList.remove('wide-mode');
-        }
-        
-        if (pdfObjectUrl) {
-            URL.revokeObjectURL(pdfObjectUrl);
-            pdfObjectUrl = null;
-        }
-        document.getElementById('pdf-iframe').src = '';
-    });
-}
+document.getElementById('back-to-batch-btn').addEventListener('click', () => {
+    if (batchProcessing || draftSendInProgress || currentValidationState === 'pending') return;
+    persistActiveBatchItem();
+    validationRevision += 1;
+    if (validationAbortController) validationAbortController.abort();
+    validationAbortController = null;
+    currentUploadId = `batch:${batchGenerationId}:${crypto.randomUUID()}`;
+    activeBatchIndex = null;
+    document.getElementById('split-container').classList.add('hidden');
+    document.getElementById('split-container').classList.remove('split-active');
+    if (batchGenerationId && batchResults.length > 0) {
+        document.getElementById('batch-section').classList.remove('hidden');
+    }
+    if (pdfObjectUrl) URL.revokeObjectURL(pdfObjectUrl);
+    pdfObjectUrl = null;
+    document.getElementById('pdf-iframe').src = '';
+    updateBatchActions();
+});
 
-const sendAllBtn = document.getElementById('send-all-btn');
-if (sendAllBtn) {
-    sendAllBtn.addEventListener('click', async () => {
-        if (batchProcessing) return;
-        
-        if (!confirm("Listedeki başarılı tüm faturaları Uyumsoft'a taslak olarak göndermek istediğinize emin misiniz?")) {
-            return;
-        }
-        
-        sendAllBtn.disabled = true;
-        sendAllBtn.textContent = 'Gönderiliyor...';
-        
-        for (let i = 0; i < batchResults.length; i++) {
-            const item = batchResults[i];
-            if (!item || !item.success || item.sent || item.result.is_valid === false) continue;
-            
-            const row = document.getElementById('batch-row-' + i);
-            row.querySelector('.b-status').innerHTML = '<span class="status-badge status-pending">Gönderiliyor...</span>';
-            
+document.getElementById('send-all-btn').addEventListener('click', async () => {
+    if (batchProcessing || !batchGenerationId) return;
+    if (!getRuntimeEnvironment()) {
+        window.alert('Sunucunun Uyumsoft ortam ayarı okunamadı. Sayfayı yenileyip tekrar deneyin.');
+        return;
+    }
+    const eligibleIndexes = batchResults
+        .map((item, index) => ({ item, index }))
+        .filter(({ item }) => item && item.success && !item.sent && !item.validationPending && item.result.is_valid !== false)
+        .map(({ index }) => index);
+    if (eligibleIndexes.length === 0) {
+        updateBatchActions();
+        return;
+    }
+    if (!confirm(`${eligibleIndexes.length} geçerli faturayı Uyumsoft'a taslak olarak göndermek istediğinize emin misiniz?`)) return;
+
+    const capturedBatchGeneration = batchGenerationId;
+    batchProcessing = true;
+    batchSendAbortController = new AbortController();
+    setBatchNavigationDisabled(true);
+    updateBatchActions();
+    try {
+        for (const index of eligibleIndexes) {
+            if (!isCurrentBatchGeneration(capturedBatchGeneration)) return;
+            const item = batchResults[index];
+            setBatchStatus(index, 'pending', 'Gönderiliyor...');
             try {
                 const response = await fetch('/send-uyumsoft', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ invoice_data: item.result.data, action: 'draft', environment: document.documentElement.dataset.uyumsoftEnvironment || 'test' })
+                    body: JSON.stringify({ invoice_data: item.result.data, action: 'draft' }),
+                    signal: batchSendAbortController.signal,
                 });
-                const resData = await response.json();
-                
-                if (response.ok && resData.success !== false) {
-                    row.querySelector('.b-status').innerHTML = '<span class="status-badge status-success">Gönderildi</span>';
+                const result = await readJsonResponse(response);
+                if (!isCurrentBatchGeneration(capturedBatchGeneration)) return;
+                if (response.ok && result.success === true) {
                     item.sent = true;
+                    item.errorMessage = '';
                 } else {
-                    const errorMsg = resData.message || 'Uyumsoft Hatası';
-                    const errorDetails = resData.details || '';
-                    const fullError = (errorMsg + (errorDetails ? '\nDetaylar: ' + errorDetails : '')).replace(/"/g, '&quot;');
-                    const alertEscaped = fullError.replace(/'/g, '\\\'').replace(/\n/g, '\\n');
-                    row.querySelector('.b-status').innerHTML = `<span class="status-badge status-error" title="${fullError}" onclick="alert('${alertEscaped}')" style="cursor:help; text-decoration: underline dotted;">Hata (Tıkla)</span>`;
+                    item.sent = false;
+                    item.errorMessage = `Uyumsoft Hatası: ${formatApiError(result)}`;
                 }
-            } catch (e) {
-                const errMsg = e.message || 'Ağ Hatası';
-                row.querySelector('.b-status').innerHTML = `<span class="status-badge status-error" title="${errMsg}" onclick="alert('${errMsg}')" style="cursor:help; text-decoration: underline dotted;">Ağ Hatası</span>`;
+            } catch (error) {
+                if (error.name === 'AbortError' || !isCurrentBatchGeneration(capturedBatchGeneration)) return;
+                item.sent = false;
+                item.errorMessage = error.message || 'Ağ Hatası';
             }
+            if (item.sent) setBatchStatus(index, 'success', 'Gönderildi');
+            else setBatchStatus(index, 'error', 'Gönderim Hatası (Tıkla)', item.errorMessage);
         }
-        
-        // Hide the button and show success text
-        sendAllBtn.style.display = 'none';
-        const successText = document.getElementById('send-all-success-text');
-        if (successText) {
-            successText.style.display = 'flex';
+    } finally {
+        if (isCurrentBatchGeneration(capturedBatchGeneration)) {
+            batchProcessing = false;
+            batchSendAbortController = null;
+            setBatchNavigationDisabled(false);
+            updateBatchActions();
         }
-    });
-}
+    }
+});
 
-const batchBackBtn = document.getElementById('batch-back-btn');
-if (batchBackBtn) {
-    batchBackBtn.addEventListener('click', () => {
-        document.getElementById('batch-section').classList.add('hidden');
-        document.querySelector('.upload-section').classList.remove('hidden');
-        
-        // Reset the batch queue UI optionally
-        batchResults = [];
-        document.getElementById('batch-table-body').innerHTML = '';
-        const sendAllBtn = document.getElementById('send-all-btn');
-        if (sendAllBtn) {
-            sendAllBtn.style.display = 'none';
-            sendAllBtn.disabled = false;
-            sendAllBtn.textContent = "Tümünü Uyumsoft'a Gönder";
-        }
-        const successText = document.getElementById('send-all-success-text');
-        if (successText) {
-            successText.style.display = 'none';
-        }
-    });
-}
+document.getElementById('batch-back-btn').addEventListener('click', () => {
+    if (batchProcessing || draftSendInProgress) return;
+    cancelBatchRequests();
+    batchGenerationId = null;
+    batchResults = [];
+    activeBatchIndex = null;
+    document.getElementById('batch-section').classList.add('hidden');
+    document.getElementById('batch-table-body').replaceChildren();
+    document.querySelector('.upload-section').classList.remove('hidden');
+    document.getElementById('send-all-btn').style.display = 'none';
+    document.getElementById('send-all-success-text').style.display = 'none';
+    setBatchNavigationDisabled(false);
+});
 
-const batchUyumsoftBtn = document.getElementById('batch-uyumsoft-btn');
-if (batchUyumsoftBtn) {
-    batchUyumsoftBtn.addEventListener('click', () => {
-        openUyumsoftPortal();
-    });
-}
+document.getElementById('batch-uyumsoft-btn').addEventListener('click', openUyumsoftPortal);
+
+window.addEventListener('beforeunload', () => {
+    if (pdfObjectUrl) URL.revokeObjectURL(pdfObjectUrl);
+    if (currentAbortController) currentAbortController.abort();
+    if (currentSendAbortController) currentSendAbortController.abort();
+    cancelBatchRequests();
+});
 });

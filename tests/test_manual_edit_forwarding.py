@@ -28,7 +28,11 @@ def _invoice():
             {
                 "code": "EDIT-CODE",
                 "description": "Düzenlenmiş ürün",
-                "serial_numbers": ["SERIAL-EDIT-1"],
+                "serial_numbers": [
+                    "SERIAL-EDIT-1",
+                    "SERIAL-EDIT-2",
+                    "SERIAL-EDIT-3",
+                ],
                 "quantity": "3",
                 "unit_price": "25,00",
                 "tax_rate": "10",
@@ -72,7 +76,11 @@ def test_send_endpoint_preserves_every_editable_field_and_forces_draft():
     assert sent["items"][0] == {
         "code": "EDIT-CODE",
         "description": "Düzenlenmiş ürün",
-        "serial_numbers": ["SERIAL-EDIT-1"],
+        "serial_numbers": [
+            "SERIAL-EDIT-1",
+            "SERIAL-EDIT-2",
+            "SERIAL-EDIT-3",
+        ],
         "quantity": "3",
         "unit_price": "25,00",
         "tax_rate": "10",
@@ -268,6 +276,8 @@ def test_production_send_requires_real_supplier_configuration_before_network():
         result = send_invoice_to_uyumsoft(_invoice(), action="draft")
 
     assert result["success"] is False
+    if result["response_code"] != 422:
+        print("RESULT IS", result)
     assert result["response_code"] == 422
     assert "işyeri bilgileri eksik" in result["message"]
 
