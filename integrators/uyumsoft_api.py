@@ -297,6 +297,11 @@ def build_ubl_invoice(invoice: dict[str, Any]) -> str:
     if not isinstance(invoice, dict):
         raise ValueError("invoice must be an object")
 
+    invoice_uuid = invoice.get("uuid")
+    if not invoice_uuid:
+        invoice_uuid = str(uuid.uuid4())
+        invoice["uuid"] = invoice_uuid
+
     invoice_no = _resolve_invoice_no(invoice.get("invoice_no"))
     issue_date = _parse_date(invoice.get("date"))
     issue_time = _parse_time(invoice.get("time"))
@@ -573,7 +578,7 @@ def build_ubl_invoice(invoice: dict[str, Any]) -> str:
   <cbc:ProfileID>{escape(profile_id)}</cbc:ProfileID>
   <cbc:ID>{escape(invoice_no)}</cbc:ID>
   <cbc:CopyIndicator>false</cbc:CopyIndicator>
-  <cbc:UUID>{uuid.uuid4()}</cbc:UUID>
+  <cbc:UUID>{invoice_uuid}</cbc:UUID>
   <cbc:IssueDate>{issue_date}</cbc:IssueDate>{issue_time_xml}
   <cbc:InvoiceTypeCode>{escape(invoice_type)}</cbc:InvoiceTypeCode>{notes_xml}
   <cbc:DocumentCurrencyCode>{currency}</cbc:DocumentCurrencyCode>
