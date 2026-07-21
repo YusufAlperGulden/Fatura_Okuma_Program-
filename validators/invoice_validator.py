@@ -173,6 +173,7 @@ def validate_invoice(data):
     
     # Bypass validation for common accountant placeholders
     if tax_id in ("11111111111", "111111111111"):
+        data["customer_tax_id"] = "11111111111"
         pass # valid placeholder
     elif not tax_id or not (len(tax_id) in (10, 11) and tax_id.isdigit()):
         invoice_no = str(data.get("invoice_no") or "").strip()
