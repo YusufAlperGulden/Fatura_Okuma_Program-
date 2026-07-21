@@ -263,7 +263,7 @@ def test_uyumsoft_builder_honors_one_lira_tolerance_with_canonical_xml_totals():
 
 
 def test_invalid_vkn_checksum_is_rejected_before_uyumsoft():
-    invoice = _invoice(customer_tax_id="0000000000")
+    invoice = _invoice(customer_tax_id="1234567891")
 
     is_valid, errors = validate_invoice(invoice)
 
@@ -280,3 +280,46 @@ def test_item_name_fallback_is_consistent_in_validator_and_ubl_builder():
     xml_text = build_ubl_invoice(invoice)
 
     assert "<cbc:Name>Fallback ürün</cbc:Name>" in xml_text
+
+def test_10_digit_vkn_checksum_verification():
+    invoice = _invoice(customer_tax_id="1234567891")
+    is_valid, errors = validate_invoice(invoice)
+    assert is_valid is False
+    assert any("kontrol basamağı" in error.lower() for error in errors)
+
+def test_vkn_strip_persists_in_data():
+    invoice = _invoice(customer_tax_id=" 1111111111 ")
+    validate_invoice(invoice)
+    assert invoice["customer_tax_id"] == "1111111111"
+
+def test_turkish_lira_uppercase_mapping():
+    from utils.invoice_values import parse_localized_decimal
+    assert parse_localized_decimal("10,00 Türk Lirası") == Decimal("10.00")
+
+def test_uyumsoft_uuid_idempotency():
+    invoice = _invoice()
+    xml1 = build_ubl_invoice(invoice)
+    xml2 = build_ubl_invoice(invoice)
+    uuid1 = _local_values(xml1, "UUID")[0]
+    uuid2 = _local_values(xml2, "UUID")[0]
+    assert uuid1 == uuid2
+
+def test_gemini_fallback_preserves_local_errors_if_ai_fails():
+    from fastapi.testclient import TestClient
+    from api import app
+    client = TestClient(app)
+    with patch("api.parse_pdf_invoice") as mock_local, \
+         patch("extractors.ai_extractor.extract_invoice_with_ai") as mock_ai, \
+         patch.dict("os.environ", {"GEMINI_API_KEY": "dummy"}):
+        
+        mock_local.return_value = _invoice(tax_amount="21,01", total_amount="121,01")
+        mock_ai.return_value = {}
+        
+        response = client.post("/upload", files={"file": ("test.pdf", b"dummy content", "application/pdf")})
+        
+        assert response.status_code == 200
+        data = response.json()
+        assert data["is_valid"] is False
+        assert data["data"] is not None
+        assert data["data"]["tax_amount"] == "21,01"
+
