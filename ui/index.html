@@ -241,14 +241,14 @@
             display: flex;
             align-items: center;
             justify-content: center;
-            transition: transform 0.3s;
+            transition: color 0.3s;
         }
         .palette-toggle:hover {
             color: var(--text-primary);
         }
-        .palette-toggle.expanded svg {
-            transform: rotate(180deg);
-        }
+        .palette-toggle .icon-close { display: none; }
+        .palette-toggle.expanded .icon-open { display: none; }
+        .palette-toggle.expanded .icon-close { display: block; }
         .color-picker {
             display: flex;
             gap: 8px;
@@ -269,7 +269,8 @@
             <div style="display: flex; justify-content: flex-end; align-items: center; gap: 15px; margin-bottom: 0.5rem; flex-wrap: wrap;">
                 <div style="display: flex; align-items: center; gap: 8px; background: var(--panel-bg); padding: 5px 10px; border-radius: 20px; border: 1px solid var(--border-color);">
                     <button id="palette-toggle" class="palette-toggle" title="Temaları Göster/Gizle" onclick="document.getElementById('color-picker').classList.toggle('expanded'); this.classList.toggle('expanded');" style="z-index: 50;">
-                        <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" /></svg>
+                        <svg class="icon-open" width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zm0 0h12a2 2 0 002-2v-4a2 2 0 00-2-2h-2.343M11 7.343l1.657-1.657a2 2 0 012.828 0l2.829 2.829a2 2 0 010 2.828l-8.486 8.485M7 17h.01" /></svg>
+                        <svg class="icon-close" width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" /></svg>
                     </button>
                     <div id="color-picker" class="color-picker">
                     <div class="color-dot active" data-color="ocean" style="background-color: #0ea5e9;" title="Ocean (Varsayılan)"></div>
