@@ -8,6 +8,7 @@ from utils.invoice_values import (
     normalize_currency,
     parse_localized_decimal,
     quantize_money,
+    DOCUMENT_AMOUNT_TOLERANCE,
 )
 
 
@@ -146,7 +147,6 @@ def validate_invoice(data):
         return False, ["Fatura verisi bir nesne olmalıdır."]
 
     _infer_uniform_missing_tax_rate(data)
-    recalculate_invoice_totals(data)
     errors = []
 
     try:
@@ -170,6 +170,9 @@ def validate_invoice(data):
         errors.append("Fatura tarihi bulunamadı.")
         
     tax_id = str(data.get("customer_tax_id") or "").strip()
+    if data.get("customer_tax_id") is not None:
+        data["customer_tax_id"] = tax_id
+
     if not tax_id or not (len(tax_id) in (10, 11) and tax_id.isdigit()):
         invoice_no = str(data.get("invoice_no") or "").strip()
         if (
@@ -190,6 +193,19 @@ def validate_invoice(data):
         else:
             errors.append(
                 f"Alıcı VKN/TCKN bilgisi hatalı veya eksik. Lütfen 10 veya 11 haneli olacak şekilde faturayı düzenleyiniz. (Okunan: '{tax_id}')"
+            )
+    elif len(tax_id) == 10:
+        digits = [int(d) for d in tax_id]
+        total = 0
+        for i in range(9):
+            val = (digits[i] + (9 - i)) % 10
+            if val != 9:
+                val = (val * (2 ** (9 - i))) % 9
+            total += val
+        check_digit = (10 - (total % 10)) % 10
+        if digits[9] != check_digit:
+            errors.append(
+                f"Vergi Kimlik Numarası (VKN) hatalı. kontrol basamağı kuralı ihlali. (Okunan VKN: '{tax_id}')"
             )
     elif len(tax_id) == 11:
         if tax_id[0] == '0':
@@ -331,7 +347,7 @@ def validate_invoice(data):
         errors.append(f"Matematik Hatası: Kalemlerin tutar toplamı ({calculated_subtotal}) ile faturanın Ara Toplamı ({subtotal}) uyuşmuyor.")
 
     expected_total = quantize_money(calculated_subtotal - discount_amount + tax_amount)
-    if abs(expected_total - total_amount) > Decimal("0.10"):
+    if abs(expected_total - total_amount) > DOCUMENT_AMOUNT_TOLERANCE:
         errors.append(f"Matematik Hatası: KDV ve İndirim hesaplaması sonucu Genel Toplam ile uyuşmuyor. (Hesaplanan: {(calculated_subtotal - discount_amount + tax_amount)}, Faturada Yazan: {total_amount})")
 
     if parsed_tax_lines and len(parsed_tax_lines) == len(items):
@@ -345,7 +361,7 @@ def validate_invoice(data):
                 (line_total - discount_share) * tax_rate / Decimal("100")
             ).quantize(MONEY_QUANTUM, rounding=ROUND_HALF_UP)
         expected_tax = quantize_money(expected_tax)
-        if abs(expected_tax - tax_amount) > Decimal("0.05"):
+        if abs(expected_tax - tax_amount) > DOCUMENT_AMOUNT_TOLERANCE:
             errors.append(
                 "Matematik Hatası: Kalem KDV oranlarından hesaplanan toplam KDV "
                 f"({expected_tax}) ile faturanın KDV toplamı ({tax_amount}) uyuşmuyor."
@@ -420,4 +436,13 @@ def validate_invoice(data):
         if tax_rate is not None and decimal_places(tax_rate.normalize()) <= 4:
             item["tax_rate"] = format_number(tax_rate, 4)
 
+        serial_numbers = item.get("serial_numbers")
+        if isinstance(serial_numbers, list) and len(serial_numbers) > 0:
+            if quantity is not None:
+                if quantity != quantity.to_integral_value():
+                    errors.append(f"Seri numarası olan kalemlerde miktar tam sayı olmalıdır.")
+                elif len(serial_numbers) != int(quantity):
+                    errors.append(f"Faturada belirtilen seri numarası adedi ({len(serial_numbers)}) ile miktar ({int(quantity)}) uyuşmuyor.")
+
+    is_valid = len(errors) == 0
     return is_valid, errors
