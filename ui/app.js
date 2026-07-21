@@ -1513,11 +1513,11 @@ async function handleBatchFiles(files) {
         for (let index = 0; index < files.length; index += 1) {
             if (!isCurrentBatchGeneration(capturedBatchGeneration)) return;
             const item = batchResults[index];
-            setBatchStatus(index, 'pending', 'Okunuyor...');
-            const formData = new FormData();
-            formData.append('file', item.file);
-
             try {
+                setBatchStatus(index, 'pending', 'Okunuyor...');
+                const formData = new FormData();
+                formData.append('file', item.file);
+
                 const response = await fetch('/upload', {
                     method: 'POST',
                     body: formData,
@@ -1535,11 +1535,16 @@ async function handleBatchFiles(files) {
                     item.errorMessage = '';
                 }
             } catch (error) {
-                if (error.name === 'AbortError' || !isCurrentBatchGeneration(capturedBatchGeneration)) return;
+                if (error && error.name === 'AbortError') return;
+                if (!isCurrentBatchGeneration(capturedBatchGeneration)) return;
                 item.success = false;
-                item.errorMessage = error.message || 'Bağlantı Hatası';
+                item.errorMessage = (error && error.message) ? error.message : 'Bağlantı Hatası';
             }
-            updateBatchRow(index);
+            try {
+                updateBatchRow(index);
+            } catch (e) {
+                console.error('Error updating batch row', e);
+            }
         }
     } finally {
         if (isCurrentBatchGeneration(capturedBatchGeneration)) {
@@ -1644,8 +1649,8 @@ document.getElementById('send-all-btn').addEventListener('click', async () => {
         for (const index of eligibleIndexes) {
             if (!isCurrentBatchGeneration(capturedBatchGeneration)) return;
             const item = batchResults[index];
-            setBatchStatus(index, 'pending', 'Gönderiliyor...');
             try {
+                setBatchStatus(index, 'pending', 'Gönderiliyor...');
                 const response = await fetch('/send-uyumsoft', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -1662,12 +1667,17 @@ document.getElementById('send-all-btn').addEventListener('click', async () => {
                     item.errorMessage = `Uyumsoft Hatası: ${formatApiError(result)}`;
                 }
             } catch (error) {
-                if (error.name === 'AbortError' || !isCurrentBatchGeneration(capturedBatchGeneration)) return;
+                if (error && error.name === 'AbortError') return;
+                if (!isCurrentBatchGeneration(capturedBatchGeneration)) return;
                 item.sent = false;
-                item.errorMessage = error.message || 'Ağ Hatası';
+                item.errorMessage = (error && error.message) ? error.message : 'Ağ Hatası';
             }
-            if (item.sent) setBatchStatus(index, 'success', 'Gönderildi');
-            else setBatchStatus(index, 'error', 'Gönderim Hatası (Tıkla)', item.errorMessage);
+            try {
+                if (item.sent) setBatchStatus(index, 'success', 'Gönderildi');
+                else setBatchStatus(index, 'error', 'Gönderim Hatası (Tıkla)', item.errorMessage);
+            } catch (e) {
+                console.error('Error updating batch status', e);
+            }
         }
     } finally {
         if (isCurrentBatchGeneration(capturedBatchGeneration)) {
