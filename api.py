@@ -259,8 +259,17 @@ async def upload_invoice(file: UploadFile = File(...)):
                 elif ext == '.webp': mime_type = "image/webp"
                 
                 ai_data = extract_invoice_with_ai(file_bytes, mime_type)
-                data = safe_merge_ai_data(ai_data, local_data_for_serials)
-                data["_extraction_method"] = "Google Gemini Yapay Zeka"
+                merged = safe_merge_ai_data(ai_data, local_data_for_serials)
+                merged["_extraction_method"] = "Google Gemini Yapay Zeka"
+                
+                ai_valid, _ = _validate_candidate(merged)
+                if ai_valid or not local_data_for_serials:
+                    data = merged
+                    local_error = not ai_valid
+                elif len(merged.get("items") or []) > len(local_data_for_serials.get("items") or []):
+                    data = merged
+                else:
+                    data = local_data_for_serials
             except Exception as e:
                 if _is_gemini_quota_error(e):
                     errors.append("Gemini limiti doldu; yerel okuyucu sonucu korundu.")
@@ -279,6 +288,9 @@ async def upload_invoice(file: UploadFile = File(...)):
             is_valid, validation_errors = validate_invoice(data)
             if is_valid:
                 errors = []
+            elif local_error and local_errors:
+                errors.extend(local_errors)
+                errors.append("--- Yapay Zeka Yedekleme Sonucu ---")
             errors.extend(validation_errors)
         elif local_errors:
             errors.extend(local_errors)
