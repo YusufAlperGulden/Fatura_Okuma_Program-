@@ -241,7 +241,7 @@
         [
             'Bu ay 50.000 TL üzeri faturalar',
             'En yüksek tutarlı 5 fatura',
-            'En yüksek tutarlı ikinci faturayı bul.',
+            'Bugün yüklenen başarılı faturalar',
         ].forEach(example => {
             const exampleButton = makeButton(documentRef, example, 'ai-history-example');
             exampleButton.addEventListener('click', () => {
