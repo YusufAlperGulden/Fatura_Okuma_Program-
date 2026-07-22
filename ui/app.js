@@ -1836,6 +1836,10 @@ const batchSection = document.getElementById('batch-section');
 
 let historyCurrentPage = 1;
 let historyChartInstance = null;
+let topCustomersChartInstance = null;
+let statusChartInstance = null;
+let currencyChartInstance = null;
+let taxSubtotalChartInstance = null;
 
 if (historyToggleBtn) {
     historyToggleBtn.addEventListener('click', () => {
@@ -1893,6 +1897,9 @@ async function loadHistoryDashboard() {
             // Draw chart
             renderHistoryChart(json.data.trend);
             renderTopCustomersChart(json.data.top_customers);
+            if (json.data.status_distribution) renderStatusChart(json.data.status_distribution);
+            if (json.data.currency_distribution) renderCurrencyChart(json.data.currency_distribution);
+            if (json.data.tax_vs_subtotal) renderTaxSubtotalChart(json.data.tax_vs_subtotal);
         }
     } catch (e) {
         console.error('Error loading history dashboard', e);
@@ -1993,6 +2000,110 @@ function renderHistoryChart(trendData) {
                         }
                     }
                 }
+            }
+        }
+    });
+}
+function renderStatusChart(statusData) {
+    const ctx = document.getElementById('statusChart').getContext('2d');
+    if (statusChartInstance) statusChartInstance.destroy();
+    if (!statusData || statusData.length === 0) return;
+    
+    const labels = statusData.map(item => item.status || 'Bilinmiyor');
+    const dataPoints = statusData.map(item => item.count);
+    
+    statusChartInstance = new Chart(ctx, {
+        type: 'doughnut',
+        data: {
+            labels: labels,
+            datasets: [{
+                data: dataPoints,
+                backgroundColor: ['#10b981', '#ef4444', '#f59e0b', '#3b82f6', '#64748b'],
+                borderWidth: 1,
+                borderColor: '#1e293b'
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: { position: 'bottom', labels: { color: '#94a3b8' } }
+            }
+        }
+    });
+}
+
+function renderCurrencyChart(currencyData) {
+    const ctx = document.getElementById('currencyChart').getContext('2d');
+    if (currencyChartInstance) currencyChartInstance.destroy();
+    if (!currencyData || currencyData.length === 0) return;
+    
+    const labels = currencyData.map(item => item.currency || 'TRY');
+    const dataPoints = currencyData.map(item => item.total);
+    
+    currencyChartInstance = new Chart(ctx, {
+        type: 'pie',
+        data: {
+            labels: labels,
+            datasets: [{
+                data: dataPoints,
+                backgroundColor: ['#3b82f6', '#10b981', '#f59e0b', '#8b5cf6', '#ec4899'],
+                borderWidth: 1,
+                borderColor: '#1e293b'
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: { position: 'bottom', labels: { color: '#94a3b8' } },
+                tooltip: {
+                    callbacks: {
+                        label: function(context) {
+                            return new Intl.NumberFormat('tr-TR').format(context.raw) + ' ' + context.label;
+                        }
+                    }
+                }
+            }
+        }
+    });
+}
+
+function renderTaxSubtotalChart(taxData) {
+    const ctx = document.getElementById('taxSubtotalChart').getContext('2d');
+    if (taxSubtotalChartInstance) taxSubtotalChartInstance.destroy();
+    if (!taxData || taxData.length === 0) return;
+    
+    const labels = taxData.map(item => item.month);
+    const taxPoints = taxData.map(item => item.total_tax);
+    const subtotalPoints = taxData.map(item => item.total_subtotal);
+    
+    taxSubtotalChartInstance = new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: labels,
+            datasets: [
+                {
+                    label: 'Ara Toplam',
+                    data: subtotalPoints,
+                    backgroundColor: '#3b82f6',
+                },
+                {
+                    label: 'KDV',
+                    data: taxPoints,
+                    backgroundColor: '#10b981',
+                }
+            ]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            scales: {
+                x: { stacked: true },
+                y: { stacked: true }
+            },
+            plugins: {
+                legend: { position: 'bottom', labels: { color: '#94a3b8' } }
             }
         }
     });

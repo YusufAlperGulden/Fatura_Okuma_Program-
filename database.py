@@ -130,7 +130,7 @@ def get_dashboard_stats():
     conn.row_factory = sqlite3.Row
     cursor = conn.cursor()
     
-    # 1. Total revenue & count (only for GÃ–NDERÄ°LDÄ°)
+    # 1. Total revenue & count (only for non-error invoices)
     cursor.execute('''
         SELECT 
             SUM(amount_try) as total_revenue,
@@ -142,9 +142,7 @@ def get_dashboard_stats():
     total_revenue = float(row['total_revenue'] or 0.0)
     total_count = int(row['total_count'] or 0)
     
-    # 2. Revenue trend by month (only for GÃ–NDERÄ°LDÄ°)
-    # Using substr(date, 1, 7) assuming date format like YYYY-MM-DD
-    # If date is invalid or missing, we could fallback to created_at
+    # 2. Revenue trend by month
     cursor.execute('''
         SELECT 
             CASE 
@@ -172,13 +170,53 @@ def get_dashboard_stats():
         LIMIT 5
     ''')
     top_customers = [dict(r) for r in cursor.fetchall()]
+
+    # 4. Status distribution
+    cursor.execute('''
+        SELECT 
+            status,
+            COUNT(*) as count
+        FROM invoices
+        GROUP BY status
+    ''')
+    status_distribution = [dict(r) for r in cursor.fetchall()]
+
+    # 5. Currency distribution
+    cursor.execute('''
+        SELECT 
+            COALESCE(NULLIF(currency, ''), 'TRY') as currency,
+            SUM(total_amount) as total
+        FROM invoices
+        WHERE status != 'HATALI'
+        GROUP BY currency
+    ''')
+    currency_distribution = [dict(r) for r in cursor.fetchall()]
+
+    # 6. Tax vs Subtotal Trend
+    cursor.execute('''
+        SELECT 
+            CASE 
+                WHEN date LIKE '____-__-__' THEN substr(date, 1, 7)
+                ELSE substr(created_at, 1, 7)
+            END as month,
+            SUM(CAST(json_extract(raw_json, '$.tax_amount') AS REAL)) as total_tax,
+            SUM(CAST(json_extract(raw_json, '$.subtotal') AS REAL)) as total_subtotal
+        FROM invoices
+        WHERE status != 'HATALI' AND raw_json IS NOT NULL
+        GROUP BY month
+        ORDER BY month ASC
+    ''')
+    tax_vs_subtotal = [dict(r) for r in cursor.fetchall()]
     
     conn.close()
     return {
         "total_revenue": total_revenue,
         "total_count": total_count,
         "trend": monthly_data,
-        "top_customers": top_customers
+        "top_customers": top_customers,
+        "status_distribution": status_distribution,
+        "currency_distribution": currency_distribution,
+        "tax_vs_subtotal": tax_vs_subtotal
     }
 
 def get_paginated_invoices(page: int = 1, limit: int = 20, search_query: str = None, date_filter: str = None):

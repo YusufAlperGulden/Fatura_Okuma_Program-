@@ -687,6 +687,27 @@
                     </div>
                 </div>
 
+                <div style="display: flex; gap: 1.5rem; flex-wrap: wrap; margin-top: 1.5rem;">
+                    <div class="glass-panel" style="padding: 1.5rem; flex: 1; min-width: 300px;">
+                        <h3 style="margin-top: 0; margin-bottom: 1rem; color: var(--text-primary); font-size: 1.1rem;">Gönderim Durumları</h3>
+                        <div style="position: relative; height: 300px; width: 100%;">
+                            <canvas id="statusChart"></canvas>
+                        </div>
+                    </div>
+                    <div class="glass-panel" style="padding: 1.5rem; flex: 1; min-width: 300px;">
+                        <h3 style="margin-top: 0; margin-bottom: 1rem; color: var(--text-primary); font-size: 1.1rem;">Döviz Cinsi Dağılımı</h3>
+                        <div style="position: relative; height: 300px; width: 100%;">
+                            <canvas id="currencyChart"></canvas>
+                        </div>
+                    </div>
+                    <div class="glass-panel" style="padding: 1.5rem; flex: 1.5; min-width: 350px;">
+                        <h3 style="margin-top: 0; margin-bottom: 1rem; color: var(--text-primary); font-size: 1.1rem;">KDV vs Ara Toplam Trendi</h3>
+                        <div style="position: relative; height: 300px; width: 100%;">
+                            <canvas id="taxSubtotalChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+
                 <div class="glass-panel" style="margin-top: 1.5rem; padding: 1.5rem;">
                     <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem; margin-bottom: 1rem;">
                         <h3 style="margin: 0; color: var(--text-primary); font-size: 1.1rem;">Geçmişte Yüklenen Faturalar</h3>
@@ -728,6 +749,6 @@
         </main>
     </div>
     <script src="helpers.js?v=19"></script>
-    <script src="app.js?v=31"></script>
+    <script src="app.js?v=32"></script>
 </body>
 </html>
