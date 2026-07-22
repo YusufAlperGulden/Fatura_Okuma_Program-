@@ -2123,6 +2123,28 @@ document.getElementById('toggle-advanced-filters')?.addEventListener('click', ()
 });
 
 document.getElementById('history-apply-filters-btn')?.addEventListener('click', () => {
+    const startDateVal = document.getElementById('history-start-date')?.value;
+    const endDateVal = document.getElementById('history-end-date')?.value;
+    
+    if (startDateVal && endDateVal && startDateVal > endDateVal) {
+        Toastify({
+            text: "Başlangıç tarihi, bitiş tarihinden sonra olamaz!",
+            duration: 3000,
+            close: true,
+            gravity: "bottom",
+            position: "right",
+            style: {
+                background: "linear-gradient(to right, #ff5f6d, #ffc371)",
+                color: "#fff",
+                borderRadius: "8px",
+                fontFamily: "Inter, sans-serif",
+                fontSize: "14px",
+                boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.1)"
+            }
+        }).showToast();
+        return;
+    }
+
     loadHistoryTable(1);
 });
 
