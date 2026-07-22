@@ -425,7 +425,10 @@
             <!-- Batch Section -->
             <section id="batch-section" class="glass-panel hidden" style="padding: 2rem;">
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem; flex-wrap: wrap; gap: 1rem;">
-                    <h2 style="margin: 0; color: var(--text-primary);">Toplu Fatura İşlemleri</h2>
+                    <div style="display: flex; gap: 1rem; align-items: center; flex-wrap: wrap;">
+                        <h2 style="margin: 0; color: var(--text-primary);">Toplu Fatura İşlemleri</h2>
+                        <span id="batch-uyumsoft-environment-badge" class="integration-environment unknown" role="status">Uyumsoft ortamı: YÜKLENİYOR</span>
+                    </div>
                     <div style="display: flex; gap: 0.75rem; align-items: center; flex-wrap: wrap;">
                         <button id="batch-back-btn" class="secondary-btn">
                             <svg style="width: 16px; height: 16px; margin-right: 6px;" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path></svg>
@@ -435,7 +438,6 @@
                             <svg style="width: 16px; height: 16px; margin-right: 6px;" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"></path></svg>
                             Uyumsoft'a Git
                         </button>
-                        <span id="batch-uyumsoft-environment-badge" class="integration-environment unknown" role="status">Uyumsoft ortamı: YÜKLENİYOR</span>
                         <button id="send-all-btn" class="primary-btn" style="display: none;">Tümünü Uyumsoft'a Gönder</button>
                         <span id="send-all-success-text" style="display: none; font-weight: 600; color: var(--accent-color); padding: 0.5rem 1rem; align-items: center; gap: 0.5rem;">
                             <svg style="width: 20px; height: 20px;" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
