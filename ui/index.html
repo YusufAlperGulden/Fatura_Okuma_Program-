@@ -456,7 +456,13 @@
                         <h2 style="margin: 0; color: var(--text-primary);">Toplu Fatura İşlemleri</h2>
                     </div>
                     <div class="batch-header-center">
-                        <span id="batch-uyumsoft-environment-badge" class="integration-environment unknown" role="status">Uyumsoft ortamı: YÜKLENİYOR</span>
+                        <div class="environment-selector" style="display: flex; justify-content: center; align-items: center; gap: 8px;">
+                            <label for="batch-environment-select" style="font-size: 0.9rem; color: var(--text-secondary);">Uyumsoft Ortamı:</label>
+                            <select id="batch-environment-select" class="env-dropdown" style="background: var(--input-bg); border: 1px solid var(--border-color); color: var(--text-primary); padding: 0.5rem 1rem; border-radius: 8px; font-weight: 600; outline: none; cursor: pointer;">
+                                <option value="test" style="background-color: #ffffff; color: #000000;">TEST (Ön Kabul)</option>
+                                <option value="prod" style="background-color: #ffffff; color: #000000;">GERÇEK (CANLI)</option>
+                            </select>
+                        </div>
                     </div>
                     <div class="batch-header-right">
                         <button id="batch-back-btn" class="secondary-btn">
@@ -625,7 +631,7 @@
                     </div>
                     <div class="environment-selector" style="margin-top: 1rem; text-align: center; display: flex; justify-content: center; align-items: center; gap: 8px;">
                         <label for="environment-select" style="font-size: 0.9rem; color: var(--text-secondary);">Uyumsoft Ortamı:</label>
-                        <select id="environment-select" style="background: var(--input-bg); border: 1px solid var(--border-color); color: var(--text-primary); padding: 0.5rem 1rem; border-radius: 8px; font-weight: 600; outline: none; cursor: pointer;">
+                        <select id="environment-select" class="env-dropdown" style="background: var(--input-bg); border: 1px solid var(--border-color); color: var(--text-primary); padding: 0.5rem 1rem; border-radius: 8px; font-weight: 600; outline: none; cursor: pointer;">
                             <option value="test" style="background-color: #ffffff; color: #000000;">TEST (Ön Kabul)</option>
                             <option value="prod" style="background-color: #ffffff; color: #000000;">GERÇEK (CANLI)</option>
                         </select>

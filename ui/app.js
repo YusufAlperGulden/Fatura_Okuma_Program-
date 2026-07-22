@@ -137,10 +137,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const localEnv = localStorage.getItem('uyumsoft_environment') || 'test';
         document.documentElement.dataset.uyumsoftEnvironment = localEnv;
-        const select = document.getElementById('environment-select');
-        if (select) {
-            select.value = localEnv;
-        }
+        const selects = document.querySelectorAll('.env-dropdown');
+        selects.forEach(s => s.value = localEnv);
         updateEnvironmentBadges(localEnv);
     }
 
@@ -150,16 +148,21 @@ document.addEventListener('DOMContentLoaded', () => {
     const credCancelBtn = document.getElementById('cred-cancel-btn');
     const credUser = document.getElementById('cred-username');
     const credPass = document.getElementById('cred-password');
-    const envSelect = document.getElementById('environment-select');
+    const envSelects = document.querySelectorAll('.env-dropdown');
 
-    if (envSelect) {
-        envSelect.addEventListener('change', (e) => {
+    envSelects.forEach(select => {
+        select.addEventListener('change', (e) => {
             const val = e.target.value;
             localStorage.setItem('uyumsoft_environment', val);
             document.documentElement.dataset.uyumsoftEnvironment = val;
             updateEnvironmentBadges(val);
+            
+            // Sync other dropdowns
+            envSelects.forEach(s => {
+                if (s !== e.target) s.value = val;
+            });
         });
-    }
+    });
 
     function ensureUyumsoftCredentials() {
         return new Promise((resolve) => {
