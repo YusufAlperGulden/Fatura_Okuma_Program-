@@ -325,6 +325,9 @@ def _clean_pdf_line(line):
     line = _fix_mojibake_currency(line)
     line = line.replace("\xa0", " ")
     line = re.sub(r"\bAdeTt\b", "Adet", line)
+    
+    # Fix missing spaces between concatenated monetary values (e.g. 90,34₺180.678,53)
+    line = re.sub(rf"(\d)([{re.escape(CURRENCY_SYMBOLS)}]|TL|TRY|USD|EUR|GBP)", r"\1 \2", line, flags=re.IGNORECASE)
 
     # Vertical watermark letters sometimes land inside codes, units, or amounts.
     line = re.sub(rf"(\d{{4}})[{WATERMARK_CHARS}]\.(\d{{3}})", r"\1.\2", line)
