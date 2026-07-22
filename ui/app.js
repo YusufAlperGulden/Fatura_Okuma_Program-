@@ -1269,8 +1269,10 @@ function isCurrentBatchGeneration(generation) {
 function setBatchNavigationDisabled(disabled) {
     const batchBackButton = document.getElementById('batch-back-btn');
     const detailBackButton = document.getElementById('back-to-batch-btn');
+    const exportBtn = document.getElementById('batch-export-excel-btn');
     if (batchBackButton) batchBackButton.disabled = disabled;
     if (detailBackButton) detailBackButton.disabled = disabled;
+    if (exportBtn) exportBtn.disabled = disabled;
 }
 
 function cancelBatchRequests() {
@@ -1705,6 +1707,104 @@ document.getElementById('batch-back-btn').addEventListener('click', () => {
 });
 
 document.getElementById('batch-uyumsoft-btn').addEventListener('click', openUyumsoftPortal);
+
+document.getElementById('batch-export-excel-btn').addEventListener('click', () => {
+    if (batchProcessing || draftSendInProgress || !batchResults || batchResults.length === 0) {
+        Toastify({
+            text: "Lütfen önce işlemlerin bitmesini bekleyin veya fatura yükleyin.",
+            duration: 3000,
+            gravity: "top", position: "right",
+            style: { background: "#ef4444", borderRadius: "8px", fontWeight: "bold" }
+        }).showToast();
+        return;
+    }
+
+    const { formatCentsTr } = window.InvoiceUiHelpers;
+
+    const dataRows = batchResults.filter(item => item && item.success && item.result && item.result.data).map(item => {
+        const d = item.result.data;
+        const total = d.total_amount ? formatCentsTr(d.total_amount) : '-';
+        const taxExcl = d.tax_exclusive_amount ? formatCentsTr(d.tax_exclusive_amount) : '-';
+        let taxAmt = '-';
+        if (d.taxes && d.taxes.length > 0) {
+            const sum = d.taxes.reduce((acc, t) => acc + (t.amount || 0), 0);
+            taxAmt = formatCentsTr(sum);
+        }
+
+        let statusText = "Okundu";
+        if (item.result.is_valid === false) statusText = "Hatalı";
+        if (item.sent) statusText = "Gönderildi";
+
+        return {
+            "Dosya Adı": item.file.name,
+            "Fatura No": d.invoice_number || "-",
+            "Tarih": d.issue_date ? new Date(d.issue_date).toLocaleDateString('tr-TR') : "-",
+            "VKN/TCKN": d.vkn_tckn || "-",
+            "Cari İsim": d.supplier_name || "-",
+            "Vergi Hariç Tutar": taxExcl,
+            "KDV Tutarı": taxAmt,
+            "Ödenecek Toplam": total,
+            "Durum": statusText
+        };
+    });
+
+    if (dataRows.length === 0) {
+        Toastify({
+            text: "Dışa aktarılacak geçerli veri bulunamadı.",
+            duration: 3000,
+            gravity: "top", position: "right",
+            style: { background: "#ef4444", borderRadius: "8px", fontWeight: "bold" }
+        }).showToast();
+        return;
+    }
+
+    if (typeof XLSX === 'undefined') {
+        Toastify({
+            text: "Excel kütüphanesi yüklenemedi. Lütfen sayfayı yenileyin.",
+            duration: 3000,
+            gravity: "top", position: "right",
+            style: { background: "#ef4444", borderRadius: "8px", fontWeight: "bold" }
+        }).showToast();
+        return;
+    }
+
+    try {
+        const worksheet = XLSX.utils.json_to_sheet(dataRows);
+        
+        // Auto-size columns
+        const colWidths = [
+            { wch: 25 }, // Dosya Adı
+            { wch: 20 }, // Fatura No
+            { wch: 12 }, // Tarih
+            { wch: 15 }, // VKN/TCKN
+            { wch: 40 }, // Cari İsim
+            { wch: 15 }, // Vergi Hariç Tutar
+            { wch: 15 }, // KDV Tutarı
+            { wch: 15 }, // Ödenecek Toplam
+            { wch: 15 }, // Durum
+        ];
+        worksheet['!cols'] = colWidths;
+
+        const workbook = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(workbook, worksheet, "Faturalar");
+        XLSX.writeFile(workbook, "Faturalar_Raporu.xlsx");
+
+        Toastify({
+            text: "Excel dosyası başarıyla indirildi!",
+            duration: 3000,
+            gravity: "top", position: "right",
+            style: { background: "linear-gradient(to right, #059669, #10b981)", borderRadius: "8px", fontWeight: "bold" }
+        }).showToast();
+    } catch (err) {
+        console.error("Excel aktarım hatası:", err);
+        Toastify({
+            text: "Excel aktarımı sırasında bir hata oluştu.",
+            duration: 3000,
+            gravity: "top", position: "right",
+            style: { background: "#ef4444", borderRadius: "8px", fontWeight: "bold" }
+        }).showToast();
+    }
+});
 
 window.addEventListener('beforeunload', () => {
     if (pdfObjectUrl) URL.revokeObjectURL(pdfObjectUrl);
