@@ -1308,3 +1308,15 @@ tr:hover {
     100% { left: 100%; }
 }
 
+
+
+.mini-spinner {
+    width: 20px;
+    height: 20px;
+    border: 3px solid var(--border-color);
+    border-top: 3px solid currentColor;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+    display: inline-block;
+}
+

@@ -1291,6 +1291,8 @@ function invalidateBatchForSingleUpload() {
     document.getElementById('batch-table-body').replaceChildren();
     document.getElementById('send-all-btn').style.display = 'none';
     document.getElementById('send-all-success-text').style.display = 'none';
+    const loadingText3 = document.getElementById('send-all-loading-text');
+    if (loadingText3) loadingText3.style.display = 'none';
     setBatchNavigationDisabled(false);
 }
 
@@ -1423,6 +1425,7 @@ function updateBatchRow(index) {
 function updateBatchActions() {
     const sendAllButton = document.getElementById('send-all-btn');
     const successText = document.getElementById('send-all-success-text');
+    const loadingText = document.getElementById('send-all-loading-text');
     const liveItems = batchResults.filter(item => item && item.generation === batchGenerationId);
     const retryableItems = liveItems.filter(item => (
         item.success && !item.sent && !item.validationPending && item.result.is_valid !== false
@@ -1437,10 +1440,10 @@ function updateBatchActions() {
     }
 
     if (batchProcessing && typeof batchSendAbortController !== 'undefined' && batchSendAbortController) {
-        sendAllButton.style.display = 'inline-flex';
-        sendAllButton.disabled = true;
-        sendAllButton.innerHTML = '<span class="loading-spinner" style="margin-right: 0.5rem;"></span> Taslak Oluştur çalışıyor...';
+        sendAllButton.style.display = 'none';
+        if (loadingText) loadingText.style.display = 'flex';
     } else {
+        if (loadingText) loadingText.style.display = 'none';
         sendAllButton.style.display = !batchProcessing && retryableItems.length > 0 ? 'inline-flex' : 'none';
         sendAllButton.disabled = batchProcessing || retryableItems.length === 0;
         sendAllButton.innerHTML = sentCount > 0
@@ -1690,6 +1693,8 @@ document.getElementById('batch-back-btn').addEventListener('click', () => {
     document.querySelector('.upload-section').classList.remove('hidden');
     document.getElementById('send-all-btn').style.display = 'none';
     document.getElementById('send-all-success-text').style.display = 'none';
+    const loadingText2 = document.getElementById('send-all-loading-text');
+    if (loadingText2) loadingText2.style.display = 'none';
     setBatchNavigationDisabled(false);
 });
 
