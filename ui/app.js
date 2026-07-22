@@ -2101,7 +2101,7 @@ async function loadHistoryTable(page) {
                     refreshBtn.style.fontSize = '14px';
                     refreshBtn.title = 'Durumu Güncelle';
                     refreshBtn.textContent = '🔄';
-                    refreshBtn.onclick = () => updateInvoiceStatus(item.id);
+                    refreshBtn.onclick = (event) => updateInvoiceStatus(item.id, event.currentTarget);
                     tdStatus.appendChild(refreshBtn);
                 }
                 
@@ -2115,10 +2115,9 @@ async function loadHistoryTable(page) {
     }
 }
 
-async function updateInvoiceStatus(invoiceId) {
+async function updateInvoiceStatus(invoiceId, btn) {
+    const originalText = btn.textContent;
     try {
-        const btn = event.currentTarget;
-        const originalText = btn.textContent;
         btn.textContent = '...';
         btn.disabled = true;
         
@@ -2135,6 +2134,8 @@ async function updateInvoiceStatus(invoiceId) {
     } catch (e) {
         console.error("Error updating status:", e);
         alert("Bağlantı hatası oluştu.");
+        btn.textContent = originalText;
+        btn.disabled = false;
     }
 }
 
