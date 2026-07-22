@@ -42,7 +42,7 @@ def runtime_config():
     environment = normalize_uyumsoft_environment()
 
     default_portal_url = (
-        "http://portal-test.uyumsoft.com.tr/Taslak"
+        "http://portal-test.uyumsoft.com.tr/"
         if environment == "test"
         else "https://www.uyumsoft.com/kullanici-girisi"
     )
