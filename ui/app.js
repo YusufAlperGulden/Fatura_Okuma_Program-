@@ -1709,6 +1709,9 @@ document.getElementById('send-all-btn').addEventListener('click', async () => {
     }
     if (!confirm(`${eligibleIndexes.length} geçerli faturayı Uyumsoft'a taslak olarak göndermek istediğinize emin misiniz?`)) return;
 
+    const proceed = await ensureUyumsoftCredentials();
+    if (!proceed) return;
+
     const capturedBatchGeneration = batchGenerationId;
     batchProcessing = true;
     batchSendAbortController = new AbortController();
