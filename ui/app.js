@@ -1906,7 +1906,7 @@ async function loadHistoryDashboard() {
     }
 }
 
-let topCustomersChartInstance = null;
+
 
 function renderTopCustomersChart(topCustomersData) {
     const ctx = document.getElementById('topCustomersChart').getContext('2d');
