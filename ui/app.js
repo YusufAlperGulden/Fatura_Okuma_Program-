@@ -2057,10 +2057,7 @@ function renderAllCustomersChart(allCustomersData) {
         }
     });
 }
-            }
-        }
-    });
-}
+
 
 function renderCurrencyChart(currencyData) {
     const ctx = document.getElementById('currencyChart').getContext('2d');
@@ -2098,21 +2095,7 @@ function renderCurrencyChart(currencyData) {
     });
 }
 
-            ]
-        },
-        options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            scales: {
-                x: { stacked: true },
-                y: { stacked: true }
-            },
-            plugins: {
-                legend: { position: 'bottom', labels: { color: '#94a3b8' } }
-            }
-        }
-    });
-}
+
 
 let searchTimeout = null;
 
