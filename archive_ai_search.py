@@ -117,6 +117,7 @@ class QuerySpec(_StrictModel):
     sort_by: SortBy = SortBy.CREATED_AT
     sort_direction: SortDirection = SortDirection.DESC
     result_limit: conint(strict=True, ge=1, le=MAX_PAGE_SIZE) | None = None
+    result_offset: conint(strict=True, ge=0) | None = None
 
     @validator("search_text", "customer", "tax_id", "invoice_no", pre=True)
     def _strip_nonempty_strings(cls, value: Any):
@@ -418,6 +419,7 @@ GÜVENLİK VE ÇIKTI KURALLARI:
   has_uyumsoft_document alanını true/false kullan.
 - “en yüksek/en düşük/en yeni/en eski” isteklerinde sort_by ve sort_direction kullan.
 - “ilk N/tümünden N tane” isteklerinde result_limit kullan (en fazla 100).
+- “ikinci, üçüncü, sonraki N” gibi atlama/kaydırma gerektiren isteklerde result_offset kullan (örn. ikinci için offset=1, ilkini atla).
 
 QUERY_SPEC_JSON_SCHEMA:
 {schema_json}
@@ -522,6 +524,8 @@ def explain_query_spec(spec: QuerySpec) -> str:
         parts.append("Uyumsoft belge kimliği bulunmayanlar")
     if data.get("result_limit"):
         parts.append(f"en fazla {data['result_limit']} sonuç")
+    if data.get("result_offset"):
+        parts.append(f"ilk {data['result_offset']} sonuç atlanıyor")
     if not parts:
         return "Arşivdeki tüm faturalar listeleniyor."
     return "Uygulanan filtreler: " + "; ".join(parts) + "."
@@ -693,6 +697,8 @@ def execute_archive_search(
         total = min(matching_total, data.get("result_limit", matching_total))
         page_size = min(request.limit, data.get("result_limit", request.limit))
         offset = (request.page - 1) * page_size
+        if data.get("result_offset"):
+            offset += data["result_offset"]
         remaining = max(0, total - offset)
         row_limit = min(page_size, remaining)
 
