@@ -1864,10 +1864,59 @@ async function loadHistoryDashboard() {
             
             // Draw chart
             renderHistoryChart(json.data.trend);
+            renderTopCustomersChart(json.data.top_customers);
         }
     } catch (e) {
         console.error('Error loading history dashboard', e);
     }
+}
+
+let topCustomersChartInstance = null;
+
+function renderTopCustomersChart(topCustomersData) {
+    const ctx = document.getElementById('topCustomersChart').getContext('2d');
+    
+    if (topCustomersChartInstance) {
+        topCustomersChartInstance.destroy();
+    }
+    
+    if (!topCustomersData || topCustomersData.length === 0) {
+        return;
+    }
+    
+    const labels = topCustomersData.map(item => item.customer_name);
+    const dataPoints = topCustomersData.map(item => item.total_revenue);
+    
+    const colors = [
+        '#10b981', '#3b82f6', '#f59e0b', '#ef4444', '#8b5cf6'
+    ];
+    
+    topCustomersChartInstance = new Chart(ctx, {
+        type: 'doughnut',
+        data: {
+            labels: labels,
+            datasets: [{
+                data: dataPoints,
+                backgroundColor: colors,
+                borderWidth: 1,
+                borderColor: '#1e293b'
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: { position: 'right', labels: { color: '#94a3b8' } },
+                tooltip: {
+                    callbacks: {
+                        label: function(context) {
+                            return new Intl.NumberFormat('tr-TR').format(context.raw) + ' ₺';
+                        }
+                    }
+                }
+            }
+        }
+    });
 }
 
 function renderHistoryChart(trendData) {

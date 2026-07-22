@@ -1,4 +1,4 @@
-﻿import sqlite3
+import sqlite3
 import json
 import os
 from datetime import datetime
@@ -120,11 +120,25 @@ def get_dashboard_stats():
     ''')
     monthly_data = [dict(r) for r in cursor.fetchall()]
     
+    # 3. Top customers
+    cursor.execute('''
+        SELECT 
+            COALESCE(NULLIF(customer_name, ''), 'Bilinmeyen Müşteri') as customer_name,
+            SUM(amount_try) as total_revenue
+        FROM invoices
+        WHERE status = 'GÖNDERİLDİ'
+        GROUP BY customer_name
+        ORDER BY total_revenue DESC
+        LIMIT 5
+    ''')
+    top_customers = [dict(r) for r in cursor.fetchall()]
+    
     conn.close()
     return {
         "total_revenue": total_revenue,
         "total_count": total_count,
-        "trend": monthly_data
+        "trend": monthly_data,
+        "top_customers": top_customers
     }
 
 def get_paginated_invoices(page: int = 1, limit: int = 20):
