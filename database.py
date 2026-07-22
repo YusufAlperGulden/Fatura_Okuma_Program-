@@ -192,22 +192,6 @@ def get_dashboard_stats():
     ''')
     currency_distribution = [dict(r) for r in cursor.fetchall()]
 
-    # 6. Tax vs Subtotal Trend
-    cursor.execute('''
-        SELECT 
-            CASE 
-                WHEN date LIKE '____-__-__' THEN substr(date, 1, 7)
-                ELSE substr(created_at, 1, 7)
-            END as month,
-            SUM(CAST(json_extract(raw_json, '$.tax_amount') AS REAL)) as total_tax,
-            SUM(CAST(json_extract(raw_json, '$.subtotal') AS REAL)) as total_subtotal
-        FROM invoices
-        WHERE status != 'HATALI' AND raw_json IS NOT NULL
-        GROUP BY month
-        ORDER BY month ASC
-    ''')
-    tax_vs_subtotal = [dict(r) for r in cursor.fetchall()]
-    
     conn.close()
     return {
         "total_revenue": total_revenue,
@@ -215,8 +199,7 @@ def get_dashboard_stats():
         "trend": monthly_data,
         "top_customers": top_customers,
         "status_distribution": status_distribution,
-        "currency_distribution": currency_distribution,
-        "tax_vs_subtotal": tax_vs_subtotal
+        "currency_distribution": currency_distribution
     }
 
 def get_paginated_invoices(page: int = 1, limit: int = 20, search_query: str = None, date_filter: str = None):

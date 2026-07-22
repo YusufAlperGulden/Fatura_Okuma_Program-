@@ -1839,7 +1839,6 @@ let historyChartInstance = null;
 let topCustomersChartInstance = null;
 let statusChartInstance = null;
 let currencyChartInstance = null;
-let taxSubtotalChartInstance = null;
 
 if (historyToggleBtn) {
     historyToggleBtn.addEventListener('click', () => {
@@ -1899,8 +1898,7 @@ async function loadHistoryDashboard() {
             renderTopCustomersChart(json.data.top_customers);
             if (json.data.status_distribution) renderStatusChart(json.data.status_distribution);
             if (json.data.currency_distribution) renderCurrencyChart(json.data.currency_distribution);
-            if (json.data.tax_vs_subtotal) renderTaxSubtotalChart(json.data.tax_vs_subtotal);
-        }
+                    }
     } catch (e) {
         console.error('Error loading history dashboard', e);
     }
@@ -2069,30 +2067,6 @@ function renderCurrencyChart(currencyData) {
     });
 }
 
-function renderTaxSubtotalChart(taxData) {
-    const ctx = document.getElementById('taxSubtotalChart').getContext('2d');
-    if (taxSubtotalChartInstance) taxSubtotalChartInstance.destroy();
-    if (!taxData || taxData.length === 0) return;
-    
-    const labels = taxData.map(item => item.month);
-    const taxPoints = taxData.map(item => item.total_tax);
-    const subtotalPoints = taxData.map(item => item.total_subtotal);
-    
-    taxSubtotalChartInstance = new Chart(ctx, {
-        type: 'bar',
-        data: {
-            labels: labels,
-            datasets: [
-                {
-                    label: 'Ara Toplam',
-                    data: subtotalPoints,
-                    backgroundColor: '#3b82f6',
-                },
-                {
-                    label: 'KDV',
-                    data: taxPoints,
-                    backgroundColor: '#10b981',
-                }
             ]
         },
         options: {
