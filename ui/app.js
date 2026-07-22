@@ -22,7 +22,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Color theme logic
     const colorDots = document.querySelectorAll('.color-dot');
-    const savedColor = localStorage.getItem('colorTheme') || 'ocean';
+    const savedColor = localStorage.getItem('colorTheme') || 'cyan';
     
     // Set initial active state based on savedColor
     colorDots.forEach(dot => {

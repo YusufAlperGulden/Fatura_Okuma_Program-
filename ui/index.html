@@ -16,7 +16,7 @@
         if (savedTheme === 'light' || (!savedTheme && window.matchMedia('(prefers-color-scheme: light)').matches)) {
             document.documentElement.setAttribute('data-theme', 'light');
         }
-        const savedColor = localStorage.getItem('colorTheme');
+        const savedColor = localStorage.getItem('colorTheme') || 'cyan';
         if (savedColor) {
             document.documentElement.setAttribute('data-color', savedColor);
         }
@@ -345,13 +345,13 @@
                         <svg class="icon-close" width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" /></svg>
                     </button>
                     <div id="color-picker" class="color-picker">
-                    <div class="color-dot active" data-color="ocean" style="background-color: #0ea5e9;" title="Ocean (Varsayılan)"></div>
+                    <div class="color-dot" data-color="ocean" style="background-color: #0ea5e9;" title="Ocean"></div>
                     <div class="color-dot" data-color="emerald" style="background-color: #10b981;" title="Emerald"></div>
                     <div class="color-dot" data-color="amethyst" style="background-color: #8b5cf6;" title="Amethyst"></div>
                     <div class="color-dot" data-color="ruby" style="background-color: #f43f5e;" title="Ruby"></div>
                     <div class="color-dot" data-color="amber" style="background-color: #f59e0b;" title="Amber"></div>
                     <div class="color-dot" data-color="sakura" style="background-color: #ec4899;" title="Sakura"></div>
-                    <div class="color-dot" data-color="cyan" style="background-color: #06b6d4;" title="Cyan"></div>
+                    <div class="color-dot active" data-color="cyan" style="background-color: #06b6d4;" title="Cyan (Varsayılan)"></div>
                     <div class="color-dot" data-color="obsidian" style="background-color: #94a3b8;" title="Obsidyen"></div>
                     <div class="color-dot" data-color="indigo" style="background-color: #6366f1;" title="İndigo"></div>
                     <div class="color-dot" data-color="topaz" style="background-color: #f97316;" title="Topaz"></div>
