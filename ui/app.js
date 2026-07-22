@@ -2015,7 +2015,7 @@ async function loadHistoryTable(page) {
             nextBtn.disabled = data.page >= data.total_pages;
             
             if (data.items.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="5" style="text-align: center; padding: 2rem; color: var(--text-secondary);">Henüz hiç fatura gönderilmemiş.</td></tr>';
+                tbody.innerHTML = '<tr><td colspan="4" style="text-align: center; padding: 2rem; color: var(--text-secondary);">Henüz hiç fatura gönderilmemiş.</td></tr>';
                 return;
             }
             
@@ -2075,67 +2075,13 @@ async function loadHistoryTable(page) {
                 tdAmount.textContent = `${formatter.format(item.amount_try || 0)} TL`;
                 tr.appendChild(tdAmount);
                 
-                // 5. Status column
-                const tdStatus = document.createElement('td');
-                tdStatus.style.display = 'flex';
-                tdStatus.style.alignItems = 'center';
-                tdStatus.style.gap = '8px';
-                
-                const badge = document.createElement('span');
-                badge.className = `badge ${badgeClass}`;
-                badge.id = `status-badge-${item.id}`;
-                badge.textContent = statusText;
-                
-                // Optionally show error message on hover if it's an error
-                if (item.uyumsoft_message && badgeClass === 'badge-danger') {
-                    badge.title = item.uyumsoft_message;
-                    badge.style.cursor = 'help';
-                }
-                
-                tdStatus.appendChild(badge);
-                
-                if (item.uyumsoft_document_id) {
-                    const refreshBtn = document.createElement('button');
-                    refreshBtn.className = 'btn btn-icon';
-                    refreshBtn.style.padding = '4px';
-                    refreshBtn.style.fontSize = '14px';
-                    refreshBtn.title = 'Durumu Güncelle';
-                    refreshBtn.textContent = '🔄';
-                    refreshBtn.onclick = (event) => updateInvoiceStatus(item.id, event.currentTarget);
-                    tdStatus.appendChild(refreshBtn);
-                }
-                
-                tr.appendChild(tdStatus);
+                // Status column removed
                 tbody.appendChild(tr);
             });
         }
     } catch (e) {
         console.error("Error loading history:", e);
-        tbody.innerHTML = '<tr><td colspan="5" style="text-align: center; padding: 2rem; color: #ef4444;">Kayıtlar yüklenirken hata oluştu.</td></tr>';
-    }
-}
-
-async function updateInvoiceStatus(invoiceId, btn) {
-    const originalText = btn.textContent;
-    try {
-        btn.textContent = '...';
-        btn.disabled = true;
-        
-        const res = await fetch(`/api/history/update_status/${invoiceId}`, { method: 'POST' });
-        const json = await res.json();
-        
-        if (json.success) {
-            loadHistoryTable(historyCurrentPage || 1);
-        } else {
-            alert(json.message || "Durum güncellenemedi.");
-            btn.textContent = originalText;
-            btn.disabled = false;
-        }
-    } catch (e) {
-        console.error("Error updating status:", e);
-        alert("Bağlantı hatası oluştu.");
-        btn.textContent = originalText;
-        btn.disabled = false;
+        tbody.innerHTML = '<tr><td colspan="4" style="text-align: center; padding: 2rem; color: #ef4444;">Kayıtlar yüklenirken hata oluştu.</td></tr>';
     }
 }
 
