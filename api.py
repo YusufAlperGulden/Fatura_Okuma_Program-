@@ -476,4 +476,10 @@ async def api_update_invoice_status(invoice_id: int):
     return result
 
 
+# Keep AI search routes isolated so dashboard/history work can merge cleanly.
+from ai_archive_api import router as ai_archive_router
+
+app.include_router(ai_archive_router)
+
+
 
