@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Fatura Veri Otomasyonu</title>
-    <link rel="stylesheet" href="style.css?v=22">
+    <link rel="stylesheet" href="style.css?v=23">
     <!-- Google Fonts -->
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <!-- Toastify for in-app notifications -->
@@ -424,12 +424,14 @@
 
             <!-- Batch Section -->
             <section id="batch-section" class="glass-panel hidden" style="padding: 2rem;">
-                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem; flex-wrap: wrap; gap: 1rem;">
-                    <div style="display: flex; gap: 1rem; align-items: center; flex-wrap: wrap;">
+                <div class="batch-header-container">
+                    <div class="batch-header-left">
                         <h2 style="margin: 0; color: var(--text-primary);">Toplu Fatura İşlemleri</h2>
+                    </div>
+                    <div class="batch-header-center">
                         <span id="batch-uyumsoft-environment-badge" class="integration-environment unknown" role="status">Uyumsoft ortamı: YÜKLENİYOR</span>
                     </div>
-                    <div style="display: flex; gap: 0.75rem; align-items: center; flex-wrap: wrap;">
+                    <div class="batch-header-right">
                         <button id="batch-back-btn" class="secondary-btn">
                             <svg style="width: 16px; height: 16px; margin-right: 6px;" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path></svg>
                             Geri Dön
@@ -441,7 +443,7 @@
                         <button id="send-all-btn" class="primary-btn" style="display: none;">Tümünü Uyumsoft'a Gönder</button>
                         <span id="send-all-loading-text" style="display: none; font-weight: 600; color: var(--accent-color); padding: 0.5rem 1rem; align-items: center; gap: 0.5rem;">
                             <span class="mini-spinner"></span>
-                            Taslak Oluştur çalışıyor...
+                            Taslak Oluştur Çalışıyor...
                         </span>
                         <span id="send-all-success-text" style="display: none; font-weight: 600; color: var(--accent-color); padding: 0.5rem 1rem; align-items: center; gap: 0.5rem;">
                             <svg style="width: 20px; height: 20px;" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
@@ -617,6 +619,6 @@
         </main>
     </div>
     <script src="helpers.js?v=18"></script>
-    <script src="app.js?v=22"></script>
+    <script src="app.js?v=23"></script>
 </body>
 </html>
