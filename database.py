@@ -171,15 +171,17 @@ def get_dashboard_stats():
     ''')
     top_customers = [dict(r) for r in cursor.fetchall()]
 
-    # 4. Status distribution
+    # 4. All Customers distribution
     cursor.execute('''
         SELECT 
-            status,
-            COUNT(*) as count
+            COALESCE(NULLIF(customer_name, ''), 'Bilinmeyen Müşteri') as customer_name,
+            SUM(amount_try) as total_revenue
         FROM invoices
-        GROUP BY status
+        WHERE status != 'HATALI'
+        GROUP BY customer_name
+        ORDER BY total_revenue DESC
     ''')
-    status_distribution = [dict(r) for r in cursor.fetchall()]
+    all_customers = [dict(r) for r in cursor.fetchall()]
 
     # 5. Currency distribution
     cursor.execute('''
@@ -198,7 +200,7 @@ def get_dashboard_stats():
         "total_count": total_count,
         "trend": monthly_data,
         "top_customers": top_customers,
-        "status_distribution": status_distribution,
+        "all_customers": all_customers,
         "currency_distribution": currency_distribution
     }
 

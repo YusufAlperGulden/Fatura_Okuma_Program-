@@ -1837,7 +1837,7 @@ const batchSection = document.getElementById('batch-section');
 let historyCurrentPage = 1;
 let historyChartInstance = null;
 let topCustomersChartInstance = null;
-let statusChartInstance = null;
+let allCustomersChartInstance = null;
 let currencyChartInstance = null;
 
 if (historyToggleBtn) {
@@ -1896,7 +1896,7 @@ async function loadHistoryDashboard() {
             // Draw chart
             renderHistoryChart(json.data.trend);
             renderTopCustomersChart(json.data.top_customers);
-            if (json.data.status_distribution) renderStatusChart(json.data.status_distribution);
+            if (json.data.all_customers) renderAllCustomersChart(json.data.all_customers);
             if (json.data.currency_distribution) renderCurrencyChart(json.data.currency_distribution);
                     }
     } catch (e) {
@@ -2002,21 +2002,41 @@ function renderHistoryChart(trendData) {
         }
     });
 }
-function renderStatusChart(statusData) {
-    const ctx = document.getElementById('statusChart').getContext('2d');
-    if (statusChartInstance) statusChartInstance.destroy();
-    if (!statusData || statusData.length === 0) return;
+function renderAllCustomersChart(allCustomersData) {
+    const ctx = document.getElementById('allCustomersChart').getContext('2d');
+    if (allCustomersChartInstance) allCustomersChartInstance.destroy();
+    if (!allCustomersData || allCustomersData.length === 0) return;
     
-    const labels = statusData.map(item => item.status || 'Bilinmiyor');
-    const dataPoints = statusData.map(item => item.count);
+    // Group small customers into Diğer (Other) if there are too many (e.g. > 15)
+    let processedData = [];
+    if (allCustomersData.length > 15) {
+        processedData = allCustomersData.slice(0, 14);
+        let otherTotal = 0;
+        for (let i = 14; i < allCustomersData.length; i++) {
+            otherTotal += allCustomersData[i].total_revenue || 0;
+        }
+        processedData.push({ customer_name: 'Diğer', total_revenue: otherTotal });
+    } else {
+        processedData = allCustomersData;
+    }
     
-    statusChartInstance = new Chart(ctx, {
-        type: 'doughnut',
+    const labels = processedData.map(item => item.customer_name || 'Bilinmiyor');
+    const dataPoints = processedData.map(item => item.total_revenue || 0);
+    
+    // Generate some random colors for the pie chart
+    const bgColors = [
+        '#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6',
+        '#ec4899', '#06b6d4', '#84cc16', '#f97316', '#6366f1',
+        '#14b8a6', '#f43f5e', '#a855f7', '#eab308', '#64748b'
+    ];
+    
+    allCustomersChartInstance = new Chart(ctx, {
+        type: 'pie',
         data: {
             labels: labels,
             datasets: [{
                 data: dataPoints,
-                backgroundColor: ['#10b981', '#ef4444', '#f59e0b', '#3b82f6', '#64748b'],
+                backgroundColor: bgColors.slice(0, processedData.length),
                 borderWidth: 1,
                 borderColor: '#1e293b'
             }]
@@ -2025,7 +2045,18 @@ function renderStatusChart(statusData) {
             responsive: true,
             maintainAspectRatio: false,
             plugins: {
-                legend: { position: 'bottom', labels: { color: '#94a3b8' } }
+                legend: { position: 'bottom', labels: { color: '#94a3b8' }, display: false },
+                tooltip: {
+                    callbacks: {
+                        label: function(context) {
+                            return new Intl.NumberFormat('tr-TR').format(context.raw) + ' TL';
+                        }
+                    }
+                }
+            }
+        }
+    });
+}
             }
         }
     });
