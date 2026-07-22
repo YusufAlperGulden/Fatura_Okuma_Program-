@@ -9,6 +9,14 @@ document.addEventListener('DOMContentLoaded', () => {
     const themeBtn = document.getElementById('theme-toggle');
     if (themeBtn) {
         themeBtn.addEventListener('click', () => {
+            const icon = document.getElementById('theme-icon');
+            if (icon) {
+                icon.classList.remove('theme-spin-animate');
+                // trigger reflow to restart animation
+                void icon.offsetWidth;
+                icon.classList.add('theme-spin-animate');
+                setTimeout(() => icon.classList.remove('theme-spin-animate'), 400);
+            }
             const isLight = document.documentElement.getAttribute('data-theme') === 'light';
             if (isLight) {
                 document.documentElement.removeAttribute('data-theme');
