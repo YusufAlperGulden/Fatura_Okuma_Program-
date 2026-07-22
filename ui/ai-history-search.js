@@ -208,8 +208,7 @@
         headingBlock.append(eyebrow, title, description);
 
         const independentNote = element(documentRef, 'div', 'ai-history-independent-note');
-        independentNote.appendChild(element(documentRef, 'span', '', '✓'));
-        independentNote.appendChild(element(documentRef, 'span', '', 'Normal arama bağımsız çalışmaya devam eder'));
+        independentNote.innerHTML = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color: var(--ai-color, #a855f7);"><path d="M21 12c-2.76 0-5.46-1.12-7.41-3.08A10.5 10.5 0 0 1 12 3c0 2.76-1.12 5.46-3.08 7.41A10.5 10.5 0 0 1 3 12c2.76 0 5.46 1.12 7.41 3.08A10.5 10.5 0 0 1 12 21c0-2.76 1.12-5.46 3.08-7.41A10.5 10.5 0 0 1 21 12Z"/></svg>';
         header.append(headingBlock, independentNote);
         panel.appendChild(header);
 
