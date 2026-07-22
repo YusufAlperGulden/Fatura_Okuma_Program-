@@ -20,6 +20,10 @@ from utils.serial_numbers import safe_merge_ai_data
 
 app = FastAPI(title="Invoice Pipeline API")
 
+# Ensure database is initialized (especially for ephemeral environments like Render)
+from database import init_db
+init_db()
+
 # Serve the static UI files
 app.mount("/ui", StaticFiles(directory="ui", html=True), name="ui")
 
