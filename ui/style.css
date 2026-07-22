@@ -1325,25 +1325,19 @@ tr:hover {
 
 /* Batch Header Layout */
 .batch-header-container {
-    display: flex;
-    justify-content: space-between;
+    display: grid;
+    grid-template-columns: 1fr auto 1fr;
     align-items: center;
     margin-bottom: 1.5rem;
-    position: relative;
-    flex-wrap: wrap;
     gap: 1rem;
 }
 .batch-header-left {
     display: flex;
-    align-items: center;
+    justify-content: flex-start;
 }
 .batch-header-center {
-    position: absolute;
-    left: 50%;
-    transform: translateX(-50%);
     display: flex;
     justify-content: center;
-    z-index: 10;
 }
 .batch-header-right {
     display: flex;
@@ -1351,17 +1345,13 @@ tr:hover {
     gap: 0.75rem;
     flex-wrap: wrap;
 }
-@media (max-width: 1100px) {
+@media (max-width: 900px) {
     .batch-header-container {
-        flex-direction: column;
-        justify-content: center;
+        grid-template-columns: 1fr;
+        justify-items: center;
         gap: 1.5rem;
     }
-    .batch-header-center {
-        position: static;
-        transform: none;
-    }
-    .batch-header-right {
+    .batch-header-left, .batch-header-center, .batch-header-right {
         justify-content: center;
     }
 }
