@@ -2134,7 +2134,7 @@ document.getElementById('history-apply-filters-btn')?.addEventListener('click', 
             gravity: "bottom",
             position: "right",
             style: {
-                background: "linear-gradient(to right, #ff5f6d, #ffc371)",
+                background: "linear-gradient(to right, #6b0000, #a52a2a)",
                 color: "#fff",
                 borderRadius: "8px",
                 fontFamily: "Inter, sans-serif",
