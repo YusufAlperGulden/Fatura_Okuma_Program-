@@ -1364,7 +1364,13 @@ function setBatchStatus(index, state, label, details = '', suppliedRow = null) {
     const cell = row.querySelector('.b-status');
     const badge = document.createElement('span');
     badge.className = `status-badge status-${state}`;
-    badge.textContent = label;
+    if (label === 'Gönderildi') {
+        badge.innerHTML = `<svg style="width: 14px; height: 14px; margin-right: 4px;" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>${label}`;
+        badge.style.display = 'inline-flex';
+        badge.style.alignItems = 'center';
+    } else {
+        badge.textContent = label;
+    }
     if (details) {
         badge.title = details;
         badge.style.cursor = 'help';
