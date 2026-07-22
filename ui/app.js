@@ -2111,7 +2111,30 @@ async function loadHistoryTable(page) {
         }
     } catch (e) {
         console.error("Error loading history:", e);
-        tbody.innerHTML = \'<tr><td colspan="5" style="text-align: center; padding: 2rem; color: #ef4444;">Kayıtlar yüklenirken hata oluştu.</td></tr>\';
+        tbody.innerHTML = '<tr><td colspan="5" style="text-align: center; padding: 2rem; color: #ef4444;">Kayıtlar yüklenirken hata oluştu.</td></tr>';
+    }
+}
+
+async function updateInvoiceStatus(invoiceId) {
+    try {
+        const btn = event.currentTarget;
+        const originalText = btn.textContent;
+        btn.textContent = '...';
+        btn.disabled = true;
+        
+        const res = await fetch(`/api/history/update_status/${invoiceId}`, { method: 'POST' });
+        const json = await res.json();
+        
+        if (json.success) {
+            loadHistoryTable(historyCurrentPage || 1);
+        } else {
+            alert(json.message || "Durum güncellenemedi.");
+            btn.textContent = originalText;
+            btn.disabled = false;
+        }
+    } catch (e) {
+        console.error("Error updating status:", e);
+        alert("Bağlantı hatası oluştu.");
     }
 }
 
