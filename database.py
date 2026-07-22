@@ -141,23 +141,45 @@ def get_dashboard_stats():
         "top_customers": top_customers
     }
 
-def get_paginated_invoices(page: int = 1, limit: int = 20):
+def get_paginated_invoices(page: int = 1, limit: int = 20, search_query: str = None, date_filter: str = None):
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
     cursor = conn.cursor()
     
     offset = (page - 1) * limit
     
-    cursor.execute('SELECT COUNT(*) as total FROM invoices')
+    where_clauses = []
+    params = []
+    
+    if search_query:
+        search_term = f"%{search_query}%"
+        where_clauses.append("(customer_name LIKE ? OR invoice_no LIKE ? OR customer_tax_id LIKE ?)")
+        params.extend([search_term, search_term, search_term])
+        
+    if date_filter == 'this_month':
+        # SQLite modifier 'start of month' goes to the 1st of the current month
+        where_clauses.append("created_at >= date('now', 'start of month')")
+    elif date_filter == 'last_month':
+        where_clauses.append("created_at >= date('now', '-1 month', 'start of month') AND created_at < date('now', 'start of month')")
+    elif date_filter == 'this_year':
+        where_clauses.append("created_at >= date('now', 'start of year')")
+        
+    where_sql = ""
+    if where_clauses:
+        where_sql = "WHERE " + " AND ".join(where_clauses)
+        
+    cursor.execute(f'SELECT COUNT(*) as total FROM invoices {where_sql}', params)
     total_items = cursor.fetchone()['total']
     
-    cursor.execute('''
+    query = f'''
         SELECT id, invoice_no, date, customer_name, customer_tax_id, 
                total_amount, amount_try, currency, status, created_at
         FROM invoices 
+        {where_sql}
         ORDER BY created_at DESC
         LIMIT ? OFFSET ?
-    ''', (limit, offset))
+    '''
+    cursor.execute(query, params + [limit, offset])
     
     rows = [dict(row) for row in cursor.fetchall()]
     conn.close()

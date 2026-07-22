@@ -1970,18 +1970,40 @@ function renderHistoryChart(trendData) {
     });
 }
 
+let searchTimeout = null;
+
+document.getElementById('history-search-input')?.addEventListener('input', (e) => {
+    if (searchTimeout) clearTimeout(searchTimeout);
+    searchTimeout = setTimeout(() => {
+        loadHistoryTable(1);
+    }, 500); // Debounce search
+});
+
+document.getElementById('history-date-filter')?.addEventListener('change', () => {
+    loadHistoryTable(1);
+});
+
 async function loadHistoryTable(page) {
     const tbody = document.getElementById('history-table-body');
     const prevBtn = document.getElementById('history-prev-page');
     const nextBtn = document.getElementById('history-next-page');
     const pageInfo = document.getElementById('history-page-info');
     
+    const searchInput = document.getElementById('history-search-input');
+    const dateFilter = document.getElementById('history-date-filter');
+    const searchVal = searchInput ? searchInput.value.trim() : '';
+    const dateVal = dateFilter ? dateFilter.value : 'all';
+    
     tbody.innerHTML = '<tr><td colspan="5" style="text-align: center; padding: 2rem; color: var(--text-secondary);">Yükleniyor...</td></tr>';
     prevBtn.disabled = true;
     nextBtn.disabled = true;
     
     try {
-        const res = await fetch(`/api/history/invoices?page=${page}&limit=10`);
+        let url = `/api/history/invoices?page=${page}&limit=10`;
+        if (searchVal) url += `&search=${encodeURIComponent(searchVal)}`;
+        if (dateVal && dateVal !== 'all') url += `&date_filter=${encodeURIComponent(dateVal)}`;
+        
+        const res = await fetch(url);
         const json = await res.json();
         
         if (json.success && json.data) {
