@@ -35,25 +35,34 @@ def init_db():
     conn.commit()
     conn.close()
 
+def parse_turkish_float(val):
+    if not val:
+        return 0.0
+    if isinstance(val, (int, float)):
+        return float(val)
+    # Remove thousands separators (dots) and replace decimal comma with dot
+    val_str = str(val).replace('.', '').replace(',', '.')
+    try:
+        return float(val_str)
+    except ValueError:
+        return 0.0
+
 def save_invoice(invoice_data: dict, is_valid: bool = True):
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
     
     status = "GÖNDERİLDİ" if is_valid else "HATALI"
     
-    total_amount = float(invoice_data.get('total_amount') or 0.0)
+    total_amount = parse_turkish_float(invoice_data.get('total_amount'))
     currency = str(invoice_data.get('currency') or 'TRY').upper()
     
     amount_try = total_amount
     if currency != 'TRY':
         exchange_rate = invoice_data.get('exchange_rate')
         if exchange_rate:
-            try:
-                rate = float(exchange_rate)
-                if rate > 0:
-                    amount_try = total_amount * rate
-            except (ValueError, TypeError):
-                pass
+            rate = parse_turkish_float(exchange_rate)
+            if rate > 0:
+                amount_try = total_amount * rate
     
     cursor.execute('''
         INSERT INTO invoices (
