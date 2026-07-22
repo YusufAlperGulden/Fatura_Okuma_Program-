@@ -241,7 +241,6 @@
         [
             'Bu ay 50.000 TL üzeri faturalar',
             'En yüksek tutarlı 5 fatura',
-            'Uyumsoft’a gönderilmemiş faturalar',
         ].forEach(example => {
             const exampleButton = makeButton(documentRef, example, 'ai-history-example');
             exampleButton.addEventListener('click', () => {
