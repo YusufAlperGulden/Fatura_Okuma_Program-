@@ -1811,6 +1811,13 @@ let historyChartInstance = null;
 
 if (historyToggleBtn) {
     historyToggleBtn.addEventListener('click', () => {
+        const icon = document.getElementById('history-icon');
+        if (icon) {
+            icon.classList.remove('history-rewind-animate');
+            void icon.offsetWidth; // trigger reflow
+            icon.classList.add('history-rewind-animate');
+            setTimeout(() => icon.classList.remove('history-rewind-animate'), 500);
+        }
         // Hide other sections
         uploadSection.classList.add('hidden');
         splitContainer.classList.add('hidden');
