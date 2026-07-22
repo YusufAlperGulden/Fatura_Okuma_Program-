@@ -25,7 +25,7 @@ def _first_match(patterns, text, flags=0):
     for pattern in patterns:
         match = re.search(pattern, text, flags)
         if match:
-            return re.sub(r"[\s\xa0]+", "", match.group(1)).strip()
+            return re.sub(r"[ \t\xa0]+", "", match.group(1)).strip()
     return None
 
 
@@ -145,6 +145,14 @@ def _extract_unlabeled_header_customer_name(text):
             re.IGNORECASE,
         ):
             continue
+            
+        # Ignore table header rows that might be OCR'd before the tax ID
+        if re.search(
+            r"\b(?:Kodu|Açıklama|Aciklama|Miktar|Birim|Fiyatı|Fiyati|Tutar|Toplam)\b",
+            candidate_line,
+            re.IGNORECASE,
+        ):
+            continue
 
         customer_name = _clean_customer_name_line(candidate_line)
         if not customer_name or len(customer_name) > 160:
@@ -197,19 +205,19 @@ def _extract_customer_tax_id(text):
     tax_id = None
     for line in _buyer_section_lines(text):
         match = re.search(
-            r"\b(?:TC|TCKN|VKN|VKN/TCKN|Vergi[ \t]*No)[ \t]*[:#-]?[ \t]*(\d(?:[\s\xa0]*\d){9,11})\b",
+            r"\b(?:TC|TCKN|VKN|VKN/TCKN|Vergi[ \t]*No)[ \t]*[:#-]?[ \t]*(\d(?:[ \t\xa0]*\d){9,11})\b",
             line,
             re.IGNORECASE,
         )
         if match:
-            tax_id = re.sub(r"[\s\xa0]+", "", match.group(1))
+            tax_id = re.sub(r"[ \t\xa0]+", "", match.group(1))
             break
 
     if not tax_id:
         tax_id = _first_match(
             [
-                r"\b(?:TC|TCKN|VKN|VKN/TCKN|Vergi[ \t]*No)[ \t]*[:#-]?[ \t]*(\d(?:[\s\xa0]*\d){9,11})\b",
-                r"\b(\d(?:[\s\xa0]*\d){9,11})\b",
+                r"\b(?:TC|TCKN|VKN|VKN/TCKN|Vergi[ \t]*No)[ \t]*[:#-]?[ \t]*(\d(?:[ \t\xa0]*\d){9,11})\b",
+                r"\b(\d(?:[ \t\xa0]*\d){9,11})\b",
             ],
             text,
             re.IGNORECASE,

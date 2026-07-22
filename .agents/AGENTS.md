@@ -26,3 +26,15 @@ When extracting and validating TCKN/VKN (Turkish ID or Tax Numbers):
 3. **Validation Bypass**: In any validation logic, explicitly bypass checksum rules and length checks if the TCKN is `11111111111` (11 ones) or `111111111111` (12 ones). Treat these values as valid without generating validation errors.
 </RULE[project_tckn_validation]>
 
+
+
+<RULE[project_ocr_safety]>
+---
+name: ocr-regex-safety
+description: Guidelines for safely writing regex for OCR text to prevent cross-line bleeding.
+---
+# OCR Regex Safety
+When writing regular expressions to extract structured data (like IDs, phone numbers, or codes) from multiline OCR text:
+1. **Never use `\s` inside digit-matching groups**: Use `[ \t\xa0]` instead of `\s` or `[\s\xa0]` when allowing optional spacing between characters of a single logical string. `\s` matches `\n` and will cause the regex to "bleed" onto the next line, concatenating unrelated numbers (like dates or quantities) into the target string.
+2. **Filter out table headers**: When extracting names or addresses from a block of text, always explicitly filter out common table header keywords (e.g., "Kodu", "Açýklama", "Miktar", "Fiyat", "Tutar") to avoid mistaking OCR-reordered table headers for entity names.
+</RULE[project_ocr_safety]>
