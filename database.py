@@ -263,16 +263,3 @@ def get_invoices(search_query: str = None):
     return results
 
 
-def execute_readonly_query(sql_query: str):
-    import os
-    db_path = os.path.abspath(DB_PATH).replace('\\\\', '/')
-    uri = f'file:{db_path}?mode=ro'
-    conn = sqlite3.connect(uri, uri=True)
-    conn.row_factory = sqlite3.Row
-    cursor = conn.cursor()
-    try:
-        cursor.execute(sql_query)
-        rows = cursor.fetchall()
-        return [dict(row) for row in rows]
-    finally:
-        conn.close()

@@ -2110,58 +2110,9 @@ async function loadHistoryTable(page) {
             });
         }
     } catch (e) {
-        btn.disabled = false;
-        btn.textContent = 'Sor';
-        clearBtn.classList.remove('hidden');
-        tbody.innerHTML = '<tr><td colspan="5" style="text-align: center; padding: 2rem; color: #ef4444;">Bağlantı hatası oluştu.</td></tr>';
+        console.error("Error loading history:", e);
+        tbody.innerHTML = \'<tr><td colspan="5" style="text-align: center; padding: 2rem; color: #ef4444;">Kayıtlar yüklenirken hata oluştu.</td></tr>\';
     }
 }
 
-function clearAiSearch() {
-    isAiSearchActive = false;
-    document.getElementById('ai-search-input').value = '';
-    document.getElementById('ai-search-clear').classList.add('hidden');
-    document.getElementById('ai-explanation-box').classList.add('hidden');
-    loadHistoryTable(1);
-}
-
-function renderHistoryItems(items, tbody) {
-    tbody.innerHTML = '';
-    const formatter = new Intl.NumberFormat('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-    
-    items.forEach(item => {
-        const tr = document.createElement('tr');
-        
-        let badgeClass = "badge-neutral";
-        let statusText = item.uyumsoft_status || item.status || "Bilinmiyor";
-        const exactStatus = statusText;
-        
-        const blueStatuses = ['Queued', 'Processing', 'SentToGib', 'WaitingForAprovement'];
-        const greenStatuses = ['Approved', 'Kabul Edildi'];
-        const redStatuses = ['Declined', 'Return', 'Error', 'HATALI', 'Reddedildi'];
-        const yellowStatuses = ['Draft', 'Taslak'];
-        
-        if (redStatuses.includes(exactStatus)) {
-            badgeClass = "badge-danger";
-        } else if (greenStatuses.includes(exactStatus)) {
-            badgeClass = "badge-success";
-        } else if (yellowStatuses.includes(exactStatus)) {
-            badgeClass = "badge-warning";
-        } else if (blueStatuses.includes(exactStatus)) {
-            badgeClass = "badge-info";
-        }
-        
-        const amountStr = formatter.format(item.amount_try || 0);
-        const dateStr = item.date || (item.created_at ? item.created_at.split(' ')[0] : '-');
-        
-        tr.innerHTML = `
-            <td>${dateStr}</td>
-            <td><strong>${item.invoice_no || '-'}</strong></td>
-            <td style="max-width: 250px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${item.customer_name || '-'}">${item.customer_name || '-'}</td>
-            <td style="text-align: right; font-weight: 600;">${amountStr} TL</td>
-            <td><span class="badge ${badgeClass}">${statusText}</span></td>
-        `;
-        tbody.appendChild(tr);
-    });
-}
 });

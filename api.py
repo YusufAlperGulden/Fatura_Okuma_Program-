@@ -467,53 +467,5 @@ async def api_update_invoice_status(invoice_id: int):
         
     return result
 
-class NLSearchRequest(BaseModel):
-    query: str
-    api_key: str = None
-
-@app.post("/api/history/nl_search")
-async def api_history_nl_search(request: NLSearchRequest):
-    from extractors.ai_extractor import nl_to_sql
-    from database import execute_readonly_query
-    from fastapi.responses import JSONResponse
-    
-    if not request.query:
-        return JSONResponse(status_code=400, content={"success": False, "message": "Sorgu boş olamaz."})
-        
-    # Get API key from request, fallback to env
-    api_key = request.api_key
-    if not api_key:
-        import os
-        api_key = os.getenv("GEMINI_API_KEY")
-        
-    if not api_key:
-        return JSONResponse(status_code=400, content={"success": False, "message": "API Anahtarı bulunamadı. Lütfen ayarlardan API anahtarınızı girin."})
-        
-    try:
-        # 1. Translate NL to SQL
-        ai_response = nl_to_sql(request.query, api_key)
-        
-        if "error" in ai_response:
-            return {"success": False, "message": ai_response["error"]}
-            
-        sql_query = ai_response.get("sql")
-        explanation = ai_response.get("explanation", "İşte sonuçlarınız:")
-        
-        if not sql_query:
-            return {"success": False, "message": "Yapay zeka geçerli bir sorgu üretemedi."}
-            
-        # 2. Execute SQL strictly read-only
-        rows = execute_readonly_query(sql_query)
-        
-        return {
-            "success": True,
-            "explanation": explanation,
-            "sql": sql_query,
-            "items": rows
-        }
-    except Exception as e:
-        import traceback
-        traceback.print_exc()
-        return JSONResponse(status_code=500, content={"success": False, "message": f"Yapay zeka araması sırasında hata oluştu: {str(e)}"})
 
 
