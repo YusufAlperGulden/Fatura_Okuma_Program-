@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Fatura Veri Otomasyonu</title>
-    <link rel="stylesheet" href="style.css?v=21">
+    <link rel="stylesheet" href="style.css?v=22">
     <!-- Google Fonts -->
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <!-- Toastify for in-app notifications -->
@@ -316,13 +316,13 @@
             100% { transform: translateX(200%); }
         }
         .progress-bar-container {
-            width: 250px;
+            width: 100%;
             height: 4px;
             background-color: var(--border-color);
-            border-radius: 2px;
-            margin: 15px auto 5px auto;
+            position: absolute;
+            bottom: 0;
+            left: 0;
             overflow: hidden;
-            position: relative;
         }
         .progress-bar-indicator {
             width: 50%;
@@ -395,7 +395,7 @@
 
         <main>
             <!-- Upload Section -->
-            <section class="upload-section glass-panel">
+            <section class="upload-section glass-panel" style="position: relative; overflow: hidden;">
                 <div id="drop-zone" class="drop-zone">
                     <div class="drop-content">
                         <svg class="upload-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
@@ -617,6 +617,6 @@
         </main>
     </div>
     <script src="helpers.js?v=18"></script>
-    <script src="app.js?v=21"></script>
+    <script src="app.js?v=22"></script>
 </body>
 </html>
