@@ -52,7 +52,7 @@ def test_uyumsoft_portal_and_environment_are_loaded_from_runtime_config():
 def test_batch_upload_times_out_one_file_without_canceling_the_batch():
     javascript = (PROJECT_ROOT / "ui" / "app.js").read_text(encoding="utf-8")
 
-    assert "const BATCH_FILE_TIMEOUT_MS = 2 * 60 * 1000;" in javascript
+    assert "const BATCH_FILE_TIMEOUT_MS = 60 * 1000;" in javascript
     assert "fetchWithTimeout(" in javascript
     assert "capturedBatchUploadController.signal" in javascript
     assert "if (error.name === 'TimeoutError')" in javascript

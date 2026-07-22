@@ -1338,7 +1338,7 @@ let batchUploadAbortController = null;
 let batchSendAbortController = null;
 let activeBatchIndex = null;
 let batchDetailRevision = 0;
-const BATCH_FILE_TIMEOUT_MS = 2 * 60 * 1000;
+const BATCH_FILE_TIMEOUT_MS = 60 * 1000;
 
 function isCurrentBatchGeneration(generation) {
     return Boolean(generation) && batchGenerationId === generation;
@@ -1499,7 +1499,7 @@ function updateBatchRow(index) {
             index,
             'error',
             'Zaman Aşımı (Geçildi)',
-            item.errorMessage || 'Dosya 2 dakika içinde tamamlanamadı; sonraki dosyaya geçildi.',
+            item.errorMessage || 'Dosya 1 dakika içinde tamamlanamadı; sonraki dosyaya geçildi.',
         );
     } else if (!item.success) {
         setBatchStatus(index, 'error', 'Hata (Tıkla)', item.errorMessage || 'Dosya işlenemedi.');
@@ -1641,7 +1641,7 @@ async function handleBatchFiles(files) {
                     item.success = false;
                     item.timedOut = true;
                     item.result = null;
-                    item.errorMessage = 'Dosya 2 dakika içinde tamamlanamadı; sonraki dosyaya geçildi.';
+                    item.errorMessage = 'Dosya 1 dakika içinde tamamlanamadı; sonraki dosyaya geçildi.';
                     updateBatchRow(index);
                     continue;
                 }
