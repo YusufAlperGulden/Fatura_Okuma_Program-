@@ -1504,9 +1504,9 @@ async function handleBatchFiles(files) {
         const progTd = document.createElement('td');
         progTd.colSpan = 7;
         const barContainer = document.createElement('div');
-        barContainer.className = 'progress-bar-container';
+        barContainer.className = 'batch-progress-container';
         const bar = document.createElement('div');
-        bar.className = 'progress-bar';
+        bar.className = 'batch-progress-bar';
         barContainer.appendChild(bar);
         progTd.appendChild(barContainer);
         progTr.appendChild(progTd);
