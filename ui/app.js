@@ -64,7 +64,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let currentSendAbortController = null;
 
     // Add event listener for draft send
-    document.getElementById('send-draft-btn').addEventListener('click', () => {
+    document.getElementById('send-draft-btn').addEventListener('click', async () => {
         if (currentValidationState === 'pending') {
             showDraftValidationPopup(
                 ['Yaptığınız değişikliklerin doğrulanması henüz tamamlanmadı. Lütfen kısa bir süre sonra tekrar deneyin.'],
@@ -72,10 +72,14 @@ document.addEventListener('DOMContentLoaded', () => {
             );
             return;
         }
-        if (!currentInvoiceIsValid) {
-            showDraftValidationPopup();
+        if (currentValidationState === 'invalid') {
+            showDraftValidationPopup(currentValidationErrors, "Fatura hatalı.");
             return;
         }
+
+        const proceed = await ensureUyumsoftCredentials();
+        if (!proceed) return;
+
         if (confirm("Bu faturayı Uyumsoft'a taslak olarak göndermek istediğinize emin misiniz?")) {
             runUyumsoftAction();
         }
@@ -138,15 +142,10 @@ document.addEventListener('DOMContentLoaded', () => {
             select.value = localEnv;
         }
         updateEnvironmentBadges(localEnv);
-        if (credBtn) {
-            if (localEnv === 'prod') credBtn.classList.remove('hidden');
-            else credBtn.classList.add('hidden');
-        }
     }
 
     // Credentials Modal Logic
     const credModal = document.getElementById('credentials-modal');
-    const credBtn = document.getElementById('credentials-settings-btn');
     const credSaveBtn = document.getElementById('cred-save-btn');
     const credCancelBtn = document.getElementById('cred-cancel-btn');
     const credUser = document.getElementById('cred-username');
@@ -159,34 +158,48 @@ document.addEventListener('DOMContentLoaded', () => {
             localStorage.setItem('uyumsoft_environment', val);
             document.documentElement.dataset.uyumsoftEnvironment = val;
             updateEnvironmentBadges(val);
-            if (credBtn) {
-                if (val === 'prod') credBtn.classList.remove('hidden');
-                else credBtn.classList.add('hidden');
-            }
         });
     }
 
-    if (credBtn && credModal) {
-        credBtn.addEventListener('click', () => {
-            credUser.value = localStorage.getItem('uyumsoft_username') || '';
-            credPass.value = localStorage.getItem('uyumsoft_password') || '';
+    function ensureUyumsoftCredentials() {
+        return new Promise((resolve) => {
+            const env = localStorage.getItem('uyumsoft_environment') || 'test';
+            if (env !== 'prod') {
+                resolve(true);
+                return;
+            }
+            const savedUser = localStorage.getItem('uyumsoft_username');
+            const savedPass = localStorage.getItem('uyumsoft_password');
+            if (savedUser && savedPass) {
+                resolve(true);
+                return;
+            }
+            
+            // Show modal and wait for user
+            credUser.value = savedUser || '';
+            credPass.value = savedPass || '';
             credModal.classList.remove('hidden');
-        });
 
-        credCancelBtn.addEventListener('click', () => {
-            credModal.classList.add('hidden');
-        });
+            const onSave = () => {
+                localStorage.setItem('uyumsoft_username', credUser.value.trim());
+                localStorage.setItem('uyumsoft_password', credPass.value.trim());
+                cleanup();
+                resolve(true);
+            };
 
-        credSaveBtn.addEventListener('click', () => {
-            localStorage.setItem('uyumsoft_username', credUser.value.trim());
-            localStorage.setItem('uyumsoft_password', credPass.value.trim());
-            credModal.classList.add('hidden');
-            Toastify({
-                text: "Kimlik bilgileri kaydedildi.",
-                duration: 3000,
-                gravity: "top", position: "right",
-                style: { background: "#10b981", borderRadius: "8px", fontWeight: "bold" }
-            }).showToast();
+            const onCancel = () => {
+                cleanup();
+                resolve(false);
+            };
+
+            const cleanup = () => {
+                credModal.classList.add('hidden');
+                credSaveBtn.removeEventListener('click', onSave);
+                credCancelBtn.removeEventListener('click', onCancel);
+            };
+
+            credSaveBtn.addEventListener('click', onSave);
+            credCancelBtn.addEventListener('click', onCancel);
         });
     }
 
@@ -1167,7 +1180,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     currentUploadId !== capturedUploadId
                     || validationRevision !== capturedValidationRevision
                 ) return;
-                document.getElementById('send-draft-btn').classList.add('hidden');
+                document.getElementById('send-draft-btn').classList.remove('hidden');
                 draftSendInProgress = false;
                 setBatchNavigationDisabled(false);
                 renderApiMessage(statusBox, `✓ ${result.message || 'Taslak oluşturuldu.'} (HTTP ${result.response_code || response.status})`, '#059669');
@@ -1596,9 +1609,9 @@ async function handleBatchFiles(files) {
                     item.errorMessage = '';
                 }
             } catch (error) {
-                if (error.name === 'AbortError' || !isCurrentBatchGeneration(capturedBatchGeneration)) return;
-                item.success = false;
-                item.errorMessage = error.message || 'Bağlantı Hatası';
+                console.warn('Batch process suspended or error', error);
+                batchProcessing = false;
+                break;
             }
             updateBatchRow(index);
         }
