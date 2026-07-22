@@ -1,6 +1,7 @@
 document.addEventListener('DOMContentLoaded', () => {
     const {
         calculateTaxBreakdown,
+        fetchWithTimeout,
         formatCentsTr,
         parseLocaleNumber,
     } = window.InvoiceUiHelpers;
@@ -1337,6 +1338,7 @@ let batchUploadAbortController = null;
 let batchSendAbortController = null;
 let activeBatchIndex = null;
 let batchDetailRevision = 0;
+const BATCH_FILE_TIMEOUT_MS = 2 * 60 * 1000;
 
 function isCurrentBatchGeneration(generation) {
     return Boolean(generation) && batchGenerationId === generation;
@@ -1492,6 +1494,13 @@ function updateBatchRow(index) {
 
     if (item.sent) {
         setBatchStatus(index, 'success', 'Gönderildi');
+    } else if (item.timedOut) {
+        setBatchStatus(
+            index,
+            'error',
+            'Zaman Aşımı (Geçildi)',
+            item.errorMessage || 'Dosya 2 dakika içinde tamamlanamadı; sonraki dosyaya geçildi.',
+        );
     } else if (!item.success) {
         setBatchStatus(index, 'error', 'Hata (Tıkla)', item.errorMessage || 'Dosya işlenemedi.');
     } else if (item.validationPending) {
@@ -1568,6 +1577,7 @@ async function handleBatchFiles(files) {
         success: false,
         sent: false,
         validationPending: false,
+        timedOut: false,
         generation: capturedBatchGeneration,
         errorMessage: '',
     }));
@@ -1590,7 +1600,8 @@ async function handleBatchFiles(files) {
     });
 
     batchProcessing = true;
-    batchUploadAbortController = new AbortController();
+    const capturedBatchUploadController = new AbortController();
+    batchUploadAbortController = capturedBatchUploadController;
     setBatchNavigationDisabled(true);
     updateBatchActions();
 
@@ -1603,11 +1614,13 @@ async function handleBatchFiles(files) {
             formData.append('file', item.file);
 
             try {
-                const response = await fetch('/upload', {
-                    method: 'POST',
-                    body: formData,
-                    signal: batchUploadAbortController.signal,
-                });
+                const response = await fetchWithTimeout(
+                    fetch,
+                    '/upload',
+                    { method: 'POST', body: formData },
+                    BATCH_FILE_TIMEOUT_MS,
+                    capturedBatchUploadController.signal,
+                );
                 const result = await readJsonResponse(response);
                 if (!isCurrentBatchGeneration(capturedBatchGeneration)) return;
                 if (!response.ok || !result || !result.data) {
@@ -1620,9 +1633,17 @@ async function handleBatchFiles(files) {
                     item.errorMessage = '';
                 }
             } catch (error) {
-                if (error.name === 'AbortError') {
+                if (capturedBatchUploadController.signal.aborted) {
                     console.warn('Batch upload aborted');
                     break;
+                }
+                if (error.name === 'TimeoutError') {
+                    item.success = false;
+                    item.timedOut = true;
+                    item.result = null;
+                    item.errorMessage = 'Dosya 2 dakika içinde tamamlanamadı; sonraki dosyaya geçildi.';
+                    updateBatchRow(index);
+                    continue;
                 }
                 console.error('File extraction error:', error);
                 item.success = false;
@@ -1634,7 +1655,9 @@ async function handleBatchFiles(files) {
     } finally {
         if (isCurrentBatchGeneration(capturedBatchGeneration)) {
             batchProcessing = false;
-            batchUploadAbortController = null;
+            if (batchUploadAbortController === capturedBatchUploadController) {
+                batchUploadAbortController = null;
+            }
             setBatchNavigationDisabled(false);
             updateBatchActions();
         }

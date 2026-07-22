@@ -17,7 +17,7 @@ def test_line_tax_amount_column_is_not_rendered_or_exported():
 def test_invalid_draft_action_has_a_popup_and_send_guard():
     javascript = (PROJECT_ROOT / "ui" / "app.js").read_text(encoding="utf-8")
 
-    assert "if (!currentInvoiceIsValid)" in javascript
+    assert "if (currentValidationState !== 'valid' || !currentInvoiceIsValid)" in javascript
     assert "showDraftValidationPopup();" in javascript
     assert "window.alert(`${title}\\n\\n${detail}`);" in javascript
     assert "currentValidationState !== 'valid'" in javascript
@@ -47,3 +47,15 @@ def test_uyumsoft_portal_and_environment_are_loaded_from_runtime_config():
     assert "config.uyumsoft_portal_url" in javascript
     assert "Uyumsoft ortamı: GERÇEK / CANLI" in javascript
     assert "http://portal-test.uyumsoft.com.tr/Taslak" not in javascript
+
+
+def test_batch_upload_times_out_one_file_without_canceling_the_batch():
+    javascript = (PROJECT_ROOT / "ui" / "app.js").read_text(encoding="utf-8")
+
+    assert "const BATCH_FILE_TIMEOUT_MS = 2 * 60 * 1000;" in javascript
+    assert "fetchWithTimeout(" in javascript
+    assert "capturedBatchUploadController.signal" in javascript
+    assert "if (error.name === 'TimeoutError')" in javascript
+    assert "item.timedOut = true;" in javascript
+    assert "Zaman Aşımı (Geçildi)" in javascript
+    assert "if (capturedBatchUploadController.signal.aborted)" in javascript

@@ -5,6 +5,7 @@ from fastapi import FastAPI, UploadFile, File
 from fastapi.responses import RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
+from starlette.concurrency import run_in_threadpool
 
 # Import our pipeline modules
 from extractors.excel_extractor import parse_excel_invoice
@@ -145,8 +146,7 @@ def _try_gemini_extraction(file_path: str, ext: str) -> tuple[dict, bool, list[s
     return data, is_valid, errors
 
 
-@app.post("/upload", response_model=ProcessResponse)
-async def upload_invoice(file: UploadFile = File(...)):
+def _process_upload(file: UploadFile):
     import traceback
     from fastapi.responses import JSONResponse
 
@@ -324,6 +324,14 @@ async def upload_invoice(file: UploadFile = File(...)):
                 os.remove(temp_path)
             except OSError:
                 pass
+
+
+@app.post("/upload", response_model=ProcessResponse)
+async def upload_invoice(file: UploadFile = File(...)):
+    # PDF parsing, OCR, Gemini and Uyumsoft lookups are synchronous. Running
+    # them directly in this async endpoint used to block the server event loop,
+    # so one stalled file could prevent the next batch request from starting.
+    return await run_in_threadpool(_process_upload, file)
 
 @app.post("/validate")
 async def api_validate(invoice_data: dict):

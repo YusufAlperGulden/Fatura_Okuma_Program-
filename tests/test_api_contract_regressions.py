@@ -1,5 +1,6 @@
 import asyncio
 import json
+import threading
 from io import BytesIO
 from unittest.mock import patch
 
@@ -143,6 +144,36 @@ def test_missing_customer_name_is_enriched_before_local_final_validation(
     assert response.data["customer_name"] == "Registered Customer A.S."
     assert response.errors == []
     assert enrich.call_count >= 1
+    assert list(tmp_path.iterdir()) == []
+
+
+def test_upload_offloads_blocking_extraction_from_the_async_event_loop(
+    tmp_path, monkeypatch
+):
+    monkeypatch.setattr(api, "UPLOAD_DIR", str(tmp_path))
+    caller_thread_id = threading.get_ident()
+    extraction_thread_ids = []
+    candidate = _candidate_without_customer_name()
+    candidate["customer_name"] = "Threaded Customer"
+
+    def fake_parse_pdf(_file_path):
+        extraction_thread_ids.append(threading.get_ident())
+        return candidate
+
+    with (
+        patch.dict("os.environ", {}, clear=True),
+        patch("api.parse_pdf_invoice", side_effect=fake_parse_pdf),
+        patch("api.validate_invoice", return_value=(True, [])),
+        patch(
+            "api.enrich_invoice_customer_from_uyumsoft",
+            side_effect=lambda data: data,
+        ),
+    ):
+        response = asyncio.run(api.upload_invoice(_upload()))
+
+    assert response.is_valid is True
+    assert extraction_thread_ids
+    assert extraction_thread_ids[0] != caller_thread_id
     assert list(tmp_path.iterdir()) == []
 
 

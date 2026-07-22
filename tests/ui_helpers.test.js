@@ -3,6 +3,7 @@
 const assert = require('node:assert/strict');
 const {
     calculateTaxBreakdown,
+    fetchWithTimeout,
     parseLocaleNumber,
 } = require('../ui/helpers.js');
 
@@ -38,4 +39,59 @@ assert.deepEqual(breakdown.groups, [
 ]);
 assert.equal(breakdown.totalTaxCents, '1001');
 
-console.log('ui_helpers.test.js: all assertions passed');
+function waitForAbort(_url, { signal }) {
+    return new Promise((resolve, reject) => {
+        const rejectWithAbort = () => {
+            const error = new Error('aborted');
+            error.name = 'AbortError';
+            reject(error);
+        };
+        if (signal.aborted) {
+            rejectWithAbort();
+            return;
+        }
+        signal.addEventListener('abort', rejectWithAbort, { once: true });
+    });
+}
+
+async function runTimeoutAssertions() {
+    const reusableBatchController = new AbortController();
+    await assert.rejects(
+        fetchWithTimeout(
+            waitForAbort,
+            '/upload',
+            { method: 'POST' },
+            5,
+            reusableBatchController.signal,
+        ),
+        error => error.name === 'TimeoutError',
+    );
+    assert.equal(reusableBatchController.signal.aborted, false);
+
+    const nextResponse = await fetchWithTimeout(
+        async () => ({ ok: true }),
+        '/upload',
+        { method: 'POST' },
+        50,
+        reusableBatchController.signal,
+    );
+    assert.equal(nextResponse.ok, true);
+
+    const canceledBatchController = new AbortController();
+    const canceledRequest = fetchWithTimeout(
+        waitForAbort,
+        '/upload',
+        { method: 'POST' },
+        1000,
+        canceledBatchController.signal,
+    );
+    canceledBatchController.abort();
+    await assert.rejects(canceledRequest, error => error.name === 'AbortError');
+}
+
+runTimeoutAssertions()
+    .then(() => console.log('ui_helpers.test.js: all assertions passed'))
+    .catch(error => {
+        console.error(error);
+        process.exitCode = 1;
+    });
