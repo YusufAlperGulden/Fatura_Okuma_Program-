@@ -117,7 +117,9 @@ class QuerySpec(_StrictModel):
     sort_by: SortBy = SortBy.CREATED_AT
     sort_direction: SortDirection = SortDirection.DESC
     result_limit: conint(strict=True, ge=1, le=MAX_PAGE_SIZE) | None = None
+    limit: conint(strict=True, ge=1, le=MAX_PAGE_SIZE) | None = None
     result_offset: conint(strict=True, ge=0) | None = None
+    offset: conint(strict=True, ge=0) | None = None
 
     @validator("search_text", "customer", "tax_id", "invoice_no", pre=True)
     def _strip_nonempty_strings(cls, value: Any):
@@ -419,7 +421,7 @@ GÜVENLİK VE ÇIKTI KURALLARI:
   has_uyumsoft_document alanını true/false kullan.
 - “en yüksek/en düşük/en yeni/en eski” isteklerinde sort_by ve sort_direction kullan.
 - “ilk N/tümünden N tane” isteklerinde result_limit kullan (en fazla 100).
-- “ikinci, üçüncü, sonraki N” gibi atlama/kaydırma gerektiren isteklerde result_offset kullan (örn. ikinci için offset=1, ilkini atla).
+- “ikinci, üçüncü, sonraki N” gibi atlama/kaydırma gerektiren isteklerde result_offset kullan (örn. ikinci için result_offset=1).
 
 QUERY_SPEC_JSON_SCHEMA:
 {schema_json}
@@ -479,7 +481,7 @@ def interpret_archive_query(query: str) -> tuple[QuerySpec, str]:
         spec = _model_validate(QuerySpec, _load_json_object(response.text))
     except (ValidationError, ArchiveAIResponseError) as exc:
         raise ArchiveAIResponseError(
-            "Gemini returned a filter outside the approved QuerySpec."
+            f"Gemini returned a filter outside the approved QuerySpec. Validation error: {str(exc)}"
         ) from exc
     return spec, explain_query_spec(spec)
 
@@ -522,10 +524,10 @@ def explain_query_spec(spec: QuerySpec) -> str:
         parts.append("Uyumsoft belge kimliği bulunanlar")
     elif data.get("has_uyumsoft_document") is False:
         parts.append("Uyumsoft belge kimliği bulunmayanlar")
-    if data.get("result_limit"):
-        parts.append(f"en fazla {data['result_limit']} sonuç")
-    if data.get("result_offset"):
-        parts.append(f"ilk {data['result_offset']} sonuç atlanıyor")
+    if data.get("result_limit") or data.get("limit"):
+        parts.append(f"en fazla {data.get('result_limit') or data.get('limit')} sonuç")
+    if data.get("result_offset") or data.get("offset"):
+        parts.append(f"ilk {data.get('result_offset') or data.get('offset')} sonuç atlanıyor")
     if not parts:
         return "Arşivdeki tüm faturalar listeleniyor."
     return "Uygulanan filtreler: " + "; ".join(parts) + "."
@@ -694,11 +696,14 @@ def execute_archive_search(
         cursor = connection.cursor()
         cursor.execute(f"SELECT COUNT(*) AS total FROM invoices {where_sql}", params)
         matching_total = int(cursor.fetchone()["total"])
-        total = min(matching_total, data.get("result_limit", matching_total))
-        page_size = min(request.limit, data.get("result_limit", request.limit))
+        r_limit = data.get("result_limit") or data.get("limit") or matching_total
+        total = min(matching_total, r_limit)
+        r_page_size = data.get("result_limit") or data.get("limit") or request.limit
+        page_size = min(request.limit, r_page_size)
         offset = (request.page - 1) * page_size
-        if data.get("result_offset"):
-            offset += data["result_offset"]
+        r_offset = data.get("result_offset") or data.get("offset")
+        if r_offset:
+            offset += r_offset
         remaining = max(0, total - offset)
         row_limit = min(page_size, remaining)
 

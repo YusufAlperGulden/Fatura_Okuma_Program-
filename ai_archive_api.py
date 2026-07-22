@@ -45,12 +45,12 @@ def api_history_ai_interpret(payload: AIInterpretRequest, request: Request):
                 "message": "AI arama şu anda yapılandırılmamış.",
             },
         )
-    except (ArchiveAIProviderError, ArchiveAIResponseError):
+    except (ArchiveAIProviderError, ArchiveAIResponseError) as e:
         return JSONResponse(
             status_code=502,
             content={
                 "success": False,
-                "message": "AI arama isteği güvenli bir filtreye dönüştürülemedi.",
+                "message": f"AI arama isteği güvenli bir filtreye dönüştürülemedi. Hata: {str(e)}",
             },
         )
     except Exception:
