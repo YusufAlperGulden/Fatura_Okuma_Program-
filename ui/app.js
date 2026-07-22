@@ -2110,6 +2110,37 @@ document.getElementById('history-date-filter')?.addEventListener('change', () =>
     loadHistoryTable(1);
 });
 
+document.getElementById('toggle-advanced-filters')?.addEventListener('click', () => {
+    const panel = document.getElementById('advanced-filters-panel');
+    const toggleBtn = document.getElementById('toggle-advanced-filters');
+    if (panel.classList.contains('hidden')) {
+        panel.classList.remove('hidden');
+        toggleBtn.innerHTML = '&#9650; Gelişmiş Filtreleme Seçenekleri (Gizle)';
+    } else {
+        panel.classList.add('hidden');
+        toggleBtn.innerHTML = '&#9660; Gelişmiş Filtreleme Seçenekleri';
+    }
+});
+
+document.getElementById('history-apply-filters-btn')?.addEventListener('click', () => {
+    loadHistoryTable(1);
+});
+
+document.getElementById('history-clear-filters-btn')?.addEventListener('click', () => {
+    const startDate = document.getElementById('history-start-date');
+    if (startDate) startDate.value = '';
+    const endDate = document.getElementById('history-end-date');
+    if (endDate) endDate.value = '';
+    const minAmount = document.getElementById('history-min-amount');
+    if (minAmount) minAmount.value = '';
+    const maxAmount = document.getElementById('history-max-amount');
+    if (maxAmount) maxAmount.value = '';
+    const statusFilter = document.getElementById('history-status-filter');
+    if (statusFilter) statusFilter.value = '';
+    
+    loadHistoryTable(1);
+});
+
 async function loadHistoryTable(page) {
     const tbody = document.getElementById('history-table-body');
     const prevBtn = document.getElementById('history-prev-page');
@@ -2121,6 +2152,12 @@ async function loadHistoryTable(page) {
     const searchVal = searchInput ? searchInput.value.trim() : '';
     const dateVal = dateFilter ? dateFilter.value : 'all';
     
+    const startDateVal = document.getElementById('history-start-date')?.value;
+    const endDateVal = document.getElementById('history-end-date')?.value;
+    const minAmountVal = document.getElementById('history-min-amount')?.value;
+    const maxAmountVal = document.getElementById('history-max-amount')?.value;
+    const statusVal = document.getElementById('history-status-filter')?.value;
+    
     tbody.innerHTML = '<tr><td colspan="5" style="text-align: center; padding: 2rem; color: var(--text-secondary);">Yükleniyor...</td></tr>';
     prevBtn.disabled = true;
     nextBtn.disabled = true;
@@ -2129,6 +2166,12 @@ async function loadHistoryTable(page) {
         let url = `/api/history/invoices?page=${page}&limit=10`;
         if (searchVal) url += `&search=${encodeURIComponent(searchVal)}`;
         if (dateVal && dateVal !== 'all') url += `&date_filter=${encodeURIComponent(dateVal)}`;
+        
+        if (startDateVal) url += `&start_date=${encodeURIComponent(startDateVal)}`;
+        if (endDateVal) url += `&end_date=${encodeURIComponent(endDateVal)}`;
+        if (minAmountVal) url += `&min_amount=${encodeURIComponent(minAmountVal)}`;
+        if (maxAmountVal) url += `&max_amount=${encodeURIComponent(maxAmountVal)}`;
+        if (statusVal) url += `&status_filter=${encodeURIComponent(statusVal)}`;
         
         const res = await fetch(url);
         const json = await res.json();

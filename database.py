@@ -204,7 +204,8 @@ def get_dashboard_stats():
         "currency_distribution": currency_distribution
     }
 
-def get_paginated_invoices(page: int = 1, limit: int = 20, search_query: str = None, date_filter: str = None):
+def get_paginated_invoices(page: int = 1, limit: int = 20, search_query: str = None, date_filter: str = None, 
+                           start_date: str = None, end_date: str = None, min_amount: float = None, max_amount: float = None, status_filter: str = None):
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
     cursor = conn.cursor()
@@ -227,6 +228,28 @@ def get_paginated_invoices(page: int = 1, limit: int = 20, search_query: str = N
     elif date_filter == 'this_year':
         where_clauses.append("created_at >= date('now', 'start of year')")
         
+    if start_date:
+        where_clauses.append("COALESCE(date, created_at) >= ?")
+        params.append(start_date)
+    if end_date:
+        where_clauses.append("COALESCE(date, created_at) <= ?")
+        params.append(end_date)
+    
+    if min_amount is not None:
+        where_clauses.append("amount_try >= ?")
+        params.append(min_amount)
+    if max_amount is not None:
+        where_clauses.append("amount_try <= ?")
+        params.append(max_amount)
+        
+    if status_filter:
+        if status_filter == 'errors':
+            where_clauses.append("status IN ('Error', 'HATALI', 'Declined', 'Reddedildi', 'Return')")
+        elif status_filter == 'success':
+            where_clauses.append("status IN ('Approved', 'Kabul Edildi')")
+        elif status_filter == 'draft':
+            where_clauses.append("status IN ('Draft', 'Taslak', 'Bekliyor')")
+
     where_sql = ""
     if where_clauses:
         where_sql = "WHERE " + " AND ".join(where_clauses)

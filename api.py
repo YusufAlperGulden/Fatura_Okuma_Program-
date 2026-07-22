@@ -430,11 +430,13 @@ def api_history_dashboard():
         return JSONResponse(status_code=500, content={"success": False, "message": "Failed to load dashboard stats", "details": str(e)})
 
 @app.get("/api/history/invoices")
-def api_history_invoices(page: int = 1, limit: int = 20, search: str = None, date_filter: str = None):
+def api_history_invoices(page: int = 1, limit: int = 20, search: str = None, date_filter: str = None,
+                           start_date: str = None, end_date: str = None, min_amount: float = None, max_amount: float = None, status_filter: str = None):
     """Returns paginated history of invoices."""
     from database import get_paginated_invoices
     try:
-        data = get_paginated_invoices(page=page, limit=limit, search_query=search, date_filter=date_filter)
+        data = get_paginated_invoices(page=page, limit=limit, search_query=search, date_filter=date_filter,
+                                      start_date=start_date, end_date=end_date, min_amount=min_amount, max_amount=max_amount, status_filter=status_filter)
         return {"success": True, "data": data}
     except Exception as e:
         import traceback

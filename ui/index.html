@@ -718,6 +718,46 @@
                                 <option value="this_year" style="background-color: #ffffff; color: #000000;">Bu Yıl</option>
                             </select>
                         </div>
+                        
+                        <!-- Advanced Filters Toggle -->
+                        <div style="margin-top: 10px; text-align: right;">
+                            <button id="toggle-advanced-filters" style="background: none; border: none; color: var(--accent-color); cursor: pointer; font-size: 0.9rem; padding: 0; outline: none;">
+                                &#9660; Gelişmiş Filtreleme Seçenekleri
+                            </button>
+                        </div>
+                        
+                        <!-- Advanced Filters Panel -->
+                        <div id="advanced-filters-panel" class="hidden" style="margin-top: 15px; padding: 15px; background: rgba(0,0,0,0.2); border-radius: 8px; border: 1px solid var(--border-color); display: flex; flex-wrap: wrap; gap: 15px; align-items: flex-end;">
+                            <div style="flex: 1; min-width: 150px;">
+                                <label style="display: block; font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 5px;">Başlangıç Tarihi</label>
+                                <input type="date" id="history-start-date" style="width: 100%; background: var(--input-bg); border: 1px solid var(--border-color); color: var(--text-primary); padding: 0.5rem; border-radius: 6px; outline: none; font-size: 0.9rem;">
+                            </div>
+                            <div style="flex: 1; min-width: 150px;">
+                                <label style="display: block; font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 5px;">Bitiş Tarihi</label>
+                                <input type="date" id="history-end-date" style="width: 100%; background: var(--input-bg); border: 1px solid var(--border-color); color: var(--text-primary); padding: 0.5rem; border-radius: 6px; outline: none; font-size: 0.9rem;">
+                            </div>
+                            <div style="flex: 1; min-width: 150px;">
+                                <label style="display: block; font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 5px;">Min Tutar (TL)</label>
+                                <input type="number" id="history-min-amount" placeholder="0.00" style="width: 100%; background: var(--input-bg); border: 1px solid var(--border-color); color: var(--text-primary); padding: 0.5rem; border-radius: 6px; outline: none; font-size: 0.9rem;">
+                            </div>
+                            <div style="flex: 1; min-width: 150px;">
+                                <label style="display: block; font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 5px;">Max Tutar (TL)</label>
+                                <input type="number" id="history-max-amount" placeholder="999999.00" style="width: 100%; background: var(--input-bg); border: 1px solid var(--border-color); color: var(--text-primary); padding: 0.5rem; border-radius: 6px; outline: none; font-size: 0.9rem;">
+                            </div>
+                            <div style="flex: 1; min-width: 150px;">
+                                <label style="display: block; font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 5px;">Durum</label>
+                                <select id="history-status-filter" style="width: 100%; background: var(--input-bg); border: 1px solid var(--border-color); color: var(--text-primary); padding: 0.5rem; border-radius: 6px; outline: none; font-size: 0.9rem; cursor: pointer;">
+                                    <option value="">Tümü</option>
+                                    <option value="errors">Yalnızca Hatalı Olanlar</option>
+                                    <option value="success">Başarılı Olanlar</option>
+                                    <option value="draft">Taslak / Bekleyenler</option>
+                                </select>
+                            </div>
+                            <div>
+                                <button id="history-apply-filters-btn" class="primary-btn" style="padding: 0.5rem 1rem; font-size: 0.9rem;">Filtrele</button>
+                                <button id="history-clear-filters-btn" class="secondary-btn" style="padding: 0.5rem 1rem; font-size: 0.9rem; margin-left: 0.5rem;">Temizle</button>
+                            </div>
+                        </div>
                     </div>
                     <div class="table-container">
                         <table class="data-table">
@@ -744,7 +784,7 @@
         </main>
     </div>
     <script src="helpers.js?v=19"></script>
-    <script src="app.js?v=36"></script>
+    <script src="app.js?v=37"></script>
     <script src="ai-history-search.js?v=1"></script>
 </body>
 </html>
