@@ -1818,6 +1818,12 @@ if (historyToggleBtn) {
             icon.classList.add('history-rewind-animate');
             setTimeout(() => icon.classList.remove('history-rewind-animate'), 500);
         }
+        if (!historySection.classList.contains('hidden')) {
+            historySection.classList.add('hidden');
+            uploadSection.classList.remove('hidden');
+            return;
+        }
+        
         // Hide other sections
         uploadSection.classList.add('hidden');
         splitContainer.classList.add('hidden');
