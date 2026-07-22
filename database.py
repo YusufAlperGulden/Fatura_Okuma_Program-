@@ -99,7 +99,7 @@ def get_dashboard_stats():
             SUM(amount_try) as total_revenue,
             COUNT(*) as total_count
         FROM invoices
-        WHERE status = 'GÖNDERİLDİ'
+        WHERE status != 'HATALI'
     ''')
     row = cursor.fetchone()
     total_revenue = float(row['total_revenue'] or 0.0)
@@ -117,7 +117,7 @@ def get_dashboard_stats():
             SUM(amount_try) as monthly_revenue,
             COUNT(*) as monthly_count
         FROM invoices
-        WHERE status = 'GÖNDERİLDİ'
+        WHERE status != 'HATALI'
         GROUP BY month
         ORDER BY month ASC
     ''')
@@ -129,7 +129,7 @@ def get_dashboard_stats():
             COALESCE(NULLIF(customer_name, ''), 'Bilinmeyen Müşteri') as customer_name,
             SUM(amount_try) as total_revenue
         FROM invoices
-        WHERE status = 'GÖNDERİLDİ'
+        WHERE status != 'HATALI'
         GROUP BY customer_name
         ORDER BY total_revenue DESC
         LIMIT 5
