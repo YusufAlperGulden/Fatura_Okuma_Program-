@@ -2137,6 +2137,8 @@ document.getElementById('history-clear-filters-btn')?.addEventListener('click', 
     if (maxAmount) maxAmount.value = '';
     const statusFilter = document.getElementById('history-status-filter');
     if (statusFilter) statusFilter.value = '';
+    const sortFilter = document.getElementById('history-sort-by');
+    if (sortFilter) sortFilter.value = '';
     
     loadHistoryTable(1);
 });
@@ -2157,6 +2159,7 @@ async function loadHistoryTable(page) {
     const minAmountVal = document.getElementById('history-min-amount')?.value;
     const maxAmountVal = document.getElementById('history-max-amount')?.value;
     const statusVal = document.getElementById('history-status-filter')?.value;
+    const sortVal = document.getElementById('history-sort-by')?.value;
     
     tbody.innerHTML = '<tr><td colspan="5" style="text-align: center; padding: 2rem; color: var(--text-secondary);">Yükleniyor...</td></tr>';
     prevBtn.disabled = true;
@@ -2172,6 +2175,7 @@ async function loadHistoryTable(page) {
         if (minAmountVal) url += `&min_amount=${encodeURIComponent(minAmountVal)}`;
         if (maxAmountVal) url += `&max_amount=${encodeURIComponent(maxAmountVal)}`;
         if (statusVal) url += `&status_filter=${encodeURIComponent(statusVal)}`;
+        if (sortVal) url += `&sort_by=${encodeURIComponent(sortVal)}`;
         
         const res = await fetch(url);
         const json = await res.json();

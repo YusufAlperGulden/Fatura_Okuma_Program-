@@ -205,7 +205,7 @@ def get_dashboard_stats():
     }
 
 def get_paginated_invoices(page: int = 1, limit: int = 20, search_query: str = None, date_filter: str = None, 
-                           start_date: str = None, end_date: str = None, min_amount: float = None, max_amount: float = None, status_filter: str = None):
+                           start_date: str = None, end_date: str = None, min_amount: float = None, max_amount: float = None, status_filter: str = None, sort_by: str = None):
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
     cursor = conn.cursor()
@@ -257,13 +257,25 @@ def get_paginated_invoices(page: int = 1, limit: int = 20, search_query: str = N
     cursor.execute(f'SELECT COUNT(*) as total FROM invoices {where_sql}', params)
     total_items = cursor.fetchone()['total']
     
+    order_sql = "ORDER BY created_at DESC"
+    if sort_by == 'date_asc':
+        order_sql = "ORDER BY created_at ASC"
+    elif sort_by == 'amount_desc':
+        order_sql = "ORDER BY amount_try DESC"
+    elif sort_by == 'amount_asc':
+        order_sql = "ORDER BY amount_try ASC"
+    elif sort_by == 'alpha_asc':
+        order_sql = "ORDER BY customer_name ASC"
+    elif sort_by == 'alpha_desc':
+        order_sql = "ORDER BY customer_name DESC"
+    
     query = f'''
         SELECT id, invoice_no, date, customer_name, customer_tax_id, 
                total_amount, amount_try, currency, status, created_at, 
                uyumsoft_document_id, uyumsoft_environment, uyumsoft_status, uyumsoft_message, uyumsoft_checked_at
         FROM invoices 
         {where_sql}
-        ORDER BY created_at DESC
+        {order_sql}
         LIMIT ? OFFSET ?
     '''
     cursor.execute(query, params + [limit, offset])

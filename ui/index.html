@@ -753,6 +753,17 @@
                                     <option value="draft">Taslak / Bekleyenler</option>
                                 </select>
                             </div>
+                            <div style="flex: 1; min-width: 150px;">
+                                <label style="display: block; font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 5px;">Sıralama Ölçütü</label>
+                                <select id="history-sort-by" style="width: 100%; background: var(--input-bg); border: 1px solid var(--border-color); color: var(--text-primary); padding: 0.5rem; border-radius: 6px; outline: none; font-size: 0.9rem; cursor: pointer;">
+                                    <option value="">Tarihe Göre (En Yeni)</option>
+                                    <option value="date_asc">Tarihe Göre (En Eski)</option>
+                                    <option value="amount_desc">Tutara Göre (Azalan)</option>
+                                    <option value="amount_asc">Tutara Göre (Artan)</option>
+                                    <option value="alpha_asc">Cari İsim (A-Z)</option>
+                                    <option value="alpha_desc">Cari İsim (Z-A)</option>
+                                </select>
+                            </div>
                             <div>
                                 <button id="history-apply-filters-btn" class="primary-btn" style="padding: 0.5rem 1rem; font-size: 0.9rem;">Filtrele</button>
                                 <button id="history-clear-filters-btn" class="secondary-btn" style="padding: 0.5rem 1rem; font-size: 0.9rem; margin-left: 0.5rem;">Temizle</button>
@@ -784,7 +795,7 @@
         </main>
     </div>
     <script src="helpers.js?v=19"></script>
-    <script src="app.js?v=37"></script>
+    <script src="app.js?v=38"></script>
     <script src="ai-history-search.js?v=4"></script>
 </body>
 </html>
