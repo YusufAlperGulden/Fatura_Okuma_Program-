@@ -1834,7 +1834,6 @@ const uploadSection = document.querySelector('.upload-section');
 const splitContainer = document.getElementById('split-container');
 const batchSection = document.getElementById('batch-section');
 
-let historyCurrentPage = 1;
 let historyChartInstance = null;
 let topCustomersChartInstance = null;
 let allCustomersChartInstance = null;
@@ -1874,13 +1873,6 @@ if (closeHistoryBtn) {
         uploadSection.classList.remove('hidden');
     });
 }
-
-document.getElementById('history-prev-page')?.addEventListener('click', () => {
-    if (historyCurrentPage > 1) loadHistoryTable(historyCurrentPage - 1);
-});
-document.getElementById('history-next-page')?.addEventListener('click', () => {
-    loadHistoryTable(historyCurrentPage + 1);
-});
 
 async function loadHistoryDashboard() {
     try {
@@ -2167,9 +2159,6 @@ document.getElementById('history-clear-filters-btn')?.addEventListener('click', 
 
 async function loadHistoryTable(page) {
     const tbody = document.getElementById('history-table-body');
-    const prevBtn = document.getElementById('history-prev-page');
-    const nextBtn = document.getElementById('history-next-page');
-    const pageInfo = document.getElementById('history-page-info');
     
     const searchInput = document.getElementById('history-search-input');
     const dateFilter = document.getElementById('history-date-filter');
@@ -2184,11 +2173,9 @@ async function loadHistoryTable(page) {
     const sortVal = document.getElementById('history-sort-by')?.value;
     
     tbody.innerHTML = '<tr><td colspan="5" style="text-align: center; padding: 2rem; color: var(--text-secondary);">Yükleniyor...</td></tr>';
-    prevBtn.disabled = true;
-    nextBtn.disabled = true;
     
     try {
-        let url = `/api/history/invoices?page=${page}&limit=10`;
+        let url = `/api/history/invoices?page=${page}&limit=1000000`;
         if (searchVal) url += `&search=${encodeURIComponent(searchVal)}`;
         if (dateVal && dateVal !== 'all') url += `&date_filter=${encodeURIComponent(dateVal)}`;
         
@@ -2204,11 +2191,6 @@ async function loadHistoryTable(page) {
         
         if (json.success && json.data) {
             const data = json.data;
-            historyCurrentPage = data.page;
-            
-            pageInfo.textContent = `Sayfa ${data.page} / ${Math.max(1, data.total_pages)}`;
-            prevBtn.disabled = data.page <= 1;
-            nextBtn.disabled = data.page >= data.total_pages;
             
             if (data.items.length === 0) {
                 tbody.innerHTML = '<tr><td colspan="4" style="text-align: center; padding: 2rem; color: var(--text-secondary);">Henüz hiç fatura gönderilmemiş.</td></tr>';
