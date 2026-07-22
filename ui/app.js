@@ -2164,3 +2164,4 @@ function renderHistoryItems(items, tbody) {
         tbody.appendChild(tr);
     });
 }
+});
