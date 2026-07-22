@@ -311,6 +311,28 @@
             padding-bottom: 5px;
         }
 
+        @keyframes progress-indeterminate {
+            0% { transform: translateX(-100%); }
+            100% { transform: translateX(200%); }
+        }
+        .progress-bar-container {
+            width: 250px;
+            height: 4px;
+            background-color: var(--border-color);
+            border-radius: 2px;
+            margin: 15px auto 5px auto;
+            overflow: hidden;
+            position: relative;
+        }
+        .progress-bar-indicator {
+            width: 50%;
+            height: 100%;
+            background-color: var(--accent-color);
+            position: absolute;
+            left: 0;
+            top: 0;
+            animation: progress-indeterminate 1.5s infinite linear;
+        }
         </style>
 </head>
 <body>
@@ -388,6 +410,9 @@
                 <div id="loading" class="loading hidden">
                     <div class="spinner"></div>
                     <p id="loading-text">Fatura işleniyor...</p>
+                    <div class="progress-bar-container">
+                        <div class="progress-bar-indicator"></div>
+                    </div>
                     <button id="cancel-btn" style="margin-top: 15px; border: 1px solid #ef4444 !important; color: #ef4444 !important; background-color: rgba(239, 68, 68, 0.1) !important; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; padding: 8px 16px; border-radius: 6px; font-weight: 600; font-family: 'Inter', sans-serif;">
                         <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" style="width: 16px; height: 16px; margin-right: 6px;">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
