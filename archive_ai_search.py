@@ -471,7 +471,7 @@ def interpret_archive_query(query: str) -> tuple[QuerySpec, str]:
             ),
         )
     except Exception as exc:
-        raise ArchiveAIProviderError("Gemini could not interpret the search.") from exc
+        raise ArchiveAIProviderError(f"Gemini could not interpret the search: {str(exc)}") from exc
     finally:
         close = getattr(client, "close", None)
         if callable(close):
