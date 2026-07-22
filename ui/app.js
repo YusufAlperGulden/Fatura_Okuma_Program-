@@ -121,24 +121,65 @@ document.addEventListener('DOMContentLoaded', () => {
     async function loadRuntimeConfig() {
         try {
             const response = await fetch('/runtime-config');
-            if (!response.ok) throw new Error(`HTTP ${response.status}`);
-            const config = await response.json();
-            if (config.uyumsoft_portal_url) {
-                UYUMSOFT_PORTAL_URL = config.uyumsoft_portal_url;
+            if (response.ok) {
+                const config = await response.json();
+                if (config.uyumsoft_portal_url) {
+                    UYUMSOFT_PORTAL_URL = config.uyumsoft_portal_url;
+                }
             }
-            const environment = config.uyumsoft_environment === 'prod' ? 'prod' : 'test';
-            document.documentElement.dataset.uyumsoftEnvironment = environment;
-            const select = document.getElementById('environment-select');
-            if (select) {
-                select.value = environment;
-                select.disabled = true;
-            }
-            updateEnvironmentBadges(environment);
         } catch (error) {
-            console.warn('Uyumsoft ortam ayarı okunamadı.', error);
-            delete document.documentElement.dataset.uyumsoftEnvironment;
-            updateEnvironmentBadges(null);
+            console.warn('Uyumsoft portal URL okunamadı.', error);
         }
+
+        const localEnv = localStorage.getItem('uyumsoft_environment') || 'test';
+        document.documentElement.dataset.uyumsoftEnvironment = localEnv;
+        const select = document.getElementById('environment-select');
+        if (select) {
+            select.value = localEnv;
+        }
+        updateEnvironmentBadges(localEnv);
+    }
+
+    // Credentials Modal Logic
+    const credModal = document.getElementById('credentials-modal');
+    const credBtn = document.getElementById('credentials-settings-btn');
+    const credSaveBtn = document.getElementById('cred-save-btn');
+    const credCancelBtn = document.getElementById('cred-cancel-btn');
+    const credUser = document.getElementById('cred-username');
+    const credPass = document.getElementById('cred-password');
+    const envSelect = document.getElementById('environment-select');
+
+    if (envSelect) {
+        envSelect.addEventListener('change', (e) => {
+            const val = e.target.value;
+            localStorage.setItem('uyumsoft_environment', val);
+            document.documentElement.dataset.uyumsoftEnvironment = val;
+            updateEnvironmentBadges(val);
+        });
+    }
+
+    if (credBtn && credModal) {
+        credBtn.addEventListener('click', () => {
+            credUser.value = localStorage.getItem('uyumsoft_username') || '';
+            credPass.value = localStorage.getItem('uyumsoft_password') || '';
+            credModal.classList.remove('hidden');
+        });
+
+        credCancelBtn.addEventListener('click', () => {
+            credModal.classList.add('hidden');
+        });
+
+        credSaveBtn.addEventListener('click', () => {
+            localStorage.setItem('uyumsoft_username', credUser.value.trim());
+            localStorage.setItem('uyumsoft_password', credPass.value.trim());
+            credModal.classList.add('hidden');
+            Toastify({
+                text: "Kimlik bilgileri kaydedildi.",
+                duration: 3000,
+                gravity: "top", position: "right",
+                style: { background: "#10b981", borderRadius: "8px", fontWeight: "bold" }
+            }).showToast();
+        });
     }
 
     function updateEnvironmentBadges(environment) {
@@ -1103,7 +1144,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 },
                 body: JSON.stringify({
                     invoice_data: invoiceSnapshot,
-                    action: action
+                    action: action,
+                    environment: localStorage.getItem('uyumsoft_environment') || 'test',
+                    username: localStorage.getItem('uyumsoft_username') || null,
+                    password: localStorage.getItem('uyumsoft_password') || null
                 }),
                 signal: sendAbortController.signal
             });
@@ -1658,7 +1702,13 @@ document.getElementById('send-all-btn').addEventListener('click', async () => {
                 const response = await fetch('/send-uyumsoft', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ invoice_data: item.result.data, action: 'draft' }),
+                    body: JSON.stringify({ 
+                        invoice_data: item.result.data, 
+                        action: 'draft',
+                        environment: localStorage.getItem('uyumsoft_environment') || 'test',
+                        username: localStorage.getItem('uyumsoft_username') || null,
+                        password: localStorage.getItem('uyumsoft_password') || null
+                    }),
                     signal: batchSendAbortController.signal,
                 });
                 const result = await readJsonResponse(response);

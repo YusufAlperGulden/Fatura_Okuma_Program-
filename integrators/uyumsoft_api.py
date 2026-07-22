@@ -981,18 +981,19 @@ def send_invoice_to_uyumsoft(
             "response_code": 400,
         }
 
-    # Legacy arguments stay in the signature only for Python call-site
-    # compatibility. Deployment configuration exclusively owns endpoint and
-    # credentials; callers cannot override either value.
-    _ = (environment, prod_username, prod_password)
-    server_environment = normalize_uyumsoft_environment()
-    username, password = _server_credentials(server_environment)
+    # Use provided arguments if available (e.g. from frontend configuration),
+    # otherwise fall back to the server's deployment configuration.
+    server_environment = environment.lower() if environment else normalize_uyumsoft_environment()
+    
+    env_username, env_password = _server_credentials(server_environment)
+    username = prod_username if prod_username else env_username
+    password = prod_password if prod_password else env_password
 
     if not username or not password:
         return {
             "success": False,
-            "message": "UYUMSOFT_USERNAME and UYUMSOFT_PASSWORD must be configured.",
-            "details": "Credentials are required before sending invoice data to Uyumsoft.",
+            "message": "Uyumsoft kimlik bilgileri eksik.",
+            "details": "Lütfen ayarlardan Uyumsoft kullanıcı adı ve şifrenizi girin.",
             "response_code": 401,
         }
 

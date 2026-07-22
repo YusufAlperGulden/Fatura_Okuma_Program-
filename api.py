@@ -65,6 +65,9 @@ class ProcessResponse(BaseModel):
 class SendUyumsoftRequest(BaseModel):
     invoice_data: dict
     action: str | None = None
+    environment: str | None = None
+    username: str | None = None
+    password: str | None = None
 
 
 DEFAULT_MAX_UPLOAD_BYTES = 20 * 1024 * 1024
@@ -380,6 +383,9 @@ async def send_uyumsoft_api(request: SendUyumsoftRequest):
     result = send_invoice_to_uyumsoft(
         invoice_data,
         action="draft",
+        environment=request.environment,
+        prod_username=request.username,
+        prod_password=request.password,
     )
     
     if isinstance(result, dict) and not result.get("success", True):
