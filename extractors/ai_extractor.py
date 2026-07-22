@@ -167,7 +167,8 @@ ve sadece gecerli JSON dondur. Markdown, aciklama, kod blogu veya ek metin yazma
 DİKKAT: Faturadaki TÜM KALEMLERİ (satırları) eksiksiz olarak 'items' dizisine ekle.
 DİKKAT: Eğer faturada İskonto (Discount) varsa "discount_amount" alanına yazmayı unutma!
 DİKKAT: JSON formatının KESİNLİKLE GEÇERLİ (VALID) olduğundan emin ol. Özellikle 'items' dizisi içindeki objelerde süslü parantez '{}' kapatmayı ve aralardaki virgülleri kesinlikle unutma.
-DİKKAT: "notes" alanına yazacağın metin uzunsa veya satır atlamaları (enter) içeriyorsa JSON'ı bozmaması için tüm satır atlamalarını boşluk karakteri ile değiştir (tek satır yap) ve tırnak işaretlerini '\\"' şeklinde düzgünce kaçış (escape) karakteriyle yaz.
+DİKKAT: "notes" alanına yazacağın metin uzunsa veya satır atlamaları (enter) içeriyorsa JSON'ı bozmaması için tüm satır atlamalarını boşluk karakteri ile değiştir (tek satır yap) ve tırnak işaretlerini '\\"' şeklinde düzgünce kaç (escape) karakteriyle yaz.
+DİKKAT: Müşteri/Alıcı ünvanı her zaman "Sayın", "Müşteri" vb. etiketlerle belirtilmeyebilir. Adresin ve VKN/TCKN numarasının (genellikle 10 veya 11 haneli sayı) bulunduğu bloktaki şirket/kişi ismini alıcı ünvanı ("customer_name") olarak kabul et. Satıcı bilgilerini (genellikle en üstte veya logolu olan) alıcı ünvanına yazma!
 
 Beklenen JSON alani:
 {

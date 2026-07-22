@@ -656,6 +656,10 @@ document.addEventListener('DOMContentLoaded', () => {
         
         const formData = new FormData();
         formData.append('file', file);
+        const aiFallbackCheckbox = document.getElementById('use-ai-fallback');
+        if (aiFallbackCheckbox) {
+            formData.append('use_ai_fallback', aiFallbackCheckbox.checked.toString());
+        }
         
         // Set up AbortController
         if (currentAbortController) {
@@ -1516,6 +1520,10 @@ async function handleBatchFiles(files) {
             setBatchStatus(index, 'pending', 'Okunuyor...');
             const formData = new FormData();
             formData.append('file', item.file);
+            const aiFallbackCheckbox = document.getElementById('use-ai-fallback');
+            if (aiFallbackCheckbox) {
+                formData.append('use_ai_fallback', aiFallbackCheckbox.checked.toString());
+            }
 
             try {
                 const response = await fetch('/upload', {

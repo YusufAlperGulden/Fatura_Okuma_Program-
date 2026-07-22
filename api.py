@@ -1,7 +1,7 @@
 import os
 import shutil
 import uuid
-from fastapi import FastAPI, UploadFile, File
+from fastapi import FastAPI, UploadFile, File, Form
 from fastapi.responses import RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
@@ -139,7 +139,10 @@ def _try_gemini_extraction(file_path: str, ext: str) -> tuple[dict, bool, list[s
 
 
 @app.post("/upload", response_model=ProcessResponse)
-async def upload_invoice(file: UploadFile = File(...)):
+async def upload_invoice(
+    file: UploadFile = File(...),
+    use_ai_fallback: str = Form("true")
+):
     import traceback
     from fastapi.responses import JSONResponse
 
@@ -248,7 +251,9 @@ async def upload_invoice(file: UploadFile = File(...)):
         local_data_for_serials = data if isinstance(data, dict) else None
 
         # STAGE 2: FALLBACK TO AI (Only if local extraction failed)
-        if local_error and os.getenv("GEMINI_API_KEY") and (ext == ".pdf" or _is_image_extension(ext)):
+        allow_ai = (use_ai_fallback.lower() in ["true", "1", "yes"])
+        
+        if local_error and allow_ai and os.getenv("GEMINI_API_KEY") and (ext == ".pdf" or _is_image_extension(ext)):
             try:
                 from extractors.ai_extractor import extract_invoice_with_ai
                 with open(file_path, "rb") as f:
@@ -267,11 +272,11 @@ async def upload_invoice(file: UploadFile = File(...)):
                 else:
                     errors.append(f"AI Extraction Error: {str(e)}")
                 
-        elif local_error and (ext == ".pdf" or _is_image_extension(ext)) and not os.getenv("GEMINI_API_KEY"):
+        elif local_error and (ext == ".pdf" or _is_image_extension(ext)) and not os.getenv("GEMINI_API_KEY") and allow_ai:
             errors.append("Gemini API anahtari olmadigi icin son yedek okuma adimi calistirilamadi.")
-        elif local_error and not data and _is_image_extension(ext):
+        elif local_error and not data and _is_image_extension(ext) and allow_ai:
             errors.append("Resim formatı yüklendi ancak GEMINI_API_KEY ortam değişkeni ayarlanmadığı için Yapay Zeka devreye giremedi.")
-        elif local_error and not data:
+        elif local_error and not data and allow_ai:
             errors.append("Fatura okunamadı ve GEMINI_API_KEY ayarlanmadığı için Yapay Zeka (Fallback) devreye giremedi.")
             
         if data:
