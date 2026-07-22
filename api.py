@@ -389,14 +389,21 @@ async def send_uyumsoft_api(request: SendUyumsoftRequest):
     )
     
     if isinstance(result, dict) and not result.get("success", True):
-        status = result.get("response_code") or 500
-        if isinstance(status, int) and status >= 400:
-            return JSONResponse(status_code=status, content=result)
+        status_code = result.get("response_code") or 400
+        # Fix SOAP fallthrough: return early even if status_code is 200
+        return JSONResponse(status_code=status_code if status_code >= 400 else 400, content=result)
             
     # Save to history if successful
     try:
+        document_id = result.get("document_id")
         from database import save_invoice
-        save_invoice(invoice_data, is_valid=True)
+        save_invoice(
+            invoice_data, 
+            is_valid=True, 
+            uyumsoft_document_id=document_id,
+            uyumsoft_environment=request.environment,
+            uyumsoft_status="Draft"
+        )
     except Exception as e:
         print(f"Error saving to history: {e}")
             
@@ -425,4 +432,88 @@ def api_history_invoices(page: int = 1, limit: int = 20, search: str = None, dat
         import traceback
         traceback.print_exc()
         return JSONResponse(status_code=500, content={"success": False, "message": "Failed to load history", "details": str(e)})
+
+class StatusUpdateRequest(BaseModel):
+    environment: str = None
+    username: str = None
+    password: str = None
+
+@app.post("/api/history/update_status/{invoice_id}")
+async def api_update_invoice_status(invoice_id: int):
+    from database import get_uyumsoft_metadata, update_uyumsoft_status_by_id
+    from integrators.uyumsoft_api import query_invoice_status
+    from fastapi.responses import JSONResponse
+
+    metadata = get_uyumsoft_metadata(invoice_id)
+    if not metadata or not metadata.get("uyumsoft_document_id"):
+        return JSONResponse(
+            status_code=404, 
+            content={"success": False, "message": "Bu fatura i\u00e7in Uyumsoft Belge ID bulunamad\u0131 (sadece yeni g\u00f6nderilenlerde mevcuttur)."}
+        )
+        
+    document_id = metadata["uyumsoft_document_id"]
+    environment = metadata.get("uyumsoft_environment")
+        
+    result = query_invoice_status(
+        document_id,
+        environment=environment
+    )
+    
+    if result.get("success"):
+        new_status = result.get("status")
+        status_code = result.get("status_code")
+        message = result.get("message")
+        update_uyumsoft_status_by_id(invoice_id, status=new_status, status_code=status_code, message=message)
+        
+    return result
+
+class NLSearchRequest(BaseModel):
+    query: str
+    api_key: str = None
+
+@app.post("/api/history/nl_search")
+async def api_history_nl_search(request: NLSearchRequest):
+    from extractors.ai_extractor import nl_to_sql
+    from database import execute_readonly_query
+    from fastapi.responses import JSONResponse
+    
+    if not request.query:
+        return JSONResponse(status_code=400, content={"success": False, "message": "Sorgu boş olamaz."})
+        
+    # Get API key from request, fallback to env
+    api_key = request.api_key
+    if not api_key:
+        import os
+        api_key = os.getenv("GEMINI_API_KEY")
+        
+    if not api_key:
+        return JSONResponse(status_code=400, content={"success": False, "message": "API Anahtarı bulunamadı. Lütfen ayarlardan API anahtarınızı girin."})
+        
+    try:
+        # 1. Translate NL to SQL
+        ai_response = nl_to_sql(request.query, api_key)
+        
+        if "error" in ai_response:
+            return {"success": False, "message": ai_response["error"]}
+            
+        sql_query = ai_response.get("sql")
+        explanation = ai_response.get("explanation", "İşte sonuçlarınız:")
+        
+        if not sql_query:
+            return {"success": False, "message": "Yapay zeka geçerli bir sorgu üretemedi."}
+            
+        # 2. Execute SQL strictly read-only
+        rows = execute_readonly_query(sql_query)
+        
+        return {
+            "success": True,
+            "explanation": explanation,
+            "sql": sql_query,
+            "items": rows
+        }
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return JSONResponse(status_code=500, content={"success": False, "message": f"Yapay zeka araması sırasında hata oluştu: {str(e)}"})
+
 

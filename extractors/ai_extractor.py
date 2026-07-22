@@ -218,3 +218,48 @@ Ondalikli degerleri JSON number olarak ver. JSON formatini asla bozma!
         return _stringify_amount_fields(_load_json_response(raw_json))
     except json.JSONDecodeError as exc:
         raise RuntimeError(f"Failed to parse Gemini JSON output: {exc}\nRaw output: {raw_json}")
+
+def nl_to_sql(query: str, api_key: str) -> dict:
+    _require_genai_sdk()
+    
+    system_prompt = """
+You are a highly secure and accurate Text-to-SQL assistant.
+Your task is to convert a user's natural language request into a valid SQLite SELECT query.
+The database schema for the invoices table is:
+- id (INTEGER PRIMARY KEY)
+- invoice_no (TEXT)
+- date (TEXT, YYYY-MM-DD or DD.MM.YYYY format)
+- customer_name (TEXT)
+- customer_tax_id (TEXT)
+- total_amount (REAL)
+- amount_try (REAL)
+- currency (TEXT)
+- status (TEXT, local processing status)
+- uyumsoft_status (TEXT, Uyumsoft status like 'Draft', 'Approved', 'Error', etc.)
+- uyumsoft_message (TEXT, error message if any)
+- created_at (TIMESTAMP)
+
+CRITICAL RULES:
+1. ONLY return a JSON object with two keys: "sql" (the raw SQLite query string) and "explanation" (a short, friendly Turkish explanation of what you are showing).
+2. The query MUST strictly be a SELECT statement. Do NOT include DROP, DELETE, UPDATE, or INSERT.
+3. If the user asks something malicious, unrelated, or impossible, return: {"error": "Geçersiz istek"}
+4. Ensure string matching is case-insensitive if possible, e.g., using LIKE with wildcards.
+5. Limit the results to 50 rows maximum to avoid performance issues (add LIMIT 50).
+"""
+    
+    input_data = [system_prompt, "User Request: " + query]
+    client = _create_client(api_key)
+    try:
+        raw_json = _generate_content_with_available_model(client, input_data)
+    finally:
+        client.close()
+        
+    try:
+        raw_json = raw_json.strip()
+        if raw_json.startswith("```json"):
+            raw_json = raw_json[7:-3]
+        elif raw_json.startswith("```"):
+            raw_json = raw_json[3:-3]
+        return json.loads(raw_json)
+    except json.JSONDecodeError as exc:
+        raise RuntimeError(f"Failed to parse Gemini Text-to-SQL JSON output: {exc}\nRaw output: {raw_json}")

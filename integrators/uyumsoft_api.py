@@ -662,6 +662,15 @@ class UyumsoftSoapClient:
     def send_invoice_data(self, invoice: dict[str, Any]) -> UyumsoftResult:
         return self._send_invoice_info("SendInvoice", invoice)
 
+    def query_invoice_status_data(self, document_id: str) -> UyumsoftResult:
+        safe_id = escape(document_id)
+        operation_body = f"""<GetOutboxInvoiceStatusWithLogs xmlns="http://tempuri.org/">
+  <invoiceIds>
+    <string xmlns="http://schemas.microsoft.com/2003/10/Serialization/Arrays">{safe_id}</string>
+  </invoiceIds>
+</GetOutboxInvoiceStatusWithLogs>"""
+        return self._call("GetOutboxInvoiceStatusWithLogs", operation_body)
+
     def _send_invoice_info(self, operation: str, invoice: dict[str, Any]) -> UyumsoftResult:
         return self._call(operation, build_invoice_info_body(operation, invoice))
 
@@ -1152,11 +1161,74 @@ def send_invoice_to_uyumsoft(
             "response_code": 500,
         }
 
+    document_id = None
+    if result.success and result.values and isinstance(result.values, list):
+        document_id = result.values[0].get("Id")
+
     return {
         "success": result.success,
         "message": result.message,
         "operation": result.operation,
         "values": result.values,
+        "document_id": document_id,
         "details": result.raw_xml[:2000],
         "response_code": result.status_code,
     }
+
+
+def query_invoice_status(
+    document_id: str,
+    environment: str | None = None,
+    prod_username: str | None = None,
+    prod_password: str | None = None,
+) -> dict[str, Any]:
+    if not document_id:
+        return {
+            "success": False,
+            "message": "Belge ID (Document ID) eksik.",
+            "response_code": 400,
+        }
+
+    server_environment = environment.lower() if environment else normalize_uyumsoft_environment()
+    env_username, env_password = _server_credentials(server_environment)
+    username = prod_username if prod_username else env_username
+    password = prod_password if prod_password else env_password
+
+    if not username or not password:
+        return {
+            "success": False,
+            "message": "Uyumsoft kimlik bilgileri eksik.",
+            "response_code": 401,
+        }
+
+    client = UyumsoftSoapClient(username, password, environment=server_environment)
+    try:
+        result = client.query_invoice_status_data(document_id)
+        
+        status_text = "Bilinmiyor"
+        status_code = None
+        message = result.message
+        
+        if result.success and result.values:
+            status_text = result.values[0].get("Status") or result.values[0].get("Message") or "Bilinmiyor"
+            status_code = result.values[0].get("StatusCode")
+            
+            # If the item has a more specific message, use it
+            if result.values[0].get("Message"):
+                message = result.values[0].get("Message")
+            
+        return {
+            "success": result.success,
+            "message": message,
+            "status": status_text,
+            "status_code": status_code,
+            "values": result.values,
+            "response_code": result.status_code,
+        }
+    except Exception as exc:
+        return {
+            "success": False,
+            "message": "Uyumsoft durum sorgulama hatası.",
+            "details": str(exc),
+            "response_code": 500,
+        }

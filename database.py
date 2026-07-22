@@ -32,8 +32,19 @@ def init_db():
     except sqlite3.OperationalError:
         pass # Column already exists
         
-    # Auto-migration: fix corrupted status from early bug
-    cursor.execute("UPDATE invoices SET status = 'GÖNDERİLDİ' WHERE status != 'HATALI' AND status != 'GÖNDERİLDİ'")
+    try:
+        cursor.execute('ALTER TABLE invoices ADD COLUMN uyumsoft_document_id TEXT')
+    except sqlite3.OperationalError:
+        pass # Column already exists
+        
+    try:
+        cursor.execute('ALTER TABLE invoices ADD COLUMN uyumsoft_environment TEXT')
+        cursor.execute('ALTER TABLE invoices ADD COLUMN uyumsoft_status TEXT')
+        cursor.execute('ALTER TABLE invoices ADD COLUMN uyumsoft_status_code TEXT')
+        cursor.execute('ALTER TABLE invoices ADD COLUMN uyumsoft_message TEXT')
+        cursor.execute('ALTER TABLE invoices ADD COLUMN uyumsoft_checked_at TIMESTAMP')
+    except sqlite3.OperationalError:
+        pass # Columns already exist
         
     conn.commit()
     conn.close()
@@ -50,11 +61,11 @@ def parse_turkish_float(val):
     except ValueError:
         return 0.0
 
-def save_invoice(invoice_data: dict, is_valid: bool = True):
+def save_invoice(invoice_data: dict, is_valid: bool = True, uyumsoft_document_id: str = None, uyumsoft_environment: str = None, uyumsoft_status: str = None):
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
     
-    status = "GÃ–NDERÄ°LDÄ°" if is_valid else "HATALI"
+    status = "Taslak" if is_valid else "HATALI"
     
     total_amount = parse_turkish_float(invoice_data.get('total_amount'))
     currency = str(invoice_data.get('currency') or 'TRY').upper()
@@ -70,8 +81,9 @@ def save_invoice(invoice_data: dict, is_valid: bool = True):
     cursor.execute('''
         INSERT INTO invoices (
             invoice_no, date, customer_name, customer_tax_id, 
-            total_amount, amount_try, currency, status, raw_json, created_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            total_amount, amount_try, currency, status, raw_json, created_at,
+            uyumsoft_document_id, uyumsoft_environment, uyumsoft_status
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     ''', (
         invoice_data.get('invoice_no', ''),
         invoice_data.get('date', ''),
@@ -82,11 +94,36 @@ def save_invoice(invoice_data: dict, is_valid: bool = True):
         currency,
         status,
         json.dumps(invoice_data, ensure_ascii=False),
-        datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        uyumsoft_document_id,
+        uyumsoft_environment,
+        uyumsoft_status
     ))
     
     conn.commit()
     conn.close()
+
+def update_uyumsoft_status_by_id(invoice_id: int, status: str, status_code: str = None, message: str = None):
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    cursor.execute('''
+        UPDATE invoices 
+        SET uyumsoft_status = ?, uyumsoft_status_code = ?, uyumsoft_message = ?, uyumsoft_checked_at = ? 
+        WHERE id = ?
+    ''', (status, status_code, message, datetime.now().strftime("%Y-%m-%d %H:%M:%S"), invoice_id))
+    conn.commit()
+    conn.close()
+
+def get_uyumsoft_metadata(invoice_id: int):
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
+    cursor = conn.cursor()
+    cursor.execute('SELECT uyumsoft_document_id, uyumsoft_environment FROM invoices WHERE id = ?', (invoice_id,))
+    row = cursor.fetchone()
+    conn.close()
+    if row:
+        return dict(row)
+    return None
 
 def get_dashboard_stats():
     conn = sqlite3.connect(DB_PATH)
@@ -176,7 +213,8 @@ def get_paginated_invoices(page: int = 1, limit: int = 20, search_query: str = N
     
     query = f'''
         SELECT id, invoice_no, date, customer_name, customer_tax_id, 
-               total_amount, amount_try, currency, status, created_at
+               total_amount, amount_try, currency, status, created_at, 
+               uyumsoft_document_id, uyumsoft_environment, uyumsoft_status, uyumsoft_message, uyumsoft_checked_at
         FROM invoices 
         {where_sql}
         ORDER BY created_at DESC
@@ -223,3 +261,18 @@ def get_invoices(search_query: str = None):
             item['raw_json'] = {}
         results.append(item)
     return results
+
+
+def execute_readonly_query(sql_query: str):
+    import os
+    db_path = os.path.abspath(DB_PATH).replace('\\\\', '/')
+    uri = f'file:{db_path}?mode=ro'
+    conn = sqlite3.connect(uri, uri=True)
+    conn.row_factory = sqlite3.Row
+    cursor = conn.cursor()
+    try:
+        cursor.execute(sql_query)
+        rows = cursor.fetchall()
+        return [dict(row) for row in rows]
+    finally:
+        conn.close()

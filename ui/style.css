@@ -1361,3 +1361,10 @@ tr:hover {
 
 @keyframes history-rewind { 0% { transform: rotate(0deg) scale(1); } 50% { transform: rotate(-180deg) scale(1.15); } 100% { transform: rotate(-360deg) scale(1); } }
 .history-rewind-animate { animation: history-rewind 0.5s cubic-bezier(0.4, 0, 0.2, 1); }
+
+
+.badge-success { background: rgba(16, 185, 129, 0.1); color: #10b981; border: 1px solid #10b981; }
+.badge-danger { background: rgba(239, 68, 68, 0.1); color: #ef4444; border: 1px solid #ef4444; }
+.badge-warning { background: rgba(245, 158, 11, 0.1); color: #f59e0b; border: 1px solid #f59e0b; }
+.badge-neutral { background: rgba(100, 116, 139, 0.1); color: #64748b; border: 1px solid #64748b; }
+.badge-info { background: rgba(59, 130, 246, 0.1); color: #3b82f6; border: 1px solid #3b82f6; }

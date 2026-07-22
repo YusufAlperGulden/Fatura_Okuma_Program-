@@ -1,19 +1,14 @@
 import urllib.request
-import urllib.error
+from integrators.uyumsoft_api import UyumsoftSoapClient, _server_credentials
 
-url = "https://efatura-test.uyumsoft.com.tr/Services/Integration"
-req = urllib.request.Request(
-    url,
-    data=b'<xml/>',
-    headers={
-        'Content-Type': 'text/xml; charset=utf-8',
-        'SOAPAction': '"http://tempuri.org/IIntegration/TestConnection"'
-    },
-    method='POST'
-)
+username, password = _server_credentials("test")
+client = UyumsoftSoapClient(username, password, environment="test")
 
-try:
-    urllib.request.urlopen(req)
-except urllib.error.HTTPError as e:
-    print(f"HTTP {e.code}")
-    print(e.read()[:500].decode('utf-8', errors='replace'))
+operation_body = """<GetOutboxInvoiceStatusWithLogs xmlns="http://tempuri.org/">
+  <invoiceIds>
+    <guid xmlns="http://schemas.microsoft.com/2003/10/Serialization/Arrays">619c55e7-a175-4d94-bac5-acf0c03bcfd0</guid>
+  </invoiceIds>
+</GetOutboxInvoiceStatusWithLogs>"""
+
+result = client._call("GetOutboxInvoiceStatusWithLogs", operation_body)
+print(result)
