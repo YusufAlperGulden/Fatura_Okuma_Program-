@@ -1180,7 +1180,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     currentUploadId !== capturedUploadId
                     || validationRevision !== capturedValidationRevision
                 ) return;
-                document.getElementById('send-draft-btn').classList.remove('hidden');
+                document.getElementById('send-draft-btn').classList.add('hidden');
                 draftSendInProgress = false;
                 setBatchNavigationDisabled(false);
                 renderApiMessage(statusBox, `✓ ${result.message || 'Taslak oluşturuldu.'} (HTTP ${result.response_code || response.status})`, '#059669');
