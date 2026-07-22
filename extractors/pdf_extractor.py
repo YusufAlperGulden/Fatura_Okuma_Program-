@@ -876,12 +876,12 @@ def parse_pdf_invoice(file_path: str) -> dict:
                 if first_page.width > first_page.height * 1.1:
                     # Possible landscape multi-copy layout. Let's check for repeated columns.
                     if plain_text.count("Ara Toplam") >= 2 or plain_text.count("Genel Toplam") >= 2 or plain_text.count("KDV") >= 3:
-                        print("Detected multi-copy landscape layout. Cropping to the left third to prevent horizontal bleed...")
+                        print("Detected multi-copy landscape layout. Cropping to the right third to prevent horizontal bleed...")
                         plain_text = ""
                         layout_text = ""
                         for page in pdf.pages:
-                            # Crop to left 34%
-                            bbox = (0, 0, page.width * 0.34, page.height)
+                            # Crop to right 34% (copy 3) to prevent right-side clipping
+                            bbox = (page.width * 0.66, 0, page.width, page.height)
                             cropped = page.crop(bbox)
                             pt = cropped.extract_text()
                             lt = cropped.extract_text(layout=True)

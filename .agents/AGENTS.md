@@ -51,3 +51,15 @@ To ensure regexes match correctly:
 1. Always preprocess invoice lines to inject a space between a digit and a currency symbol/code. 
 2. Use a regex like `re.sub(r"(\d)([$€£?]|TL|TRY|USD|EUR|GBP)", r"\1 \2", line, flags=re.IGNORECASE)` to split concatenated monetary values before attempting to match line items.
 </RULE[project_pdf_spacing]>
+
+
+<RULE[project_pdf_crop]>
+---
+name: pdf-multi-copy-crop
+description: Guidelines for cropping multi-copy landscape invoices to prevent horizontal text clipping.
+---
+# PDF Multi-Copy Cropping
+When using `pdfplumber` to crop a multi-copy landscape invoice (typically containing 3 identical vertical copies), NEVER crop the left-most copy (e.g. `0` to `0.34`). Doing so creates a high risk of horizontally slicing the rightmost numbers (Total Prices) if the layout shifts slightly.
+Instead, ALWAYS crop the **right-most copy**. Since its right boundary is the edge of the PDF page, it is immune to right-side clipping.
+* Use `bbox = (page.width * 0.66, 0, page.width, page.height)` instead of `(0, 0, page.width * 0.34, page.height)`.
+</RULE[project_pdf_crop]>
