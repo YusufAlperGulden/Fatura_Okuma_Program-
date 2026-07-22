@@ -194,6 +194,7 @@ def _extract_customer_name(text):
 
 
 def _extract_customer_tax_id(text):
+    tax_id = None
     for line in _buyer_section_lines(text):
         match = re.search(
             r"\b(?:TC|TCKN|VKN|VKN/TCKN|Vergi[ \t]*No)[ \t]*[:#-]?[ \t]*(\d(?:[\s\xa0]*\d){9,11})\b",
@@ -201,16 +202,22 @@ def _extract_customer_tax_id(text):
             re.IGNORECASE,
         )
         if match:
-            return re.sub(r"[\s\xa0]+", "", match.group(1))
+            tax_id = re.sub(r"[\s\xa0]+", "", match.group(1))
+            break
 
-    return _first_match(
-        [
-            r"\b(?:TC|TCKN|VKN|VKN/TCKN|Vergi[ \t]*No)[ \t]*[:#-]?[ \t]*(\d(?:[\s\xa0]*\d){9,11})\b",
-            r"\b(\d(?:[\s\xa0]*\d){9,11})\b",
-        ],
-        text,
-        re.IGNORECASE,
-    )
+    if not tax_id:
+        tax_id = _first_match(
+            [
+                r"\b(?:TC|TCKN|VKN|VKN/TCKN|Vergi[ \t]*No)[ \t]*[:#-]?[ \t]*(\d(?:[\s\xa0]*\d){9,11})\b",
+                r"\b(\d(?:[\s\xa0]*\d){9,11})\b",
+            ],
+            text,
+            re.IGNORECASE,
+        )
+
+    if tax_id and len(tax_id) == 12 and set(tax_id) == {"1"}:
+        return "11111111111"
+    return tax_id
 
 
 def _parse_money_number(value):

@@ -338,6 +338,8 @@ def build_ubl_invoice(invoice: dict[str, Any]) -> str:
 
     customer_tax_id_raw = str(invoice.get("customer_tax_id") or "").strip()
     customer_tax_id = "".join(filter(str.isdigit, customer_tax_id_raw))
+    if len(customer_tax_id) == 12 and set(customer_tax_id) == {"1"}:
+        customer_tax_id = "11111111111"
     if len(customer_tax_id) not in (10, 11):
         raise ValueError("customer_tax_id must contain 10 or 11 digits")
         
@@ -920,6 +922,8 @@ def build_invoice_info_body(operation: str, invoice: dict[str, Any]) -> str:
     
     target_vkn_raw = str(invoice.get("customer_tax_id") or "").strip()
     target_vkn = "".join(filter(str.isdigit, target_vkn_raw))
+    if len(target_vkn) == 12 and set(target_vkn) == {"1"}:
+        target_vkn = "11111111111"
     if len(target_vkn) not in (10, 11):
         raise ValueError("customer_tax_id must contain 10 or 11 digits")
     target_vkn = _xml_attribute(target_vkn)
