@@ -230,7 +230,7 @@
 
         const submitButton = makeButton(documentRef, 'AI ile Ara', 'ai-history-submit');
         submitButton.type = 'submit';
-        const clearButton = makeButton(documentRef, 'Temizle', 'ai-history-clear');
+        const clearButton = makeButton(documentRef, 'Sıfırla', 'ai-history-clear');
         clearButton.hidden = true;
         form.append(inputLabel, inputWrap, submitButton, clearButton);
         panel.appendChild(form);
