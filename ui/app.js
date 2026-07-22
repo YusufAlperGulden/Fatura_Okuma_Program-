@@ -1620,9 +1620,14 @@ async function handleBatchFiles(files) {
                     item.errorMessage = '';
                 }
             } catch (error) {
-                console.warn('Batch process suspended or error', error);
-                batchProcessing = false;
-                break;
+                if (error.name === 'AbortError') {
+                    console.warn('Batch upload aborted');
+                    break;
+                }
+                console.error('File extraction error:', error);
+                item.success = false;
+                item.result = null;
+                item.errorMessage = error.message || 'Sunucu hatası veya zaman aşımı.';
             }
             updateBatchRow(index);
         }
