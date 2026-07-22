@@ -1,4 +1,4 @@
-import sqlite3
+﻿import sqlite3
 import json
 import os
 from datetime import datetime
@@ -51,7 +51,7 @@ def save_invoice(invoice_data: dict, is_valid: bool = True):
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
     
-    status = "GÖNDERİLDİ" if is_valid else "HATALI"
+    status = "GÃ–NDERÄ°LDÄ°" if is_valid else "HATALI"
     
     total_amount = parse_turkish_float(invoice_data.get('total_amount'))
     currency = str(invoice_data.get('currency') or 'TRY').upper()
@@ -90,7 +90,7 @@ def get_dashboard_stats():
     conn.row_factory = sqlite3.Row
     cursor = conn.cursor()
     
-    # 1. Total revenue & count (only for GÖNDERİLDİ)
+    # 1. Total revenue & count (only for GÃ–NDERÄ°LDÄ°)
     cursor.execute('''
         SELECT 
             SUM(amount_try) as total_revenue,
@@ -102,7 +102,7 @@ def get_dashboard_stats():
     total_revenue = float(row['total_revenue'] or 0.0)
     total_count = int(row['total_count'] or 0)
     
-    # 2. Revenue trend by month (only for GÖNDERİLDİ)
+    # 2. Revenue trend by month (only for GÃ–NDERÄ°LDÄ°)
     # Using substr(date, 1, 7) assuming date format like YYYY-MM-DD
     # If date is invalid or missing, we could fallback to created_at
     cursor.execute('''
