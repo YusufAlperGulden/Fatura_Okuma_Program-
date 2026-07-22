@@ -212,6 +212,17 @@ def get_paginated_invoices(page: int = 1, limit: int = 20, search_query: str = N
     
     offset = (page - 1) * limit
     
+    INVOICE_DATE_SQL = """
+    CASE
+        WHEN TRIM(date) GLOB '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]'
+            THEN TRIM(date)
+        WHEN TRIM(date) GLOB '[0-9][0-9].[0-9][0-9].[0-9][0-9][0-9][0-9]'
+            THEN substr(TRIM(date), 7, 4) || '-' ||
+                 substr(TRIM(date), 4, 2) || '-' || substr(TRIM(date), 1, 2)
+        ELSE NULL
+    END
+    """.strip()
+    
     where_clauses = []
     params = []
     
@@ -229,10 +240,10 @@ def get_paginated_invoices(page: int = 1, limit: int = 20, search_query: str = N
         where_clauses.append("created_at >= date('now', 'start of year')")
         
     if start_date:
-        where_clauses.append("COALESCE(date, created_at) >= ?")
+        where_clauses.append(f"COALESCE(({INVOICE_DATE_SQL}), created_at) >= ?")
         params.append(start_date)
     if end_date:
-        where_clauses.append("COALESCE(date, created_at) <= ?")
+        where_clauses.append(f"COALESCE(({INVOICE_DATE_SQL}), created_at) <= ?")
         params.append(end_date)
     
     if min_amount is not None:
@@ -256,17 +267,6 @@ def get_paginated_invoices(page: int = 1, limit: int = 20, search_query: str = N
         
     cursor.execute(f'SELECT COUNT(*) as total FROM invoices {where_sql}', params)
     total_items = cursor.fetchone()['total']
-    
-    INVOICE_DATE_SQL = """
-    CASE
-        WHEN TRIM(date) GLOB '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]'
-            THEN TRIM(date)
-        WHEN TRIM(date) GLOB '[0-9][0-9].[0-9][0-9].[0-9][0-9][0-9][0-9]'
-            THEN substr(TRIM(date), 7, 4) || '-' ||
-                 substr(TRIM(date), 4, 2) || '-' || substr(TRIM(date), 1, 2)
-        ELSE NULL
-    END
-    """.strip()
     
     order_sql = f"ORDER BY ({INVOICE_DATE_SQL}) DESC, created_at DESC"
     if sort_by == 'date_asc':
