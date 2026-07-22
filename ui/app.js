@@ -138,6 +138,10 @@ document.addEventListener('DOMContentLoaded', () => {
             select.value = localEnv;
         }
         updateEnvironmentBadges(localEnv);
+        if (credBtn) {
+            if (localEnv === 'prod') credBtn.classList.remove('hidden');
+            else credBtn.classList.add('hidden');
+        }
     }
 
     // Credentials Modal Logic
@@ -155,6 +159,10 @@ document.addEventListener('DOMContentLoaded', () => {
             localStorage.setItem('uyumsoft_environment', val);
             document.documentElement.dataset.uyumsoftEnvironment = val;
             updateEnvironmentBadges(val);
+            if (credBtn) {
+                if (val === 'prod') credBtn.classList.remove('hidden');
+                else credBtn.classList.add('hidden');
+            }
         });
     }
 
