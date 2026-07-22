@@ -32,6 +32,9 @@ def init_db():
     except sqlite3.OperationalError:
         pass # Column already exists
         
+    # Auto-migration: fix corrupted status from early bug
+    cursor.execute("UPDATE invoices SET status = 'GÖNDERİLDİ' WHERE status != 'HATALI' AND status != 'GÖNDERİLDİ'")
+        
     conn.commit()
     conn.close()
 
