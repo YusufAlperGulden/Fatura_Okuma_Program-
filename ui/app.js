@@ -1812,4 +1812,169 @@ window.addEventListener('beforeunload', () => {
     if (currentSendAbortController) currentSendAbortController.abort();
     cancelBatchRequests();
 });
+
+// --- History & Dashboard Logic ---
+const historyToggleBtn = document.getElementById('history-toggle');
+const closeHistoryBtn = document.getElementById('close-history-btn');
+const historySection = document.getElementById('history-section');
+const uploadSection = document.querySelector('.upload-section');
+const splitContainer = document.getElementById('split-container');
+const batchSection = document.getElementById('batch-section');
+
+let historyCurrentPage = 1;
+let historyChartInstance = null;
+
+if (historyToggleBtn) {
+    historyToggleBtn.addEventListener('click', () => {
+        // Hide other sections
+        uploadSection.classList.add('hidden');
+        splitContainer.classList.add('hidden');
+        batchSection.classList.add('hidden');
+        document.querySelector('.app-container').classList.remove('wide-mode');
+        
+        // Show history
+        historySection.classList.remove('hidden');
+        loadHistoryDashboard();
+        loadHistoryTable(1);
+    });
+}
+
+if (closeHistoryBtn) {
+    closeHistoryBtn.addEventListener('click', () => {
+        historySection.classList.add('hidden');
+        uploadSection.classList.remove('hidden');
+    });
+}
+
+document.getElementById('history-prev-page')?.addEventListener('click', () => {
+    if (historyCurrentPage > 1) loadHistoryTable(historyCurrentPage - 1);
+});
+document.getElementById('history-next-page')?.addEventListener('click', () => {
+    loadHistoryTable(historyCurrentPage + 1);
+});
+
+async function loadHistoryDashboard() {
+    try {
+        const res = await fetch('/api/history/dashboard');
+        const json = await res.json();
+        
+        if (json.success && json.data) {
+            // Format numbers
+            const formatter = new Intl.NumberFormat('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+            document.getElementById('history-total-revenue').textContent = formatter.format(json.data.total_revenue) + ' TL';
+            document.getElementById('history-total-count').textContent = json.data.total_count;
+            
+            // Draw chart
+            renderHistoryChart(json.data.trend);
+        }
+    } catch (e) {
+        console.error('Error loading history dashboard', e);
+    }
+}
+
+function renderHistoryChart(trendData) {
+    const ctx = document.getElementById('historyChart').getContext('2d');
+    
+    if (historyChartInstance) {
+        historyChartInstance.destroy();
+    }
+    
+    if (!trendData || trendData.length === 0) {
+        return; // Empty state handles gracefully in chart.js if no data, or we just don't draw
+    }
+    
+    const labels = trendData.map(item => item.month); // e.g. "2026-07"
+    const dataPoints = trendData.map(item => item.monthly_revenue);
+    
+    const computedStyle = getComputedStyle(document.documentElement);
+    const accentColor = computedStyle.getPropertyValue('--accent-color').trim() || '#10b981';
+    
+    historyChartInstance = new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: labels,
+            datasets: [{
+                label: 'Aylık Ciro (TL)',
+                data: dataPoints,
+                borderColor: accentColor,
+                backgroundColor: 'rgba(16, 185, 129, 0.1)',
+                borderWidth: 2,
+                fill: true,
+                tension: 0.3
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: { display: false }
+            },
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    ticks: {
+                        callback: function(value) {
+                            return new Intl.NumberFormat('tr-TR').format(value) + ' ₺';
+                        }
+                    }
+                }
+            }
+        }
+    });
+}
+
+async function loadHistoryTable(page) {
+    const tbody = document.getElementById('history-table-body');
+    const prevBtn = document.getElementById('history-prev-page');
+    const nextBtn = document.getElementById('history-next-page');
+    const pageInfo = document.getElementById('history-page-info');
+    
+    tbody.innerHTML = '<tr><td colspan="5" style="text-align: center; padding: 2rem; color: var(--text-secondary);">Yükleniyor...</td></tr>';
+    prevBtn.disabled = true;
+    nextBtn.disabled = true;
+    
+    try {
+        const res = await fetch(`/api/history/invoices?page=${page}&limit=10`);
+        const json = await res.json();
+        
+        if (json.success && json.data) {
+            const data = json.data;
+            historyCurrentPage = data.page;
+            
+            pageInfo.textContent = `Sayfa ${data.page} / ${Math.max(1, data.total_pages)}`;
+            prevBtn.disabled = data.page <= 1;
+            nextBtn.disabled = data.page >= data.total_pages;
+            
+            if (data.items.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="5" style="text-align: center; padding: 2rem; color: var(--text-secondary);">Henüz hiç fatura gönderilmemiş.</td></tr>';
+                return;
+            }
+            
+            const formatter = new Intl.NumberFormat('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+            tbody.innerHTML = '';
+            
+            data.items.forEach(item => {
+                const tr = document.createElement('tr');
+                
+                // Status badge
+                let statusBadge = `<span class="badge" style="background: rgba(16, 185, 129, 0.1); color: #10b981; border: 1px solid #10b981;">Gönderildi</span>`;
+                if (item.status === 'HATALI') {
+                    statusBadge = `<span class="badge" style="background: rgba(239, 68, 68, 0.1); color: #ef4444; border: 1px solid #ef4444;">Hatalı</span>`;
+                }
+                
+                tr.innerHTML = `
+                    <td>${item.date || item.created_at.split(' ')[0]}</td>
+                    <td><strong>${item.invoice_no || '-'}</strong></td>
+                    <td style="max-width: 250px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${item.customer_name || '-'}">${item.customer_name || '-'}</td>
+                    <td style="text-align: right; font-weight: 600;">${formatter.format(item.amount_try || 0)} TL</td>
+                    <td>${statusBadge}</td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+    } catch (e) {
+        console.error('Error loading history table', e);
+        tbody.innerHTML = '<tr><td colspan="5" style="text-align: center; padding: 2rem; color: #ef4444;">Hata oluştu.</td></tr>';
+    }
+}
 });

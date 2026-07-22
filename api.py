@@ -383,4 +383,36 @@ async def send_uyumsoft_api(request: SendUyumsoftRequest):
         if isinstance(status, int) and status >= 400:
             return JSONResponse(status_code=status, content=result)
             
+    # Save to history if successful
+    try:
+        from database import save_invoice
+        save_invoice(invoice_data, is_valid=True)
+    except Exception as e:
+        print(f"Error saving to history: {e}")
+            
     return result
+
+@app.get("/api/history/dashboard")
+def api_history_dashboard():
+    """Returns dashboard statistics (total revenue, invoice count, and trend data)."""
+    from database import get_dashboard_stats
+    try:
+        stats = get_dashboard_stats()
+        return {"success": True, "data": stats}
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return JSONResponse(status_code=500, content={"success": False, "message": "Failed to load dashboard stats", "details": str(e)})
+
+@app.get("/api/history/invoices")
+def api_history_invoices(page: int = 1, limit: int = 20):
+    """Returns paginated history of invoices."""
+    from database import get_paginated_invoices
+    try:
+        data = get_paginated_invoices(page=page, limit=limit)
+        return {"success": True, "data": data}
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return JSONResponse(status_code=500, content={"success": False, "message": "Failed to load history", "details": str(e)})
+

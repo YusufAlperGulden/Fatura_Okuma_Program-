@@ -336,6 +336,8 @@
         </style>
     <!-- SheetJS for Excel Export -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <!-- Chart.js for Dashboard -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 <body>
     <div class="app-container">
@@ -387,6 +389,11 @@
                 <button id="theme-toggle" class="theme-btn" style="position: relative;" title="Temayı Değiştir">
                     <svg id="theme-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24" width="24" height="24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z" />
+                    </svg>
+                </button>
+                <button id="history-toggle" class="theme-btn" style="position: relative; margin-left: -5px;" title="Geçmiş ve Arşiv">
+                    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" width="24" height="24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
                     </svg>
                 </button>
             </div>
@@ -622,6 +629,60 @@
 
                 </section>
             </div>
+
+            <!-- History Section -->
+            <section id="history-section" class="glass-panel hidden" style="padding: 2rem;">
+                <div class="history-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">
+                    <h2 style="margin: 0; color: var(--text-primary);">Geçmiş ve Arşiv</h2>
+                    <button id="close-history-btn" class="secondary-btn">
+                        <svg style="width: 16px; height: 16px; margin-right: 6px;" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                        Kapat
+                    </button>
+                </div>
+                
+                <div class="history-dashboard-grid" style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-top: 1.5rem;">
+                    <div class="summary-card glass-panel" style="padding: 1.5rem; text-align: center; border-left: 4px solid var(--accent-color);">
+                        <h3 style="margin-top: 0; color: var(--text-secondary); font-size: 1rem; font-weight: 500;">Toplam İşlenen Ciro</h3>
+                        <div id="history-total-revenue" style="font-size: 2rem; font-weight: 700; color: var(--accent-color);">0.00 TL</div>
+                    </div>
+                    <div class="summary-card glass-panel" style="padding: 1.5rem; text-align: center; border-left: 4px solid var(--text-primary);">
+                        <h3 style="margin-top: 0; color: var(--text-secondary); font-size: 1rem; font-weight: 500;">Toplam Fatura Adedi</h3>
+                        <div id="history-total-count" style="font-size: 2rem; font-weight: 700; color: var(--text-primary);">0</div>
+                    </div>
+                </div>
+
+                <div class="glass-panel" style="margin-top: 1.5rem; padding: 1.5rem;">
+                    <h3 style="margin-top: 0; margin-bottom: 1rem; color: var(--text-primary); font-size: 1.1rem;">Aylık Ciro Trendi</h3>
+                    <div style="position: relative; height: 300px; width: 100%;">
+                        <canvas id="historyChart"></canvas>
+                    </div>
+                </div>
+
+                <div class="glass-panel" style="margin-top: 1.5rem; padding: 1.5rem;">
+                    <h3 style="margin-top: 0; color: var(--text-primary); font-size: 1.1rem;">Geçmiş Faturalar</h3>
+                    <div class="table-container" style="margin-top: 1rem;">
+                        <table class="data-table">
+                            <thead>
+                                <tr>
+                                    <th>Tarih</th>
+                                    <th>Fatura No</th>
+                                    <th>Cari İsim</th>
+                                    <th style="text-align: right;">Tutar (TL)</th>
+                                    <th>Durum</th>
+                                </tr>
+                            </thead>
+                            <tbody id="history-table-body">
+                                <tr><td colspan="5" style="text-align: center; padding: 2rem; color: var(--text-secondary);">Yükleniyor...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                    <div style="display: flex; justify-content: center; align-items: center; gap: 1rem; margin-top: 1.5rem;">
+                        <button id="history-prev-page" class="secondary-btn" disabled>Önceki</button>
+                        <span id="history-page-info" style="color: var(--text-secondary); font-weight: 500;">Sayfa 1</span>
+                        <button id="history-next-page" class="secondary-btn" disabled>Sonraki</button>
+                    </div>
+                </div>
+            </section>
         </main>
     </div>
     <script src="helpers.js?v=18"></script>
