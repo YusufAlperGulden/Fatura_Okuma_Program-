@@ -257,9 +257,20 @@ def get_paginated_invoices(page: int = 1, limit: int = 20, search_query: str = N
     cursor.execute(f'SELECT COUNT(*) as total FROM invoices {where_sql}', params)
     total_items = cursor.fetchone()['total']
     
-    order_sql = "ORDER BY created_at DESC"
+    INVOICE_DATE_SQL = """
+    CASE
+        WHEN TRIM(date) GLOB '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]'
+            THEN TRIM(date)
+        WHEN TRIM(date) GLOB '[0-9][0-9].[0-9][0-9].[0-9][0-9][0-9][0-9]'
+            THEN substr(TRIM(date), 7, 4) || '-' ||
+                 substr(TRIM(date), 4, 2) || '-' || substr(TRIM(date), 1, 2)
+        ELSE NULL
+    END
+    """.strip()
+    
+    order_sql = f"ORDER BY ({INVOICE_DATE_SQL}) DESC, created_at DESC"
     if sort_by == 'date_asc':
-        order_sql = "ORDER BY created_at ASC"
+        order_sql = f"ORDER BY ({INVOICE_DATE_SQL}) ASC, created_at ASC"
     elif sort_by == 'amount_desc':
         order_sql = "ORDER BY amount_try DESC"
     elif sort_by == 'amount_asc':
