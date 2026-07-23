@@ -627,18 +627,13 @@ def _find_items(text):
         serial_context = [item["description"]]
         open_group = item["description"].count("(") + item["description"].count("[")
         open_group -= item["description"].count(")") + item["description"].count("]")
-        previous_idx = line_idx - 1
-        while previous_idx >= 0:
-            if not cleaned_lines[previous_idx]:
+        desc_no_serials = _description_without_serials(item["description"]).strip()
+        if not desc_no_serials or re.fullmatch(r"[\(\)\[\]\-~,; ]+", desc_no_serials):
+            previous_idx = line_idx - 1
+            while previous_idx >= 0 and not cleaned_lines[previous_idx]:
                 previous_idx -= 1
-                continue
-            if not _is_likely_item_description(cleaned_lines[previous_idx]):
-                break
-            if re.search(r"^[ \t]*(?:\d{4}\.\d{3}|[A-Z]{2,4}-\d{3})", cleaned_lines[previous_idx]):
-                break
-            
-            serial_context.insert(0, cleaned_lines[previous_idx])
-            previous_idx -= 1
+            if previous_idx >= 0 and _is_likely_item_description(cleaned_lines[previous_idx]):
+                serial_context.insert(0, cleaned_lines[previous_idx])
 
         for continuation in cleaned_lines[line_idx + 1 : next_line_idx]:
             if not continuation or section_stop.search(continuation):
