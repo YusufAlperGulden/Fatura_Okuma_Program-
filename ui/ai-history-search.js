@@ -297,7 +297,7 @@
 
         results.append(summary, chips, tableWrap, pagination);
         panel.appendChild(results);
-        normalHistoryPanel.parentNode.insertBefore(panel, normalHistoryPanel);
+        historySection.appendChild(panel);
 
         const state = {
             controller: null,
