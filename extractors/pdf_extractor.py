@@ -844,151 +844,6 @@ def parse_invoice_text(text: str, top_text: str = None) -> dict:
     return data
 
 
-def _enhance_descriptions_with_coordinates(pages, items):
-    if not items:
-        return items
-
-    words = []
-    for page in pages:
-        words.extend(page.extract_words(x_tolerance=2, y_tolerance=2, use_text_flow=False))
-
-    words.sort(key=lambda w: (w['top'], w['x0']))
-
-    for i, item in enumerate(items):
-        code = item.get('code')
-        if not code:
-            continue
-
-        anchor_words = [w for w in words if code in w['text']]
-        if not anchor_words:
-            anchor_text = item.get('description', '').split()[0] if item.get('description') else ''
-            if anchor_text:
-                anchor_words = [w for w in words if anchor_text in w['text']]
-            if not anchor_words:
-                continue
-
-        anchor_word = anchor_words[0]
-        anchor_top = anchor_word['top']
-        anchor_bottom = anchor_word['bottom']
-
-        desc_x0 = anchor_word['x1']
-        desc_x1 = desc_x0 + 200 # Broad enough for multiline
-        
-        # Group all words in this X-column into lines (allow 20pt left outdent)
-        col_words = [w for w in words if w['x0'] >= desc_x0 - 20 and w['x1'] <= desc_x1 + 10]
-        col_words.sort(key=lambda w: (w['top'], w['x0']))
-        
-        all_lines = []
-        current_line = []
-        current_top = None
-        for w in col_words:
-            if current_top is None:
-                current_top = w['top']
-            if abs(w['top'] - current_top) > 4:
-                all_lines.append((current_top, current_line))
-                current_line = [w]
-                current_top = w['top']
-            else:
-                current_line.append(w)
-        if current_line:
-            all_lines.append((current_top, current_line))
-            
-        # Sort each line strictly horizontally
-        for j in range(len(all_lines)):
-            all_lines[j] = (all_lines[j][0], sorted(all_lines[j][1], key=lambda w: w['x0']))
-            
-        # Find anchor line index
-        anchor_idx = -1
-        min_diff = 9999
-        for idx, (t, lw) in enumerate(all_lines):
-            if abs(t - anchor_top) < min_diff:
-                min_diff = abs(t - anchor_top)
-                anchor_idx = idx
-                
-        if anchor_idx == -1 or min_diff > 10:
-            # Fallback
-            anchor_idx = 0
-            
-        item['_anchor_top'] = anchor_top
-
-        def is_stop_line(lw):
-            stop_words = {'fiyat', 'fiyatı', 'fiyati', 'toplam', 'ara', 'yekün', 'yekun', 'tc', 'miktar', 'birim', 'tutar', 'kdv', 'iskonto', 'oran', 'tarih', 'kodu', 'açıklama', 'aciklama', 'mal', 'hizmet', 'cinsi', 'ürünler', 'urunler', 'ürün', 'urun'}
-            words_text = [w['text'].lower().replace('₺', '').replace(':', '').strip() for w in lw]
-            
-            non_stop_words = []
-            for wt in words_text:
-                if wt in stop_words or re.match(r'^[%()]*\d+(?:[.,]\d+)*[%()]*$', wt):
-                    continue
-                non_stop_words.append(wt)
-                
-            if len(non_stop_words) == 0 and len(words_text) > 0:
-                return True
-                
-            text = ' '.join(words_text)
-            if re.search(r'bu\s+fatura|dsm\s+grup|tahsil\s+edilecektir|ödemesi\s+için', text):
-                return True
-            return False
-
-        # Expand UP
-        start_idx = anchor_idx
-        while start_idx > 0:
-            prev_t, prev_lw = all_lines[start_idx - 1]
-            curr_t, _ = all_lines[start_idx]
-            if curr_t - prev_t > 20: # Large gap
-                break
-            if is_stop_line(prev_lw):
-                break
-            if prev_t < items[i-1].get('_anchor_bottom', 0) if i > 0 else False:
-                break
-            if i > 0 and abs(prev_t - items[i-1].get('_anchor_top', -999)) < 5:
-                break
-            start_idx -= 1
-            
-        # Expand DOWN
-        end_idx = anchor_idx
-        while end_idx < len(all_lines) - 1:
-            next_t, next_lw = all_lines[end_idx + 1]
-            curr_t, _ = all_lines[end_idx]
-            if next_t - curr_t > 20: # Large gap
-                break
-            if is_stop_line(next_lw):
-                break
-            if i + 1 < len(items) and abs(next_t - items[i+1].get('_anchor_top', 9999)) < 5:
-                break
-            end_idx += 1
-            
-        final_lines = []
-        for idx in range(start_idx, end_idx + 1):
-            _, lw = all_lines[idx]
-            clean_words = []
-            for w in lw:
-                text_lower = w['text'].lower().replace('₺', '').replace(':', '').strip()
-                if text_lower in ('kdv', 'yekün', 'yekun', 'ara', 'toplam', 'ödenecek', 'tutar', 'tc', 'vkn') and w['x0'] > desc_x0 + 20:
-                    continue # Ignore this overlaid footer word!
-                
-                val = w['text'].replace('₺', '').replace('€', '').replace('$', '').strip()
-                if re.match(r'^[\d.,%()\-+]+$', val) and w['x0'] > desc_x0 + 60:
-                    continue # Likely a quantity/price that leaked into the right edge
-                clean_words.append(w['text'])
-                
-            # One more check for the whole line being a header/footer
-            if clean_words:
-                line_text = ' '.join(clean_words).lower()
-                if re.match(r'^(?:fiyat\S*|toplam|ara\s*toplam|yekün|yekun|tc|miktar|birim|tutar|kdv|iskonto|oran|tarih|kodu|açıklama|aciklama|mal|hizmet|cinsi|ürünler|urunler|ürün|urun|\s|kdv\s*\d.*)+$', line_text):
-                    continue
-                final_lines.append(' '.join(clean_words))
-
-        if final_lines:
-            item['description'] = ' '.join(final_lines)
-            
-        item['_anchor_bottom'] = all_lines[end_idx][0]
-            
-    for item in items:
-        item.pop('_anchor_bottom', None)
-        
-    return items
-
-
 def parse_pdf_invoice(file_path: str) -> dict:
     """
     Parses a digital PDF invoice using pdfplumber and regex.
@@ -1018,7 +873,6 @@ def parse_pdf_invoice(file_path: str) -> dict:
                 if layout_extracted:
                     layout_text += layout_extracted + "\n"
 
-            pages_to_process = pdf.pages
             if pdf.pages:
                 first_page = pdf.pages[0]
                 if first_page.width > first_page.height * 1.1:
@@ -1027,12 +881,10 @@ def parse_pdf_invoice(file_path: str) -> dict:
                         print("Detected multi-copy landscape layout. Cropping to the right third to prevent horizontal bleed...")
                         plain_text = ""
                         layout_text = ""
-                        pages_to_process = []
                         for page in pdf.pages:
                             # Crop to right 34% (copy 3) to prevent right-side clipping
                             bbox = (page.width * 0.66, 0, page.width, page.height)
                             cropped = page.crop(bbox)
-                            pages_to_process.append(cropped)
                             pt = cropped.extract_text()
                             lt = cropped.extract_text(layout=True)
                             if pt: plain_text += pt + "\n"
@@ -1051,7 +903,6 @@ def parse_pdf_invoice(file_path: str) -> dict:
                 parsed["_raw_text"] = text
                 candidates.append(parsed)
             data = max(candidates, key=_score_data)
-            data["items"] = _enhance_descriptions_with_coordinates(pages_to_process, data.get("items", []))
 
             if table_items and len(table_items) >= len(data.get("items", [])):
                 data["items"] = _merge_table_items_with_text_items(
