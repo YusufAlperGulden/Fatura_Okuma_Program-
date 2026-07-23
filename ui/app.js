@@ -1537,7 +1537,7 @@ function updateBatchActions() {
         if (loadingText) loadingText.style.display = 'none';
         sendAllButton.style.display = !batchProcessing && retryableItems.length > 0 ? 'inline-flex' : 'none';
         sendAllButton.disabled = batchProcessing || retryableItems.length === 0;
-        sendAllButton.textContent = sentCount > 0
+        sendAllButton.innerHTML = sentCount > 0
             ? '<svg fill="none" stroke="currentColor" viewBox="0 0 24 24" style="width: 20px; height: 20px;"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg> Kalanları Uyumsoft\'a Gönder'
             : '<svg fill="none" stroke="currentColor" viewBox="0 0 24 24" style="width: 20px; height: 20px;"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg> Tümünü Uyumsoft\'a Gönder';
     }
@@ -2172,8 +2172,7 @@ async function loadHistoryTable(page) {
     const statusVal = document.getElementById('history-status-filter')?.value;
     const sortVal = document.getElementById('history-sort-by')?.value;
     
-    while(tbody.firstChild) tbody.removeChild(tbody.firstChild);
-tbody.insertAdjacentHTML("beforeend", '<tr><td colspan="5" style="text-align: center; padding: 2rem; color: var(--text-secondary);">Yükleniyor...</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="5" style="text-align: center; padding: 2rem; color: var(--text-secondary);">Yükleniyor...</td></tr>';
     
     try {
         let url = `/api/history/invoices?page=${page}&limit=1000000`;
@@ -2194,14 +2193,12 @@ tbody.insertAdjacentHTML("beforeend", '<tr><td colspan="5" style="text-align: ce
             const data = json.data;
             
             if (data.items.length === 0) {
-                while(tbody.firstChild) tbody.removeChild(tbody.firstChild);
-tbody.insertAdjacentHTML("beforeend", '<tr><td colspan="4" style="text-align: center; padding: 2rem; color: var(--text-secondary);">Henüz hiç fatura gönderilmemiş.</td></tr>';
+                tbody.innerHTML = '<tr><td colspan="4" style="text-align: center; padding: 2rem; color: var(--text-secondary);">Henüz hiç fatura gönderilmemiş.</td></tr>';
                 return;
             }
             
             const formatter = new Intl.NumberFormat('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-            while(tbody.firstChild) tbody.removeChild(tbody.firstChild);
-tbody.insertAdjacentHTML("beforeend", '';
+            tbody.innerHTML = '';
             
             data.items.forEach(item => {
                 const tr = document.createElement('tr');
@@ -2262,8 +2259,7 @@ tbody.insertAdjacentHTML("beforeend", '';
         }
     } catch (e) {
         console.error("Error loading history:", e);
-        while(tbody.firstChild) tbody.removeChild(tbody.firstChild);
-tbody.insertAdjacentHTML("beforeend", '<tr><td colspan="4" style="text-align: center; padding: 2rem; color: #ef4444;">Kayıtlar yüklenirken hata oluştu.</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="4" style="text-align: center; padding: 2rem; color: #ef4444;">Kayıtlar yüklenirken hata oluştu.</td></tr>';
     }
 }
 
