@@ -1650,6 +1650,12 @@ async function handleBatchFiles(files) {
                 item.result = null;
                 item.errorMessage = error.message || 'Sunucu hatası veya zaman aşımı.';
             }
+
+            // Wait 1.5 seconds to let the Python backend clear memory between heavy PDF extractions
+            if (index < files.length - 1) {
+                await new Promise(r => setTimeout(r, 1500));
+            }
+
             updateBatchRow(index);
         }
     } finally {

@@ -324,6 +324,8 @@ def _process_upload(file: UploadFile):
                 os.remove(temp_path)
             except OSError:
                 pass
+        import gc
+        gc.collect()
 
 
 @app.post("/upload", response_model=ProcessResponse)
