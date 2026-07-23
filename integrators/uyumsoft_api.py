@@ -299,6 +299,13 @@ def build_ubl_invoice(invoice: dict[str, Any]) -> str:
 
     invoice_no = _resolve_invoice_no(invoice.get("invoice_no"))
     issue_date = _parse_date(invoice.get("date"))
+    
+    # E-Fatura kuralları gereği geçmiş yıllara ait fatura kesilemez.
+    # Uyumsoft'un "varsayılan seri bilgisi bulunamadı" hatasını önlemek için 
+    # eski yıllara ait faturaların tarihini bugüne eşitliyoruz.
+    current_year = datetime.now().year
+    if int(issue_date[:4]) < current_year:
+        issue_date = datetime.now().date().isoformat()
     issue_time = _parse_time(invoice.get("time"))
     issue_time_xml = (
         f"\n  <cbc:IssueTime>{escape(issue_time)}</cbc:IssueTime>"
