@@ -584,6 +584,9 @@ def _find_items(text):
             if not match:
                 continue
 
+            if re.match(r"(?i)^(?:kodu|kod\b|açıklama|aciklama|mal\s*/?\s*hizmet|ürün|urun|miktar|birim|ara\s*toplam|kdv|k\.?d\.?v\.?|yekun|genel\s*toplam|ödenecek|odenecek|indirim|iskonto|toplam)", match.group("code")):
+                continue
+
             unit_price_str = match.group("unit_price")
             total_price_str = match.group("total_price")
             qty_val = float(match.group("quantity").replace(".", "").replace(",", "."))
@@ -604,10 +607,7 @@ def _find_items(text):
                 "total_price": _format_amount(total_price_val),
                 "_line_idx": line_idx,
             }
-            key = (item["code"], item["description"], item["quantity"], item["unit_price"], item["total_price"])
-            if key not in seen:
-                seen.add(key)
-                items.append(item)
+            items.append(item)
 
     section_stop = re.compile(
         r"(?i)^(?:ara\s*toplam|kdv|yekun|genel\s*toplam|odenecek|vergi|toplam\s*tutar)\b"
@@ -692,6 +692,8 @@ def _sum_tax_lines(text):
     for line in text.splitlines():
         if "KDV" not in line.upper() and "K.D.V" not in line.upper():
             continue
+        if "MATRAH" in line.upper():
+            continue
         parts = re.split(r'(?i)\bK\.?D\.?V\.?\b', line)
         for part in parts[1:]:
             matches = list(re.finditer(MONEY_RE, part, re.IGNORECASE))
@@ -760,7 +762,7 @@ def parse_invoice_text(text: str, top_text: str = None) -> dict:
 
     data["invoice_no"] = _first_match(
         [
-            r"(?:Fatura|Belge|Invoice)[ \t]*(?:No|Numarası|Numarasi|Number)?[ \t]*[:#-][ \t]*([A-Z0-9-]+)",
+            r"(?:Fatura|Belge|Invoice)[ \t]*(?:No|Numarası|Numarasi|Number)?[ \t]*[:#-][ \t]*([A-Z0-9-/]+)",
             r"\b([A-Z]{3}\d{13})\b",
         ],
         text,

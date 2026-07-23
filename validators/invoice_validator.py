@@ -196,6 +196,20 @@ def validate_invoice(data):
             errors.append(
                 f"Alıcı VKN/TCKN bilgisi hatalı veya eksik. Lütfen 10 veya 11 haneli olacak şekilde faturayı düzenleyiniz. (Okunan: '{tax_id}')"
             )
+    elif len(tax_id) == 10:
+        digits = [int(d) for d in tax_id]
+        
+        sum_val = 0
+        for i in range(9):
+            tmp = (digits[i] + 10 - (i + 1)) % 10
+            if tmp == 9:
+                sum_val += tmp
+            else:
+                sum_val += (tmp * (2 ** (10 - (i + 1)))) % 9
+                
+        last_digit = (10 - (sum_val % 10)) % 10
+        if digits[9] != last_digit:
+            errors.append(f"VKN doğrulama algoritması hatası. Beklenen son hane: {last_digit}, Okunan: {digits[9]}. (Okunan VKN: '{tax_id}')")
     elif len(tax_id) == 11:
         if tax_id[0] == '0':
             errors.append(f"T.C. Kimlik Numarası hatalı. TCKN '0' ile başlayamaz. (Okunan: '{tax_id}')")

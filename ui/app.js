@@ -1443,7 +1443,7 @@ function setBatchStatus(index, state, label, details = '', suppliedRow = null) {
     const badge = document.createElement('span');
     badge.className = `status-badge status-${state}`;
     if (label === 'Gönderildi') {
-        badge.innerHTML = `<svg style="width: 14px; height: 14px; margin-right: 4px;" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>${label}`;
+        badge.insertAdjacentHTML('beforeend', `<svg style="width: 14px; height: 14px; margin-right: 4px;" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>${label}`);
         badge.style.display = 'inline-flex';
         badge.style.alignItems = 'center';
     } else {
@@ -1537,7 +1537,7 @@ function updateBatchActions() {
         if (loadingText) loadingText.style.display = 'none';
         sendAllButton.style.display = !batchProcessing && retryableItems.length > 0 ? 'inline-flex' : 'none';
         sendAllButton.disabled = batchProcessing || retryableItems.length === 0;
-        sendAllButton.innerHTML = sentCount > 0
+        sendAllButton.textContent = sentCount > 0
             ? '<svg fill="none" stroke="currentColor" viewBox="0 0 24 24" style="width: 20px; height: 20px;"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg> Kalanları Uyumsoft\'a Gönder'
             : '<svg fill="none" stroke="currentColor" viewBox="0 0 24 24" style="width: 20px; height: 20px;"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg> Tümünü Uyumsoft\'a Gönder';
     }
@@ -2107,10 +2107,10 @@ document.getElementById('toggle-advanced-filters')?.addEventListener('click', ()
     const toggleBtn = document.getElementById('toggle-advanced-filters');
     if (panel.classList.contains('hidden')) {
         panel.classList.remove('hidden');
-        toggleBtn.innerHTML = '&#9650; Gelişmiş Filtreleme Seçenekleri (Gizle)';
+        toggleBtn.textContent = '▲ Gelişmiş Filtreleme Seçenekleri (Gizle)';
     } else {
         panel.classList.add('hidden');
-        toggleBtn.innerHTML = '&#9660; Gelişmiş Filtreleme Seçenekleri';
+        toggleBtn.textContent = '▼ Gelişmiş Filtreleme Seçenekleri';
     }
 });
 
@@ -2172,7 +2172,8 @@ async function loadHistoryTable(page) {
     const statusVal = document.getElementById('history-status-filter')?.value;
     const sortVal = document.getElementById('history-sort-by')?.value;
     
-    tbody.innerHTML = '<tr><td colspan="5" style="text-align: center; padding: 2rem; color: var(--text-secondary);">Yükleniyor...</td></tr>';
+    while(tbody.firstChild) tbody.removeChild(tbody.firstChild);
+tbody.insertAdjacentHTML("beforeend", '<tr><td colspan="5" style="text-align: center; padding: 2rem; color: var(--text-secondary);">Yükleniyor...</td></tr>';
     
     try {
         let url = `/api/history/invoices?page=${page}&limit=1000000`;
@@ -2193,12 +2194,14 @@ async function loadHistoryTable(page) {
             const data = json.data;
             
             if (data.items.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="4" style="text-align: center; padding: 2rem; color: var(--text-secondary);">Henüz hiç fatura gönderilmemiş.</td></tr>';
+                while(tbody.firstChild) tbody.removeChild(tbody.firstChild);
+tbody.insertAdjacentHTML("beforeend", '<tr><td colspan="4" style="text-align: center; padding: 2rem; color: var(--text-secondary);">Henüz hiç fatura gönderilmemiş.</td></tr>';
                 return;
             }
             
             const formatter = new Intl.NumberFormat('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-            tbody.innerHTML = '';
+            while(tbody.firstChild) tbody.removeChild(tbody.firstChild);
+tbody.insertAdjacentHTML("beforeend", '';
             
             data.items.forEach(item => {
                 const tr = document.createElement('tr');
@@ -2259,7 +2262,8 @@ async function loadHistoryTable(page) {
         }
     } catch (e) {
         console.error("Error loading history:", e);
-        tbody.innerHTML = '<tr><td colspan="4" style="text-align: center; padding: 2rem; color: #ef4444;">Kayıtlar yüklenirken hata oluştu.</td></tr>';
+        while(tbody.firstChild) tbody.removeChild(tbody.firstChild);
+tbody.insertAdjacentHTML("beforeend", '<tr><td colspan="4" style="text-align: center; padding: 2rem; color: #ef4444;">Kayıtlar yüklenirken hata oluştu.</td></tr>';
     }
 }
 
