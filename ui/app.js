@@ -1428,7 +1428,7 @@ function createBatchRow(file, index, generation) {
         createBatchCell('b-status', ''),
     );
     row.addEventListener('click', () => {
-        if (!isCurrentBatchGeneration(generation) || batchProcessing) return;
+        if (!isCurrentBatchGeneration(generation)) return;
         const item = batchResults[index];
         if (item && item.success) openSingleResultFromBatch(index);
     });
@@ -1666,7 +1666,7 @@ async function handleBatchFiles(files) {
 
 function openSingleResultFromBatch(index) {
     const item = batchResults[index];
-    if (!item || !item.success || item.generation !== batchGenerationId || batchProcessing) return;
+    if (!item || !item.success || item.generation !== batchGenerationId) return;
 
     activeBatchIndex = index;
     batchDetailRevision += 1;
