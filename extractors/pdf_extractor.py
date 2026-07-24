@@ -482,7 +482,7 @@ def extract_items_from_tables(pages):
 
 def _find_items(text):
     item_line_pattern = re.compile(
-        rf"^[ \t]*(?P<code>(?:\d{{4}}\.\d{{3}}|[A-Z]{{2,4}}-\d{{3}}|[-\w][\w.-]*))[ \t]+"
+        rf"^[ \t]*(?P<code>(?:\d{{4}}\.\d{{3}}|[A-Z]{{2,4}}-\d{{3}}|[A-Za-z0-9][\w.-]*))[ \t]+"
         rf"(?P<description>.*?)[ \t]*"
         rf"(?P<quantity>\d+(?:[.,]\d+)?(?:[.,]\d+)?)[ \t]+"
         rf"(?:(?P<unit>{UNIT_RE})[ \t]+)?"
@@ -515,7 +515,7 @@ def _find_items(text):
             if re.match(r"^[ \t]*(?:\d{4}\.\d{3}|[A-Z]{2,4}-\d{3})", line) and not item_line_pattern.match(line):
                 matched = False
                 candidates = [(line, 0)]
-                for j in range(1, 4):
+                for j in range(1, 6):
                     if i + j < len(lines):
                         new_candidates = []
                         for c_text, _ in candidates:
@@ -543,6 +543,9 @@ def _find_items(text):
     items = []
     seen = set()
     for line_idx, line in enumerate(cleaned_lines):
+        if re.match(r"(?i)^[ \t]*(?:Fatura\s+(?:Seri|No|Tarihi|Tutar|Bedeli)|Seri\s+No|İrsaliye|Irsaliye)\b", line):
+            continue
+
         for segment in split_repeated_item_line(line):
             match = item_line_pattern.match(segment)
             if not match:
@@ -592,12 +595,26 @@ def _find_items(text):
         open_group = item["description"].count("(") + item["description"].count("[")
         open_group -= item["description"].count(")") + item["description"].count("]")
         desc_no_serials = _description_without_serials(item["description"]).strip()
-        if not desc_no_serials or re.fullmatch(r"[\(\)\[\]\-~,; ]+", desc_no_serials):
+        if (
+            not desc_no_serials
+            or re.fullmatch(r"[\(\)\[\]\-~,; ]+", desc_no_serials)
+            or "~" in desc_no_serials
+            or bool(_extract_item_serial_numbers(desc_no_serials))
+        ):
             previous_idx = line_idx - 1
-            while previous_idx >= 0 and not cleaned_lines[previous_idx]:
+            while previous_idx >= 0:
+                prev_line = cleaned_lines[previous_idx]
+                if not prev_line:
+                    previous_idx -= 1
+                    continue
+                if _extract_item_serial_numbers(prev_line) or "~" in prev_line or prev_line.startswith("("):
+                    serial_context.insert(0, prev_line)
+                    previous_idx -= 1
+                    continue
+                if _is_likely_item_description(prev_line):
+                    serial_context.insert(0, prev_line)
+                    break
                 previous_idx -= 1
-            if previous_idx >= 0 and _is_likely_item_description(cleaned_lines[previous_idx]):
-                serial_context.insert(0, cleaned_lines[previous_idx])
 
         for continuation in cleaned_lines[line_idx + 1 : next_line_idx]:
             if not continuation or section_stop.search(continuation):
@@ -937,17 +954,26 @@ def extract_items_via_item_blocks(pages):
             paren_balance = 0
 
             for line in sorted(band_lines, key=lambda l: l["top"]):
-                line_text = " ".join(w["text"] for w in sorted(line["words"], key=lambda w: w["x0"])).strip()
-                if not line_text:
-                    continue
+                line_y = (line["top"] + line["bottom"]) / 2
+                is_anchor = abs(line_y - anchor["anchor_y"]) <= 4
 
-                if re.search(r"(?i)^(?:Ara\s*Toplam|KDV|Yekün|Genel\s*Toplam|Top|Toplam)", line_text):
-                    break
+                filtered_words = [w for w in line["words"] if w["text"].strip() != anchor["code"]]
+                line_words_clean = []
+                for w in sorted(filtered_words, key=lambda w: w["x0"]):
+                    t = w["text"].strip()
+                    if is_anchor:
+                        if re.fullmatch(r"[₺$€]?\s*\d{1,3}(?:\.\d{3})*(?:,\d{2})", t) or t in ("₺", "TL", "USD", "EUR"):
+                            continue
+                        if w["x0"] > 350 and re.fullmatch(r"\d+(?:[.,]\d+)?", t):
+                            continue
+                    line_words_clean.append(t)
 
-                clean_text = line_text.replace(anchor["code"], "").strip()
-                clean_text = re.sub(r"\b\d+(?:[.,]\d+)?\b|\b[\d.,]+,\d{2}\b|₺|TL|USD|EUR", "", clean_text).strip()
+                clean_text = " ".join(line_words_clean).strip()
                 if not clean_text:
                     continue
+
+                if re.search(r"(?i)^(?:Ara\s*Toplam|KDV|Yekün|Genel\s*Toplam|Top|Toplam)", clean_text):
+                    break
 
                 has_serial = bool(_extract_item_serial_numbers(clean_text) or re.search(r"[A-Z]{2,}\d{3,}", clean_text))
                 if in_serial_block or ("(" in clean_text and has_serial and any(c in clean_text for c in ("~", ";", ",", "-"))):
@@ -962,7 +988,20 @@ def extract_items_via_item_blocks(pages):
 
             raw_serial = "".join(serial_raw_parts).strip("()[] ")
             serials = [s.strip() for s in re.split(r"[~,;\-]+", raw_serial) if s.strip() and _is_serial_token(s.strip())]
+            
             description = " ".join(desc_parts).strip()
+            description = re.sub(r"\s+", " ", description)
+            description = re.sub(r"\s+([,.:;])", r"\1", description).strip()
+
+            # Deduplicate repeated phrase copies from multi-copy landscape layouts
+            desc_words = description.split()
+            for n in (3, 2):
+                if desc_words and len(desc_words) % n == 0:
+                    k = len(desc_words) // n
+                    chunk = desc_words[:k]
+                    if all(desc_words[i * k : (i + 1) * k] == chunk for i in range(1, n)):
+                        description = " ".join(chunk)
+                        break
 
             items.append({
                 "code": anchor["code"],
@@ -970,7 +1009,12 @@ def extract_items_via_item_blocks(pages):
                 "serial_numbers": serials,
             })
 
-    return items
+    unique_items = []
+    for it in items:
+        if not any(u["code"] == it["code"] and u["description"] == it["description"] for u in unique_items):
+            unique_items.append(it)
+
+    return unique_items
 
 
 def parse_pdf_invoice(file_path: str) -> dict:
@@ -1060,8 +1104,7 @@ def parse_pdf_invoice(file_path: str) -> dict:
 
             if geom_items is None:
                 try:
-                    target_pages = cropped_pages if 'cropped_pages' in locals() and cropped_pages else pdf.pages
-                    geom_items = extract_items_via_item_blocks(target_pages)
+                    geom_items = extract_items_via_item_blocks(pdf.pages)
                 except Exception as ge:
                     print(f"Geometry item block extraction note: {ge}")
                     geom_items = []
