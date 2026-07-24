@@ -696,6 +696,33 @@ class PipelineTests(unittest.TestCase):
             self.assertNotIn("Ara Toplam", items[0]["description"])
             self.assertNotIn("KDV", items[0]["description"])
 
+    def test_desan_golden_regression_if_file_exists(self):
+        import os, glob
+        from extractors.pdf_extractor import parse_pdf_invoice
+        pdfs = glob.glob('*DESAN*.pdf') + glob.glob('../*DESAN*.pdf') + glob.glob('uploads/*DESAN*.pdf') + glob.glob('C:/Users/stajyer/Downloads/*DESAN*.pdf')
+        if pdfs and os.path.exists(pdfs[0]):
+            res = parse_pdf_invoice(pdfs[0])
+            items = res.get("items", [])
+            self.assertEqual(len(items), 7)
+            
+            expected_items = [
+                ("0655.009", "9 Mt. K06 Sert Anten Kablosu"),
+                ("0789.082", "CN0106.2 Anten Tarafı Konnektör Takımı - K06 Kablosu İçin v2"),
+                ("0789.415", "CN2006.2 Okuyucu Tarafı Konnektör Takımı - K06 Anten Kablosu İçin - Sma Male"),
+                ("2245.001", "Endüstriyel Radyo Frekans Anteni"),
+                ("0215.030", "Hibrit Kart - HID 26 Bit + H9 PVC Kart"),
+                ("3190.024", "Merkezi Kontrol Ünitesi"),
+                ("0001.009", "UHF PVC Kart - Düz Beyaz (H47)"),
+            ]
+            
+            for idx, (exp_code, exp_desc) in enumerate(expected_items):
+                self.assertEqual(items[idx]["code"], exp_code)
+                self.assertEqual(items[idx]["description"], exp_desc)
+                
+            self.assertNotIn("İŞ BU FATURA", items[6]["description"])
+            self.assertNotIn("2.601,60 USD", items[6]["description"])
+            self.assertNotIn("BEDELİ USD", items[6]["description"])
+
 
 if __name__ == "__main__":
     unittest.main()

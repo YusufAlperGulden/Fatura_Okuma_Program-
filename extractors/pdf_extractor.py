@@ -939,12 +939,30 @@ def extract_items_via_item_blocks(pages):
                 if l["top"] < footer_top:
                     footer_top = l["top"]
 
+        # Detect Horizontal Rule lines on page for item-table bottom boundary
+        h_rules = []
+        for l in (page.lines or []):
+            if abs(l["top"] - l["bottom"]) <= 3 and (l["x1"] - l["x0"]) >= 50:
+                h_rules.append(l["top"])
+        for r in (page.rects or []):
+            if r.get("height", 0) <= 3 and r.get("width", 0) >= 50:
+                h_rules.append(r["top"])
+
         table_top = header_bottom if header_bottom > 0 else (min(a["anchor_y"] for a in anchors) - 40)
         table_bottom = footer_top if footer_top < page.height else (max(a["anchor_y"] for a in anchors) + 40)
 
         for idx, anchor in enumerate(anchors):
             top_y = table_top if idx == 0 else (anchors[idx - 1]["anchor_y"] + anchor["anchor_y"]) / 2
             bot_y = table_bottom if idx == len(anchors) - 1 else (anchor["anchor_y"] + anchors[idx + 1]["anchor_y"]) / 2
+
+            if idx < len(anchors) - 1:
+                next_line_top = anchors[idx + 1]["line"]["top"]
+                bot_y = min(bot_y, next_line_top - 0.5)
+
+            if idx == len(anchors) - 1:
+                rules_below = [r_y for r_y in h_rules if r_y > anchor["anchor_y"] + 5]
+                if rules_below:
+                    bot_y = min(bot_y, min(rules_below))
 
             band_lines = [l for l in lines if top_y <= (l["top"] + l["bottom"]) / 2 <= bot_y]
 
@@ -957,6 +975,20 @@ def extract_items_via_item_blocks(pages):
                 line_y = (line["top"] + line["bottom"]) / 2
                 is_anchor = abs(line_y - anchor["anchor_y"]) <= 4
 
+                # Classify the entire physical line FIRST before column filtering
+                full_line_text = " ".join(w["text"].strip() for w in line["words"]).strip()
+                full_line_x0 = min(w["x0"] for w in line["words"])
+                full_line_x1 = max(w["x1"] for w in line["words"])
+
+                # Check if this line is a structural footer/note prose block
+                if not is_anchor and line_y > anchor["anchor_y"] + 10:
+                    is_footer_prose = (
+                        re.search(r"(?i)^(?:İş\s*bu\s*fatura|Fatura\s*üzerindeki|\*\s*RFIDmarket|\*\s*E-İrsaliye|\*\s*Kredi\s*kartı|Döviz\s*Kuru|Döviz\s*Toplam|Ara\s*Toplam|KDV|Yekün|Genel\s*Toplam)", full_line_text)
+                        or ((full_line_x1 - full_line_x0 > 320) and full_line_x0 < 80)
+                    )
+                    if is_footer_prose:
+                        break
+
                 filtered_words = [w for w in line["words"] if w["text"].strip() != anchor["code"]]
                 line_words_clean = []
                 for w in sorted(filtered_words, key=lambda w: w["x0"]):
@@ -964,7 +996,7 @@ def extract_items_via_item_blocks(pages):
                     if is_anchor:
                         if re.fullmatch(r"[₺$€]?\s*\d{1,3}(?:\.\d{3})*(?:,\d{2})", t) or t in ("₺", "TL", "USD", "EUR"):
                             continue
-                        if w["x0"] > 350 and re.fullmatch(r"\d+(?:[.,]\d+)?", t):
+                        if w["x0"] > (anchor["code_word"]["x0"] + 110) and re.fullmatch(r"\d+(?:[.,]\d+)?", t):
                             continue
                     line_words_clean.append(t)
 
@@ -1113,8 +1145,7 @@ def parse_pdf_invoice(file_path: str) -> dict:
             if geom_items:
                 for g in geom_items:
                     if g.get("code") == item.get("code") and g.get("description"):
-                        if needs_geom or len(g["description"]) > len(item.get("description", "")) + 5:
-                            item["description"] = g["description"]
+                        item["description"] = g["description"]
                         if g.get("serial_numbers") and not item.get("serial_numbers"):
                             item["serial_numbers"] = g["serial_numbers"]
                         break
