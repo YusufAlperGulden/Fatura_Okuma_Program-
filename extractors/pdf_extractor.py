@@ -657,6 +657,34 @@ def _merge_table_items_with_text_items(table_items, text_items):
     return table_items
 
 
+def _trim_trailing_row_bleed(items):
+    """Trim trailing words from an item description if they match the start of the next item description."""
+    for i in range(len(items) - 1):
+        curr_desc = (items[i].get("description") or "").strip()
+        next_desc = (items[i + 1].get("description") or "").strip()
+
+        curr_words = curr_desc.split()
+        next_words = next_desc.split()
+
+        if not curr_words or not next_words:
+            continue
+
+        for n_words in range(min(4, len(curr_words)), 0, -1):
+            overlap = " ".join(curr_words[-n_words:])
+            next_start = " ".join(next_words[:n_words])
+
+            if (
+                next_desc.lower().startswith(overlap.lower())
+                or next_start.lower().startswith(overlap.lower())
+                or overlap.lower().startswith(next_start.lower())
+            ):
+                new_curr = " ".join(curr_words[:-n_words]).strip(" -:,")
+                if new_curr:
+                    items[i]["description"] = new_curr
+                break
+    return items
+
+
 def _sum_tax_lines(text):
     total = 0.0
     found = False
@@ -888,6 +916,8 @@ def parse_pdf_invoice(file_path: str) -> dict:
                     table_items,
                     data.get("items", []),
                 )
+
+        data["items"] = _trim_trailing_row_bleed(data.get("items", []))
 
         for item in data.get("items", []):
             desc = item.get("description", "")
