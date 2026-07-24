@@ -447,43 +447,12 @@ def extract_items_from_tables(pages):
             if not any("toplam" in h for h in header):
                 continue
 
-            for row_idx, row in enumerate(table[1:], start=1):
+            for row in table[1:]:
                 if not row or len(row) < 7:
                     continue
 
                 code = clean_table_cell(row[0])
-                
-                desc_raw_str = str(row[1] or "")
-                desc_lines = [l.strip() for l in desc_raw_str.splitlines() if l.strip()]
-                valid_desc_lines = []
-                for d_idx, d_line in enumerate(desc_lines):
-                    if d_idx > 0:
-                        is_next_item = False
-                        if re.search(r"\b\d{4}\.\d{3}\b|\b[A-Z]{2,4}-\d{3}\b", d_line):
-                            is_next_item = True
-
-                        if not is_next_item:
-                            for next_row in table[row_idx + 1:]:
-                                if not next_row or len(next_row) < 2:
-                                    continue
-                                next_code = str(next_row[0] or "").strip()
-                                next_raw_desc = str(next_row[1] or "").strip()
-
-                                if next_code and (d_line.startswith(next_code) or next_code in d_line):
-                                    is_next_item = True
-                                    break
-
-                                if next_raw_desc and (
-                                    next_raw_desc.lower().startswith(d_line.lower())
-                                    or d_line.lower().startswith(next_raw_desc.lower()[:8])
-                                ):
-                                    is_next_item = True
-                                    break
-                        if is_next_item:
-                            break
-                    valid_desc_lines.append(d_line)
-
-                raw_description = clean_table_cell(" ".join(valid_desc_lines))
+                raw_description = clean_table_cell(row[1])
                 serial_numbers = _extract_item_serial_numbers(raw_description)
                 description = _description_without_serials(raw_description)
                 quantity = clean_table_cell(row[2])
@@ -636,23 +605,6 @@ def _find_items(text):
 
             # Stop if this line looks like a new product code starting alone
             if re.match(r"^\d{4}\.\d{3}\b|^[A-Z]{2,4}-\d{3}\b", continuation):
-                break
-
-            # Stop if this line matches any subsequent item's code or description
-            is_another_item = False
-            for following_item in items[item_index + 1 :]:
-                f_code = following_item.get("code")
-                f_desc = following_item.get("description")
-                if f_code and (continuation.startswith(f_code) or f_code in continuation):
-                    is_another_item = True
-                    break
-                if f_desc and len(f_desc) > 3 and (
-                    continuation.lower().startswith(f_desc.lower()[:8])
-                    or f_desc.lower().startswith(continuation.lower()[:8])
-                ):
-                    is_another_item = True
-                    break
-            if is_another_item:
                 break
 
             # Stop if this line contains a price/currency token — it's a data row, not a description
