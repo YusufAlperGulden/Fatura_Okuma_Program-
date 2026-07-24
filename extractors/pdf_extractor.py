@@ -652,7 +652,22 @@ def _merge_table_items_with_text_items(table_items, text_items):
         if not table_item["serial_numbers"]:
             table_item["serial_numbers"] = list(text_item.get("serial_numbers") or [])
         if text_item.get("description"):
-            table_item["description"] = text_item["description"]
+            table_desc = table_item.get("description", "").strip()
+            text_desc = text_item.get("description", "").strip()
+            
+            table_desc_lower = table_desc.lower().replace("\n", " ").strip()
+            text_desc_lower = text_desc.lower().replace("\n", " ").strip()
+            
+            if text_desc_lower and text_desc_lower in table_desc_lower:
+                idx = table_desc_lower.find(text_desc_lower)
+                # If text_desc is at the very beginning (idx < 5), table_desc likely bled into the next item.
+                if idx < 5:
+                    table_item["description"] = text_desc
+                # If text_desc is at the end (idx >= 5), text_desc likely missed the first line.
+                else:
+                    table_item["description"] = table_desc
+            else:
+                table_item["description"] = text_desc
 
     return table_items
 
