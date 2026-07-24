@@ -492,7 +492,7 @@ def _find_items(text):
         re.IGNORECASE,
     )
 
-    code_start_pattern = re.compile(r"(?=(?:\d{4}\.\d{3}|[A-Z]{2,4}-\d{3})[ \t]+)")
+    code_start_pattern = re.compile(r"(?=(?:\d{4}\.\d{3,4}|[A-Z]{2,4}-\d{3})[ \t]+)")
 
     def split_repeated_item_line(line):
         starts = [match.start() for match in code_start_pattern.finditer(line)]
@@ -512,7 +512,7 @@ def _find_items(text):
         i = 0
         while i < len(lines):
             line = lines[i]
-            if re.match(r"^[ \t]*(?:\d{4}\.\d{3}|[A-Z]{2,4}-\d{3})", line) and not item_line_pattern.match(line):
+            if re.match(r"^[ \t]*(?:\d{4}\.\d{3,4}|[A-Z]{2,4}-\d{3})", line) and not item_line_pattern.match(line):
                 matched = False
                 candidates = [(line, 0)]
                 for j in range(1, 4):
