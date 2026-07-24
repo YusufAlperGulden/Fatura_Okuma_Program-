@@ -1034,7 +1034,12 @@ def extract_items_via_item_blocks(pages):
             raw_serial = "".join(serial_raw_parts).strip("()[] ")
             serials = [s.strip() for s in re.split(r"[~,;\-]+", raw_serial) if s.strip() and _is_serial_token(s.strip())]
             
-            description = " ".join(desc_parts).strip()
+            raw_description = " ".join(desc_parts).strip()
+            extra_serials = _extract_item_serial_numbers(raw_description)
+            if extra_serials and not serials:
+                serials = extra_serials
+
+            description = _description_without_serials(raw_description)
             description = re.sub(r"\s+", " ", description)
             description = re.sub(r"\s+([,.:;])", r"\1", description).strip()
 
@@ -1167,7 +1172,12 @@ def parse_pdf_invoice(file_path: str) -> dict:
 
         for item in data.get("items", []):
             desc = item.get("description", "")
-            if re.match(r"(?i)^kargo\s+ücreti\b", desc):
+            if _extract_item_serial_numbers(desc) and not item.get("serial_numbers"):
+                item["serial_numbers"] = _extract_item_serial_numbers(desc)
+            desc_clean = _description_without_serials(desc)
+            if desc_clean:
+                item["description"] = desc_clean
+            if re.match(r"(?i)^kargo\s+ücreti\b", item.get("description", "")):
                 item["description"] = "Kargo Ücreti"
 
         if not data["items"]:

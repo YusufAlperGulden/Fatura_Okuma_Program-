@@ -723,6 +723,41 @@ class PipelineTests(unittest.TestCase):
             self.assertNotIn("2.601,60 USD", items[6]["description"])
             self.assertNotIn("BEDELİ USD", items[6]["description"])
 
+    def test_anpa_gross_golden_regression_if_file_exists(self):
+        import os, glob
+        from extractors.pdf_extractor import parse_pdf_invoice
+        pdfs = glob.glob('*ANPA*.pdf') + glob.glob('../*ANPA*.pdf') + glob.glob('uploads/*ANPA*.pdf') + glob.glob('C:/Users/stajyer/Downloads/*ANPA*.pdf')
+        if pdfs and os.path.exists(pdfs[0]):
+            res = parse_pdf_invoice(pdfs[0])
+            items = res.get("items", [])
+            self.assertEqual(len(items), 7)
+            
+            target_item = next((it for it in items if it.get("code") == "4210.058"), None)
+            self.assertIsNotNone(target_item)
+            
+            self.assertEqual(
+                target_item["description"],
+                "Dış Ortam (Outdoor)Yönlü GSM&GPS Gateway USB + Anten 45"
+            )
+            
+            expected_serials = [
+                "1919.0230001",
+                "1919.0230002",
+                "868018076846834",
+                "868018076691636",
+                "868018076802324",
+                "868018076858193",
+                "868018076805806"
+            ]
+            self.assertEqual(target_item["serial_numbers"], expected_serials)
+            self.assertEqual(target_item["quantity"], "7,00")
+            self.assertEqual(target_item["unit_price"], "18803,92")
+            self.assertEqual(target_item["total_price"], "131627,44")
+            
+            self.assertNotIn("1919.0230001", target_item["description"])
+            self.assertNotIn("868018076846834", target_item["description"])
+            self.assertNotIn("~", target_item["description"])
+
 
 if __name__ == "__main__":
     unittest.main()
