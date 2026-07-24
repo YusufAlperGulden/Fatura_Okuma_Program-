@@ -638,7 +638,15 @@ def _find_items(text):
         for continuation in cleaned_lines[line_idx + 1 : next_line_idx]:
             if not continuation or section_stop.search(continuation):
                 break
-            
+
+            # Stop if this line looks like a new product code starting alone
+            if re.match(r"^\d{4}\.\d{3}\b|^[A-Z]{2,4}-\d{3}\b", continuation):
+                break
+
+            # Stop if this line contains a price/currency token — it's a data row, not a description
+            if re.search(r"(?:₺|TL|USD|EUR)\s*[\d.,]+|[\d.,]+\s*(?:₺|TL|USD|EUR)", continuation):
+                break
+
             if re.match(r"(?i)^(?:Notlar|İrsaliye|Irsaliye|Fatura\s+Tarihi|Sipariş|Siparis|Banka|IBAN|Hesap|Hesaba|Havale|Sanal|Döviz|Doviz|Yalnız|Yalniz|Yalnızca|Yazıyla|Yaziyla|Fatura|İ\s*Bu|Is\s*Bu|İş\s*Bu|DSM\s+GRUP|\*[ \t]*Fatura)\b", continuation):
                 break
 
