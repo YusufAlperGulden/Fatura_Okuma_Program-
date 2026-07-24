@@ -8,8 +8,6 @@ AMOUNT_NUMBER_RE = r"\d{1,3}(?:[.,]\d{3})*[.,]\d{2}|\d+[.,]\d{2}"
 MONEY_RE = rf"(?:[{CURRENCY_SYMBOLS}][ \t]*)?({AMOUNT_NUMBER_RE})(?:[ \t]*(?:TL|TRY|USD|EUR|GBP|DOLAR|EURO|[{CURRENCY_SYMBOLS}]))?"
 MONEY_TOKEN_RE = rf"(?:[{CURRENCY_SYMBOLS}][ \t]*)?{AMOUNT_NUMBER_RE}(?:[ \t]*(?:TL|TRY|USD|EUR|GBP|DOLAR|EURO|[{CURRENCY_SYMBOLS}]))?"
 UNIT_RE = r"Adet|AdeTt|Kg|Lt|Paket|Pak|Kutu|Ay|Yıl|Yil|Ad\.|M2|M3|Saat|Hizmet|Gün|Gun"
-WATERMARK_CHARS = "A-ZÇĞİÖŞÜ"
-
 
 def _fix_mojibake_currency(text):
     return (
@@ -329,26 +327,6 @@ def _clean_pdf_line(line):
     # Fix missing spaces between concatenated monetary values (e.g. 90,34₺180.678,53)
     line = re.sub(rf"(\d)([{re.escape(CURRENCY_SYMBOLS)}]|TL|TRY|USD|EUR|GBP)", r"\1 \2", line, flags=re.IGNORECASE)
 
-    # Vertical watermark letters sometimes land inside codes, units, or amounts.
-    line = re.sub(rf"(\d{{4}})[{WATERMARK_CHARS}]\.(\d{{3}})", r"\1.\2", line)
-    line = re.sub(rf"(\d{{4}}\.\d{{3}})[{WATERMARK_CHARS}](?=[A-Za-zÇĞİÖŞÜçğıöşü])", r"\1 ", line)
-    line = re.sub(rf"(?<=\s)[{WATERMARK_CHARS}]+([{re.escape(CURRENCY_SYMBOLS)}])(?=\d)", r"\1", line)
-    line = re.sub(rf"([{re.escape(CURRENCY_SYMBOLS)}])[ \t]*[{WATERMARK_CHARS}]+[ \t]*(?=\d)", r"\1", line)
-    line = re.sub(rf"([.,])[ \t]*[{WATERMARK_CHARS}]+[ \t]*(?=\d{{2,3}}\b)", r"\1", line)
-    line = re.sub(
-        rf"(%[ \t]*\d+(?:[.,]\d+)?)[ \t]*[{WATERMARK_CHARS}]+[ \t]*([{re.escape(CURRENCY_SYMBOLS)}])",
-        r"\1 \2",
-        line,
-    )
-    line = re.sub(rf"\bK[{WATERMARK_CHARS}]*D[{WATERMARK_CHARS}]*V\b", "KDV", line, flags=re.IGNORECASE)
-    line = re.sub(rf"(?<=\s)[{WATERMARK_CHARS}]+({UNIT_RE})\b", r"\1", line, flags=re.IGNORECASE)
-    line = re.sub(rf"(\d+(?:[.,]\d+)?)[ \t]*[{WATERMARK_CHARS}]+({UNIT_RE})\b", r"\1 \2", line, flags=re.IGNORECASE)
-    line = re.sub(
-        rf"(?<=\s)[{WATERMARK_CHARS}]+(\d+(?:[.,]\d+)?)[ \t]+({UNIT_RE})\b",
-        r"\1 \2",
-        line,
-        flags=re.IGNORECASE,
-    )
     return line
 
 
@@ -362,20 +340,6 @@ def clean_table_cell(value):
         return ""
 
     text = str(value).replace("\n", " ").replace("\xa0", " ").strip()
-    text = re.sub(r"\b[A-ZÇĞİÖŞÜ]\b", "", text)
-    text = re.sub(
-        r"(\d+(?:[.,]\d+)?)[A-ZÇĞİÖŞÜ]+(Adet|Saat|Hizmet|Kg|Lt|Paket|Kutu)",
-        r"\1 \2",
-        text,
-        flags=re.IGNORECASE,
-    )
-    text = re.sub(
-        r"\b[A-ZÇĞİÖŞÜ]+(Adet|Saat|Hizmet|Kg|Lt|Paket|Kutu)\b",
-        r"\1",
-        text,
-        flags=re.IGNORECASE,
-    )
-    text = re.sub(r"([€$₺£]\d+[.,])[A-ZÇĞİÖŞÜ]+(?=\d)", r"\1", text)
     return re.sub(r"\s+", " ", text).strip()
 
 
@@ -466,10 +430,10 @@ def _is_likely_item_description(line):
     return True
 
 
-def extract_items_from_tables(pdf):
+def extract_items_from_tables(pages):
     items = []
 
-    for page in pdf.pages:
+    for page in pages:
         tables = page.extract_tables() or []
 
         for table in tables:
@@ -860,8 +824,6 @@ def parse_pdf_invoice(file_path: str) -> dict:
 
     try:
         with pdfplumber.open(file_path) as pdf:
-            table_items = extract_items_from_tables(pdf)
-
             plain_text = ""
             layout_text = ""
             top_text = None
@@ -889,14 +851,23 @@ def parse_pdf_invoice(file_path: str) -> dict:
                         print("Detected multi-copy landscape layout. Cropping to the right third to prevent horizontal bleed...")
                         plain_text = ""
                         layout_text = ""
+                        cropped_pages = []
                         for page in pdf.pages:
                             # Crop to right 34% (copy 3) to prevent right-side clipping
                             bbox = (page.width * 0.66, 0, page.width, page.height)
                             cropped = page.crop(bbox)
+                            cropped_pages.append(cropped)
                             pt = cropped.extract_text()
                             lt = cropped.extract_text(layout=True)
                             if pt: plain_text += pt + "\n"
                             if lt: layout_text += lt + "\n"
+                        table_items = extract_items_from_tables(cropped_pages)
+                    else:
+                        table_items = extract_items_from_tables(pdf.pages)
+                else:
+                    table_items = extract_items_from_tables(pdf.pages)
+            else:
+                table_items = []
 
             candidate_texts = [text.strip() for text in (plain_text, layout_text) if text and text.strip()]
             if not candidate_texts:
