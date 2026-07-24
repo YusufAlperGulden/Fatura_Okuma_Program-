@@ -633,9 +633,10 @@ def _merge_table_items_with_text_items(table_items, text_items):
         for text_index, text_item in enumerate(text_items):
             if text_index in used_text_indexes:
                 continue
-            if table_item.get("code") and table_item.get("code") == text_item.get("code"):
-                match_index = text_index
-                break
+            if table_item.get("code") and text_item.get("code"):
+                if table_item["code"] in text_item["code"] or text_item["code"] in table_item["code"]:
+                    match_index = text_index
+                    break
 
         if match_index is None and table_index < len(text_items) and table_index not in used_text_indexes:
             match_index = table_index
@@ -845,7 +846,8 @@ def parse_pdf_invoice(file_path: str) -> dict:
                     # Possible landscape multi-copy layout. Let's check for repeated columns.
                     if plain_text.count("Ara Toplam") >= 2 or plain_text.count("Genel Toplam") >= 2 or plain_text.count("KDV") >= 3:
                         is_three_copies = plain_text.count("Ara Toplam") >= 3 or plain_text.count("Genel Toplam") >= 3
-                        crop_ratio = 0.66 if is_three_copies else 0.50
+                        # Use a small safety margin (0.02) to prevent cutting off the first characters of the rightmost copy
+                        crop_ratio = 0.64 if is_three_copies else 0.48
                         print(f"Detected multi-copy landscape layout. Cropping to the right {1-crop_ratio:.0%} to prevent horizontal bleed...")
                         plain_text = ""
                         layout_text = ""
