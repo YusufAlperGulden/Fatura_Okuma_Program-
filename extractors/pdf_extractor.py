@@ -548,7 +548,7 @@ def _find_items(text):
             if not match:
                 continue
 
-            if re.match(r"(?i)^(?:kodu|kod\b|açıklama|aciklama|mal\s*/?\s*hizmet|ürün|urun|miktar|birim|ara\s*toplam|kdv|k\.?d\.?v\.?|yekun|genel\s*toplam|ödenecek|odenecek|indirim|iskonto|toplam)", match.group("code")):
+            if re.match(r"(?i)^(?:kodu|kod\b|açıklama|aciklama|mal\s*/?\s*hizmet|ürün|urun|miktar|birim|ara\s*toplam|kdv|k\.?d\.?v\.?|yekun|genel\s*toplam|ödenecek|odenecek|indirim|iskonto|toplam|fatura|seri|tarih)", match.group("code")):
                 continue
 
             unit_price_str = match.group("unit_price")
@@ -586,19 +586,8 @@ def _find_items(text):
                 break
 
         # The KATLAN-style layout puts the serial group on the item anchor
-        # line, then wraps one serial across the next PDF text line. Only join
-        # lines while an item-level serial construct is visibly continuing.
+        # line, then wraps one serial across the next PDF text line.
         serial_context = [item["description"]]
-        open_group = item["description"].count("(") + item["description"].count("[")
-        open_group -= item["description"].count(")") + item["description"].count("]")
-        desc_no_serials = _description_without_serials(item["description"]).strip()
-        if not desc_no_serials or re.fullmatch(r"[\(\)\[\]\-~,; ]+", desc_no_serials):
-            previous_idx = line_idx - 1
-            while previous_idx >= 0 and not cleaned_lines[previous_idx]:
-                previous_idx -= 1
-            if previous_idx >= 0 and _is_likely_item_description(cleaned_lines[previous_idx]):
-                serial_context.insert(0, cleaned_lines[previous_idx])
-
         for continuation in cleaned_lines[line_idx + 1 : next_line_idx]:
             if not continuation or section_stop.search(continuation):
                 break
@@ -619,6 +608,13 @@ def _find_items(text):
         item_text = " ".join(serial_context)
         item["serial_numbers"] = _extract_item_serial_numbers(item_text)
         cleaned_description = _description_without_serials(item_text)
+
+        if not cleaned_description or re.fullmatch(r"[\(\)\[\]\-~,; ]+", cleaned_description):
+            previous_idx = line_idx - 1
+            while previous_idx >= 0 and not cleaned_lines[previous_idx].strip():
+                previous_idx -= 1
+            if previous_idx >= 0 and _is_likely_item_description(cleaned_lines[previous_idx]):
+                cleaned_description = cleaned_lines[previous_idx].strip()
 
         if cleaned_description:
             item["description"] = cleaned_description
@@ -651,7 +647,7 @@ def _merge_table_items_with_text_items(table_items, text_items):
         text_item = text_items[match_index]
         if not table_item["serial_numbers"]:
             table_item["serial_numbers"] = list(text_item.get("serial_numbers") or [])
-        if not table_item.get("description") and text_item.get("description"):
+        if text_item.get("description"):
             table_item["description"] = text_item["description"]
 
     return table_items
