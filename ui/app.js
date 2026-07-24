@@ -1714,7 +1714,7 @@ function openSingleResultFromBatch(index) {
 }
 
 document.getElementById('back-to-batch-btn').addEventListener('click', () => {
-    if (batchProcessing || draftSendInProgress || currentValidationState === 'pending') return;
+    if (batchProcessing || draftSendInProgress) return;
     persistActiveBatchItem();
     validationRevision += 1;
     if (validationAbortController) validationAbortController.abort();
