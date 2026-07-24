@@ -362,7 +362,7 @@ def _is_serial_token(value):
 
 def _serials_from_group(value, require_multiple=True):
     compact = re.sub(r"\s+", "", str(value or "")).strip("()[]{}")
-    parts = [part for part in re.split(r"[~,;]+", compact) if part]
+    parts = [part for part in re.split(r"[~,;\-]+", compact) if part]
     if require_multiple and len(parts) < 2:
         return []
     if not parts or not all(_is_serial_token(part) for part in parts):
@@ -380,7 +380,7 @@ def _extract_item_serial_numbers(text):
     # reconstructs that value without changing ordinary description text.
     for match in SERIAL_GROUP_RE.finditer(source):
         body = match.group(2)
-        if "~" not in body and ";" not in body and "," not in body:
+        if "~" not in body and ";" not in body and "," not in body and "-" not in body:
             continue
         serials.extend(_serials_from_group(body, require_multiple=True))
 
