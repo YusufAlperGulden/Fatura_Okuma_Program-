@@ -889,6 +889,11 @@ def parse_pdf_invoice(file_path: str) -> dict:
                     data.get("items", []),
                 )
 
+        for item in data.get("items", []):
+            desc = item.get("description", "")
+            if re.match(r"(?i)^kargo\s+ücreti\b", desc):
+                item["description"] = "Kargo Ücreti"
+
         if not data["items"]:
             print("PDF text was read, but line items were not matched. Falling back to OCR...")
             from extractors.ocr_extractor import parse_pdf_invoice_ocr
