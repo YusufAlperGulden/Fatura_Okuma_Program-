@@ -956,8 +956,21 @@ def extract_items_via_item_blocks(pages):
             bot_y = table_bottom if idx == len(anchors) - 1 else (anchor["anchor_y"] + anchors[idx + 1]["anchor_y"]) / 2
 
             if idx < len(anchors) - 1:
-                next_line_top = anchors[idx + 1]["line"]["top"]
-                bot_y = min(bot_y, next_line_top - 0.5)
+                next_anchor = anchors[idx + 1]
+                next_code_y = next_anchor["anchor_y"]
+                # Check lines between current anchor and next anchor for next item's pre-anchor description line
+                # A pre-anchor line is close to next_code_y (< 15pt above next anchor) and starts before next_line_top
+                candidate_pre_lines = []
+                for l in lines:
+                    l_center = (l["top"] + l["bottom"]) / 2
+                    if anchor["anchor_y"] + 5 < l_center < next_code_y:
+                        l_text = " ".join(w["text"] for w in l["words"]).strip()
+                        # If line is close to next anchor (< 15pt) and does not look like current item continuation
+                        if (next_code_y - l_center) <= 15:
+                            candidate_pre_lines.append(l["top"])
+                
+                limit_y = min(candidate_pre_lines) - 0.5 if candidate_pre_lines else (next_anchor["line"]["top"] - 0.5)
+                bot_y = min(bot_y, limit_y)
 
             if idx == len(anchors) - 1:
                 rules_below = [r_y for r_y in h_rules if r_y > anchor["anchor_y"] + 5]
