@@ -845,6 +845,120 @@ def parse_invoice_text(text: str, top_text: str = None) -> dict:
     return data
 
 
+def extract_items_via_item_blocks(pdf):
+    """
+    Item Block Geometry Extractor:
+    Uses word coordinates (x, y) to construct vertical item bands, match financial anchors,
+    and cleanly separate product descriptions from multiline serial blocks.
+    """
+    items = []
+    for page in pdf.pages:
+        words = page.extract_words()
+        if not words:
+            continue
+
+        code_words = []
+        for w in words:
+            text = w["text"].strip()
+            if re.fullmatch(r"\d{3,5}\.\d{3}|[A-Z]{2,4}-\d{3}", text):
+                code_words.append(w)
+
+        if not code_words:
+            continue
+
+        words_sorted = sorted(words, key=lambda w: (w["top"], w["x0"]))
+        lines = []
+        for w in words_sorted:
+            w_center = (w["top"] + w["bottom"]) / 2
+            matched_line = None
+            for line in lines[-5:]:
+                line_center = (line["top"] + line["bottom"]) / 2
+                if abs(w_center - line_center) <= 4:
+                    matched_line = line
+                    break
+            if matched_line is None:
+                lines.append({"top": w["top"], "bottom": w["bottom"], "words": [w]})
+            else:
+                matched_line["words"].append(w)
+                matched_line["top"] = min(matched_line["top"], w["top"])
+                matched_line["bottom"] = max(matched_line["bottom"], w["bottom"])
+
+        anchors = []
+        for code_w in code_words:
+            code_y = (code_w["top"] + code_w["bottom"]) / 2
+            best_line = None
+            min_dist = 999999
+            for line in lines:
+                line_y = (line["top"] + line["bottom"]) / 2
+                line_text = " ".join(w["text"] for w in line["words"])
+                if abs(line_y - code_y) <= 80:
+                    if re.search(r"[\d.,]+,\d{2}", line_text):
+                        dist = abs(line_y - code_y)
+                        if dist < min_dist:
+                            min_dist = dist
+                            best_line = line
+            if best_line:
+                anchors.append({
+                    "code": code_w["text"],
+                    "code_word": code_w,
+                    "anchor_y": (best_line["top"] + best_line["bottom"]) / 2,
+                    "line": best_line
+                })
+
+        anchors = sorted(anchors, key=lambda a: a["anchor_y"])
+        if not anchors:
+            continue
+
+        table_top = min(a["anchor_y"] for a in anchors) - 40
+        table_bottom = max(a["anchor_y"] for a in anchors) + 40
+
+        for idx, anchor in enumerate(anchors):
+            top_y = table_top if idx == 0 else (anchors[idx - 1]["anchor_y"] + anchor["anchor_y"]) / 2
+            bot_y = table_bottom if idx == len(anchors) - 1 else (anchor["anchor_y"] + anchors[idx + 1]["anchor_y"]) / 2
+
+            band_lines = [l for l in lines if top_y <= (l["top"] + l["bottom"]) / 2 <= bot_y]
+
+            desc_parts = []
+            serial_raw_parts = []
+            in_serial_block = False
+            paren_balance = 0
+
+            for line in sorted(band_lines, key=lambda l: l["top"]):
+                line_text = " ".join(w["text"] for w in sorted(line["words"], key=lambda w: w["x0"])).strip()
+                if not line_text:
+                    continue
+
+                if re.search(r"(?i)^(?:Ara\s*Toplam|KDV|Yekün|Genel\s*Toplam|Top|Toplam)", line_text):
+                    break
+
+                clean_text = line_text.replace(anchor["code"], "").strip()
+                clean_text = re.sub(r"\b\d+(?:[.,]\d+)?\b|\b[\d.,]+,\d{2}\b|₺|TL|USD|EUR", "", clean_text).strip()
+                if not clean_text:
+                    continue
+
+                if in_serial_block or ("(" in clean_text and any(c in clean_text for c in ("~", ";", ",", "-"))):
+                    in_serial_block = True
+                    serial_raw_parts.append(clean_text)
+                    paren_balance += clean_text.count("(") - clean_text.count(")")
+                    if paren_balance <= 0 and ")" in clean_text:
+                        in_serial_block = False
+                else:
+                    if not re.fullmatch(r"[\(\)\[\]\-~,; ]+", clean_text):
+                        desc_parts.append(clean_text)
+
+            raw_serial = "".join(serial_raw_parts).strip("()[] ")
+            serials = [s.strip() for s in re.split(r"[~,;\-]+", raw_serial) if s.strip() and _is_serial_token(s.strip())]
+            description = " ".join(desc_parts).strip()
+
+            items.append({
+                "code": anchor["code"],
+                "description": description,
+                "serial_numbers": serials,
+            })
+
+    return items
+
+
 def parse_pdf_invoice(file_path: str) -> dict:
     """
     Parses a digital PDF invoice using pdfplumber and regex.
@@ -917,6 +1031,27 @@ def parse_pdf_invoice(file_path: str) -> dict:
                     table_items,
                     data.get("items", []),
                 )
+
+        # Fikir 4.1 Item Block Geometry Reconciliation:
+        # If any item's description is missing or contains only serial numbers (e.g. KATLAN layout),
+        # use the Item Block Geometry Extractor to reconstruct the description & multiline serial block.
+        geom_items = None
+        for item in data.get("items", []):
+            desc_clean = _description_without_serials(item.get("description", "")).strip()
+            if not item.get("description") or not desc_clean or re.fullmatch(r"[\(\)\[\]\-~,; ]+", desc_clean):
+                if geom_items is None:
+                    try:
+                        geom_items = extract_items_via_item_blocks(pdf)
+                    except Exception as ge:
+                        print(f"Geometry item block extraction note: {ge}")
+                        geom_items = []
+                if geom_items:
+                    for g in geom_items:
+                        if g.get("code") == item.get("code") and g.get("description"):
+                            item["description"] = g["description"]
+                            if g.get("serial_numbers") and not item.get("serial_numbers"):
+                                item["serial_numbers"] = g["serial_numbers"]
+                            break
 
         data["items"] = _trim_trailing_row_bleed(data.get("items", []))
 
