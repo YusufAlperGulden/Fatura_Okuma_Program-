@@ -639,7 +639,7 @@ def _find_items(text):
             if not continuation or section_stop.search(continuation):
                 break
             
-            if re.match(r"(?i)^(?:Notlar|İrsaliye|Irsaliye|Fatura\s+Tarihi|Sipariş|Siparis|Banka|IBAN|Hesap|Döviz|Doviz|Yalnız|Yalniz|Yazıyla|Yaziyla|Fatura|İ\s*Bu|Is\s*Bu|İş\s*Bu|DSM\s+GRUP|\*[ \t]*Fatura)\b", continuation):
+            if re.match(r"(?i)^(?:Notlar|İrsaliye|Irsaliye|Fatura\s+Tarihi|Sipariş|Siparis|Banka|IBAN|Hesap|Hesaba|Havale|Döviz|Doviz|Yalnız|Yalniz|Yalnızca|Yazıyla|Yaziyla|Fatura|İ\s*Bu|Is\s*Bu|İş\s*Bu|DSM\s+GRUP|\*[ \t]*Fatura)\b", continuation):
                 break
 
             serial_context.append(continuation)
