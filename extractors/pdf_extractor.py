@@ -670,16 +670,16 @@ def _trim_trailing_row_bleed(items):
         if not curr_words or not next_words:
             continue
 
-        for n_words in range(min(4, len(curr_words)), 0, -1):
-            overlap = " ".join(curr_words[-n_words:])
-            next_start = " ".join(next_words[:n_words])
+        for start_idx in range(1, len(curr_words)):
+            suffix = " ".join(curr_words[start_idx:]).strip()
+            suffix_lower = suffix.lower()
+            next_desc_lower = next_desc.lower()
 
             if (
-                next_desc.lower().startswith(overlap.lower())
-                or next_start.lower().startswith(overlap.lower())
-                or overlap.lower().startswith(next_start.lower())
+                next_desc_lower.startswith(suffix_lower)
+                or suffix_lower.startswith(next_desc_lower[:len(suffix_lower)])
             ):
-                new_curr = " ".join(curr_words[:-n_words]).strip(" -:,")
+                new_curr = " ".join(curr_words[:start_idx]).strip(" -:,")
                 if new_curr:
                     items[i]["description"] = new_curr
                 break
