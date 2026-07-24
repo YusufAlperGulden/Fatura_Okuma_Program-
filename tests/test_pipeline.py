@@ -758,6 +758,25 @@ class PipelineTests(unittest.TestCase):
             self.assertNotIn("868018076846834", target_item["description"])
             self.assertNotIn("~", target_item["description"])
 
+    def test_erdem_cevik_golden_regression_if_file_exists(self):
+        import os, glob
+        from extractors.pdf_extractor import parse_pdf_invoice
+        pdfs = glob.glob('*ERDEM*.pdf') + glob.glob('../*ERDEM*.pdf') + glob.glob('uploads/*ERDEM*.pdf') + glob.glob('C:/Users/stajyer/Downloads/*ERDEM*.pdf') + glob.glob('erdem_cevik.pdf')
+        if pdfs and os.path.exists(pdfs[0]):
+            res = parse_pdf_invoice(pdfs[0])
+            items = res.get("items", [])
+            self.assertEqual(len(items), 1)
+            self.assertEqual(items[0]["code"], "0213.215")
+            self.assertEqual(items[0]["description"], "NFC Black Kart")
+            self.assertEqual(items[0]["quantity"], "1,00")
+            self.assertEqual(items[0]["unit_price"], "187,42")
+            self.assertEqual(items[0]["total_price"], "187,42")
+            
+            self.assertNotIn("TC", items[0]["description"])
+            self.assertNotIn("11111111111", items[0]["description"])
+            self.assertNotIn("22.04.2025", items[0]["description"])
+            self.assertNotIn("10:54", items[0]["description"])
+
 
 if __name__ == "__main__":
     unittest.main()

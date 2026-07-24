@@ -977,7 +977,27 @@ def extract_items_via_item_blocks(pages):
                 if rules_below:
                     bot_y = min(bot_y, min(rules_below))
 
-            band_lines = [l for l in lines if top_y <= (l["top"] + l["bottom"]) / 2 <= bot_y]
+            # Filter lines above and below anchor using local continuity
+            anchor_line_y = (anchor["line"]["top"] + anchor["line"]["bottom"]) / 2
+            
+            # Pre-anchor lines: scan upward step-by-step starting from anchor line
+            pre_anchor_lines = []
+            curr_y = anchor["line"]["top"]
+            lines_above = sorted([l for l in lines if top_y <= (l["top"] + l["bottom"]) / 2 < anchor_line_y - 4], key=lambda l: l["bottom"], reverse=True)
+            
+            for l in lines_above:
+                gap = curr_y - l["bottom"]
+                l_text = " ".join(w["text"] for w in l["words"]).strip()
+                if gap > 22 or re.search(r"(?i)^(?:Kodu|Kod\b|Açıklama|Aciklama|Miktar|Birim|Fiyat|TC\b|Tarih|Posta|Adres|Sayın|Müşteri)", l_text):
+                    break
+                pre_anchor_lines.append(l)
+                curr_y = l["top"]
+            pre_anchor_lines.reverse()
+
+            # Post-anchor & anchor lines
+            post_anchor_lines = [l for l in lines if anchor_line_y - 4 <= (l["top"] + l["bottom"]) / 2 <= bot_y]
+
+            band_lines = pre_anchor_lines + post_anchor_lines
 
             desc_parts = []
             serial_raw_parts = []
