@@ -845,14 +845,14 @@ def parse_invoice_text(text: str, top_text: str = None) -> dict:
     return data
 
 
-def extract_items_via_item_blocks(pdf):
+def extract_items_via_item_blocks(pages):
     """
     Item Block Geometry Extractor:
     Uses word coordinates (x, y) to construct vertical item bands, match financial anchors,
     and cleanly separate product descriptions from multiline serial blocks.
     """
     items = []
-    for page in pdf.pages:
+    for page in pages:
         words = page.extract_words()
         if not words:
             continue
@@ -909,8 +909,21 @@ def extract_items_via_item_blocks(pdf):
         if not anchors:
             continue
 
-        table_top = min(a["anchor_y"] for a in anchors) - 40
-        table_bottom = max(a["anchor_y"] for a in anchors) + 40
+        # Detect Table Header Bottom & Footer Top for generic item_top / item_bottom bounds
+        header_bottom = 0.0
+        footer_top = page.height
+
+        for l in lines:
+            l_text = " ".join(w["text"] for w in l["words"])
+            if re.search(r"(?i)\b(?:kodu|aciklama|açıklama|miktar|birim|fiyat)\b", l_text):
+                if l["bottom"] > header_bottom:
+                    header_bottom = l["bottom"]
+            if re.search(r"(?i)\b(?:ara\s*toplam|kdv|yekun|genel\s*toplam|odenecek)\b", l_text):
+                if l["top"] < footer_top:
+                    footer_top = l["top"]
+
+        table_top = header_bottom if header_bottom > 0 else (min(a["anchor_y"] for a in anchors) - 40)
+        table_bottom = footer_top if footer_top < page.height else (max(a["anchor_y"] for a in anchors) + 40)
 
         for idx, anchor in enumerate(anchors):
             top_y = table_top if idx == 0 else (anchors[idx - 1]["anchor_y"] + anchor["anchor_y"]) / 2
@@ -936,7 +949,8 @@ def extract_items_via_item_blocks(pdf):
                 if not clean_text:
                     continue
 
-                if in_serial_block or ("(" in clean_text and any(c in clean_text for c in ("~", ";", ",", "-"))):
+                has_serial = bool(_extract_item_serial_numbers(clean_text) or re.search(r"[A-Z]{2,}\d{3,}", clean_text))
+                if in_serial_block or ("(" in clean_text and has_serial and any(c in clean_text for c in ("~", ";", ",", "-"))):
                     in_serial_block = True
                     serial_raw_parts.append(clean_text)
                     paren_balance += clean_text.count("(") - clean_text.count(")")
@@ -1033,25 +1047,33 @@ def parse_pdf_invoice(file_path: str) -> dict:
                 )
 
         # Fikir 4.1 Item Block Geometry Reconciliation:
-        # If any item's description is missing or contains only serial numbers (e.g. KATLAN layout),
-        # use the Item Block Geometry Extractor to reconstruct the description & multiline serial block.
+        # If an item's description is missing, contains only serial numbers, or lost pre-anchor lines (e.g. ASYAPORT, KATLAN),
+        # use the Item Block Geometry Extractor to reconstruct the complete description & multiline serial block.
         geom_items = None
         for item in data.get("items", []):
             desc_clean = _description_without_serials(item.get("description", "")).strip()
-            if not item.get("description") or not desc_clean or re.fullmatch(r"[\(\)\[\]\-~,; ]+", desc_clean):
-                if geom_items is None:
-                    try:
-                        geom_items = extract_items_via_item_blocks(pdf)
-                    except Exception as ge:
-                        print(f"Geometry item block extraction note: {ge}")
-                        geom_items = []
-                if geom_items:
-                    for g in geom_items:
-                        if g.get("code") == item.get("code") and g.get("description"):
+            needs_geom = (
+                not item.get("description")
+                or not desc_clean
+                or re.fullmatch(r"[\(\)\[\]\-~,; ]+", desc_clean)
+            )
+
+            if geom_items is None:
+                try:
+                    target_pages = cropped_pages if 'cropped_pages' in locals() and cropped_pages else pdf.pages
+                    geom_items = extract_items_via_item_blocks(target_pages)
+                except Exception as ge:
+                    print(f"Geometry item block extraction note: {ge}")
+                    geom_items = []
+
+            if geom_items:
+                for g in geom_items:
+                    if g.get("code") == item.get("code") and g.get("description"):
+                        if needs_geom or len(g["description"]) > len(item.get("description", "")) + 5:
                             item["description"] = g["description"]
-                            if g.get("serial_numbers") and not item.get("serial_numbers"):
-                                item["serial_numbers"] = g["serial_numbers"]
-                            break
+                        if g.get("serial_numbers") and not item.get("serial_numbers"):
+                            item["serial_numbers"] = g["serial_numbers"]
+                        break
 
         data["items"] = _trim_trailing_row_bleed(data.get("items", []))
 
