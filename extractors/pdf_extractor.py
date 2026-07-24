@@ -1026,10 +1026,13 @@ def extract_items_via_item_blocks(pages):
                 line_words_clean = []
                 for w in sorted(filtered_words, key=lambda w: w["x0"]):
                     t = w["text"].strip()
-                    if is_anchor:
-                        if re.fullmatch(r"[₺$€]?\s*\d{1,3}(?:\.\d{3})*(?:,\d{2})", t) or t in ("₺", "TL", "USD", "EUR"):
+                    if w["x0"] > (anchor["code_word"]["x0"] + 90):
+                        if any(c in t for c in ("₺", "$", "€")) or t in ("TL", "USD", "EUR"):
                             continue
-                        if w["x0"] > (anchor["code_word"]["x0"] + 110) and re.fullmatch(r"\d+(?:[.,]\d+)?", t):
+                        if re.search(r"\d{1,3}(?:\.\d{3})*(?:,\d{2})", t) or re.fullmatch(r"\d+(?:[.,]\d{2,})", t):
+                            continue
+                    elif is_anchor:
+                        if re.fullmatch(r"[₺$€]?\s*\d{1,3}(?:\.\d{3})*(?:,\d{2})", t) or t in ("₺", "TL", "USD", "EUR"):
                             continue
                     line_words_clean.append(t)
 

@@ -777,6 +777,24 @@ class PipelineTests(unittest.TestCase):
             self.assertNotIn("22.04.2025", items[0]["description"])
             self.assertNotIn("10:54", items[0]["description"])
 
+    def test_nurol_golden_regression_if_file_exists(self):
+        import os, glob
+        from extractors.pdf_extractor import parse_pdf_invoice
+        pdfs = glob.glob('*NUROL*.pdf') + glob.glob('../*NUROL*.pdf') + glob.glob('uploads/*NUROL*.pdf') + glob.glob('C:/Users/stajyer/Downloads/*NUROL*.pdf') + glob.glob('nurol.pdf')
+        if pdfs and os.path.exists(pdfs[0]):
+            res = parse_pdf_invoice(pdfs[0])
+            items = res.get("items", [])
+            self.assertEqual(len(items), 1)
+            self.assertEqual(items[0]["code"], "3745.012")
+            self.assertEqual(items[0]["description"], "NFC Etiket")
+            self.assertEqual(items[0]["quantity"], "28.000,00")
+            self.assertEqual(items[0]["unit_price"], "12,22")
+            self.assertEqual(items[0]["total_price"], "342135,25")
+            
+            self.assertNotIn("₺12,22", items[0]["description"])
+            self.assertNotIn("342.135,25", items[0]["description"])
+            self.assertEqual(items[0]["description"].count("NFC Etiket"), 1)
+
 
 if __name__ == "__main__":
     unittest.main()
