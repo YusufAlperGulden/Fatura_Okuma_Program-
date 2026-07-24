@@ -651,7 +651,8 @@ def _merge_table_items_with_text_items(table_items, text_items):
         text_item = text_items[match_index]
         if not table_item["serial_numbers"]:
             table_item["serial_numbers"] = list(text_item.get("serial_numbers") or [])
-        if not table_item.get("description") and text_item.get("description"):
+        table_desc_clean = _description_without_serials(table_item.get("description", "")).strip()
+        if (not table_item.get("description") or not table_desc_clean or re.fullmatch(r"[\(\)\[\]\-~,; ]+", table_desc_clean)) and text_item.get("description"):
             table_item["description"] = text_item["description"]
 
     return table_items
