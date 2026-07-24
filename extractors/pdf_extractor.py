@@ -1104,7 +1104,8 @@ def parse_pdf_invoice(file_path: str) -> dict:
 
             if geom_items is None:
                 try:
-                    geom_items = extract_items_via_item_blocks(pdf.pages)
+                    target_pages = cropped_pages if 'cropped_pages' in locals() and cropped_pages else pdf.pages
+                    geom_items = extract_items_via_item_blocks(target_pages)
                 except Exception as ge:
                     print(f"Geometry item block extraction note: {ge}")
                     geom_items = []
