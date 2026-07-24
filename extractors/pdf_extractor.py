@@ -586,18 +586,10 @@ def _find_items(text):
                 break
 
         # The KATLAN-style layout puts the serial group on the item anchor
-        # line, then wraps one serial across the next PDF text line. Only join
-        # lines while an item-level serial construct is visibly continuing.
+        # line, then wraps one serial across the next PDF text line.
         serial_context = [item["description"]]
         open_group = item["description"].count("(") + item["description"].count("[")
         open_group -= item["description"].count(")") + item["description"].count("]")
-        desc_no_serials = _description_without_serials(item["description"]).strip()
-        if not desc_no_serials or re.fullmatch(r"[\(\)\[\]\-~,; ]+", desc_no_serials):
-            previous_idx = line_idx - 1
-            while previous_idx >= 0 and not cleaned_lines[previous_idx]:
-                previous_idx -= 1
-            if previous_idx >= 0 and _is_likely_item_description(cleaned_lines[previous_idx]):
-                serial_context.insert(0, cleaned_lines[previous_idx])
 
         for continuation in cleaned_lines[line_idx + 1 : next_line_idx]:
             if not continuation or section_stop.search(continuation):
@@ -620,6 +612,13 @@ def _find_items(text):
         item["serial_numbers"] = _extract_item_serial_numbers(item_text)
         cleaned_description = _description_without_serials(item_text)
 
+        if not cleaned_description or re.fullmatch(r"[\(\)\[\]\-~,; ]+", cleaned_description):
+            previous_idx = line_idx - 1
+            while previous_idx >= 0 and not cleaned_lines[previous_idx].strip():
+                previous_idx -= 1
+            if previous_idx >= 0 and _is_likely_item_description(cleaned_lines[previous_idx]):
+                cleaned_description = cleaned_lines[previous_idx].strip()
+
         if cleaned_description:
             item["description"] = cleaned_description
 
@@ -637,9 +636,10 @@ def _merge_table_items_with_text_items(table_items, text_items):
         for text_index, text_item in enumerate(text_items):
             if text_index in used_text_indexes:
                 continue
-            if table_item.get("code") and table_item.get("code") == text_item.get("code"):
-                match_index = text_index
-                break
+            if table_item.get("code") and text_item.get("code"):
+                if table_item["code"] in text_item["code"] or text_item["code"] in table_item["code"]:
+                    match_index = text_index
+                    break
 
         if match_index is None and table_index < len(text_items) and table_index not in used_text_indexes:
             match_index = table_index
@@ -651,7 +651,7 @@ def _merge_table_items_with_text_items(table_items, text_items):
         text_item = text_items[match_index]
         if not table_item["serial_numbers"]:
             table_item["serial_numbers"] = list(text_item.get("serial_numbers") or [])
-        if not table_item.get("description") and text_item.get("description"):
+        if text_item.get("description"):
             table_item["description"] = text_item["description"]
 
     return table_items
@@ -848,20 +848,26 @@ def parse_pdf_invoice(file_path: str) -> dict:
                 if first_page.width > first_page.height * 1.1:
                     # Possible landscape multi-copy layout. Let's check for repeated columns.
                     if plain_text.count("Ara Toplam") >= 2 or plain_text.count("Genel Toplam") >= 2 or plain_text.count("KDV") >= 3:
-                        print("Detected multi-copy landscape layout. Cropping to the right third to prevent horizontal bleed...")
+                        is_three_copies = plain_text.count("Ara Toplam") >= 3 or plain_text.count("Genel Toplam") >= 3
+                        # Use 0.66/0.50 for tables to avoid catching the middle copy's right edge
+                        crop_ratio_tables = 0.66 if is_three_copies else 0.50
+                        # Use 0.64/0.48 for text to add a safety margin to prevent cutting off left-side characters
+                        crop_ratio_text = 0.64 if is_three_copies else 0.48
+                        print(f"Detected multi-copy landscape layout. Cropping to the right {1-crop_ratio_tables:.0%} (tables) and {1-crop_ratio_text:.0%} (text) to prevent horizontal bleed...")
                         plain_text = ""
                         layout_text = ""
-                        cropped_pages = []
+                        cropped_pages_tables = []
                         for page in pdf.pages:
-                            # Crop to right 34% (copy 3) to prevent right-side clipping
-                            bbox = (page.width * 0.66, 0, page.width, page.height)
-                            cropped = page.crop(bbox)
-                            cropped_pages.append(cropped)
-                            pt = cropped.extract_text()
-                            lt = cropped.extract_text(layout=True)
+                            bbox_tables = (page.width * crop_ratio_tables, 0, page.width, page.height)
+                            cropped_pages_tables.append(page.crop(bbox_tables))
+                            
+                            bbox_text = (page.width * crop_ratio_text, 0, page.width, page.height)
+                            cropped_text_page = page.crop(bbox_text)
+                            pt = cropped_text_page.extract_text()
+                            lt = cropped_text_page.extract_text(layout=True)
                             if pt: plain_text += pt + "\n"
                             if lt: layout_text += lt + "\n"
-                        table_items = extract_items_from_tables(cropped_pages)
+                        table_items = extract_items_from_tables(cropped_pages_tables)
                     else:
                         table_items = extract_items_from_tables(pdf.pages)
                 else:
