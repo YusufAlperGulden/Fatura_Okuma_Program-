@@ -646,6 +646,56 @@ class PipelineTests(unittest.TestCase):
         self.assertEqual(match["Title"], "OTO ISMAIL OTOMOTIV SAN. VE TIC. LTD. STI. Test Kullanicisi")
         self.assertEqual(match["PostboxAlias"], "urn:mail:defaultpk@otoismail.com.tr")
 
+    def test_katlan_golden_regression(self):
+        text = """
+        Elektronik Barkod Kodlayıcı / Yazıcı
+        1390.151 (DBJ251703926~DBJ251703864~DBJ251703909~DBJ251703825~DBJ 6,00 ₺43.703,98 ₺262.223,89
+        251703866~DBJ254618071)
+        1984.001 Kargo Ücreti 1,00 ₺445,96 ₺445,96
+        Ara Toplam ₺262.669,85
+        KDV 18(%20) ₺52.533,97
+        Yekün ₺315.203,82
+        """
+        data = parse_invoice_text(text)
+        self.assertEqual(len(data["items"]), 2)
+        self.assertEqual(data["items"][0]["code"], "1390.151")
+        self.assertEqual(data["items"][0]["description"], "Elektronik Barkod Kodlayıcı / Yazıcı")
+        self.assertEqual(
+            data["items"][0]["serial_numbers"],
+            [
+                "DBJ251703926",
+                "DBJ251703864",
+                "DBJ251703909",
+                "DBJ251703825",
+                "DBJ251703866",
+                "DBJ254618071",
+            ],
+        )
+        self.assertTrue(
+            all(s not in data["items"][0]["description"] for s in data["items"][0]["serial_numbers"])
+        )
+        self.assertEqual(data["items"][1]["code"], "1984.001")
+        self.assertEqual(data["items"][1]["description"], "Kargo Ücreti")
+
+    def test_asyaport_golden_regression_if_file_exists(self):
+        import os, glob
+        from extractors.pdf_extractor import parse_pdf_invoice
+        pdfs = glob.glob('*asyaport*.pdf') + glob.glob('../*asyaport*.pdf') + glob.glob('uploads/*asyaport*.pdf') + glob.glob('C:/Users/stajyer/Downloads/*asyaport*.pdf')
+        if pdfs and os.path.exists(pdfs[0]):
+            res = parse_pdf_invoice(pdfs[0])
+            items = res.get("items", [])
+            self.assertGreaterEqual(len(items), 1)
+            self.assertEqual(items[0]["code"], "0219.001")
+            expected_desc = (
+                "Standart Pvc, 2K Bit (256Byte) Hafızalı, 2 Uygulama Alanlı, "
+                "Programlanmamış, Parlak Beyaz Ön Ve Arka Yüzey, "
+                "Mürekkeple Basılmış Dış Numara, Kart Delgeç işaretli "
+                "Temassız Akıllı Kart"
+            )
+            self.assertEqual(items[0]["description"], expected_desc)
+            self.assertNotIn("Ara Toplam", items[0]["description"])
+            self.assertNotIn("KDV", items[0]["description"])
+
 
 if __name__ == "__main__":
     unittest.main()
