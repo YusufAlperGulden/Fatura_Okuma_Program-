@@ -492,7 +492,7 @@ def _find_items(text):
         re.IGNORECASE,
     )
 
-    code_start_pattern = re.compile(r"(?=(?:\d{4}\.\d{3,4}|[A-Z]{2,4}-\d{3})[ \t]+)")
+    code_start_pattern = re.compile(r"(?=(?:\d{4}\.\d{3}|[A-Z]{2,4}-\d{3})[ \t]+)")
 
     def split_repeated_item_line(line):
         starts = [match.start() for match in code_start_pattern.finditer(line)]
@@ -512,7 +512,7 @@ def _find_items(text):
         i = 0
         while i < len(lines):
             line = lines[i]
-            if re.match(r"^[ \t]*(?:\d{4}\.\d{3,4}|[A-Z]{2,4}-\d{3})", line) and not item_line_pattern.match(line):
+            if re.match(r"^[ \t]*(?:\d{4}\.\d{3}|[A-Z]{2,4}-\d{3})", line) and not item_line_pattern.match(line):
                 matched = False
                 candidates = [(line, 0)]
                 for j in range(1, 4):
@@ -548,7 +548,7 @@ def _find_items(text):
             if not match:
                 continue
 
-            if re.match(r"(?i)^(?:kodu|kod\b|açıklama|aciklama|mal\s*/?\s*hizmet|ürün|urun|miktar|birim|ara\s*toplam|kdv|k\.?d\.?v\.?|yekun|genel\s*toplam|ödenecek|odenecek|indirim|iskonto|toplam|fatura|seri|tarih)", match.group("code")):
+            if re.match(r"(?i)^(?:kodu|kod\b|açıklama|aciklama|mal\s*/?\s*hizmet|ürün|urun|miktar|birim|ara\s*toplam|kdv|k\.?d\.?v\.?|yekun|genel\s*toplam|ödenecek|odenecek|indirim|iskonto|toplam)", match.group("code")):
                 continue
 
             unit_price_str = match.group("unit_price")
@@ -586,8 +586,19 @@ def _find_items(text):
                 break
 
         # The KATLAN-style layout puts the serial group on the item anchor
-        # line, then wraps one serial across the next PDF text line.
+        # line, then wraps one serial across the next PDF text line. Only join
+        # lines while an item-level serial construct is visibly continuing.
         serial_context = [item["description"]]
+        open_group = item["description"].count("(") + item["description"].count("[")
+        open_group -= item["description"].count(")") + item["description"].count("]")
+        desc_no_serials = _description_without_serials(item["description"]).strip()
+        if not desc_no_serials or re.fullmatch(r"[\(\)\[\]\-~,; ]+", desc_no_serials):
+            previous_idx = line_idx - 1
+            while previous_idx >= 0 and not cleaned_lines[previous_idx]:
+                previous_idx -= 1
+            if previous_idx >= 0 and _is_likely_item_description(cleaned_lines[previous_idx]):
+                serial_context.insert(0, cleaned_lines[previous_idx])
+
         for continuation in cleaned_lines[line_idx + 1 : next_line_idx]:
             if not continuation or section_stop.search(continuation):
                 break
@@ -609,13 +620,6 @@ def _find_items(text):
         item["serial_numbers"] = _extract_item_serial_numbers(item_text)
         cleaned_description = _description_without_serials(item_text)
 
-        if not cleaned_description or re.fullmatch(r"[\(\)\[\]\-~,; ]+", cleaned_description):
-            previous_idx = line_idx - 1
-            while previous_idx >= 0 and not cleaned_lines[previous_idx].strip():
-                previous_idx -= 1
-            if previous_idx >= 0 and _is_likely_item_description(cleaned_lines[previous_idx]):
-                cleaned_description = cleaned_lines[previous_idx].strip()
-
         if cleaned_description:
             item["description"] = cleaned_description
 
@@ -633,10 +637,9 @@ def _merge_table_items_with_text_items(table_items, text_items):
         for text_index, text_item in enumerate(text_items):
             if text_index in used_text_indexes:
                 continue
-            if table_item.get("code") and text_item.get("code"):
-                if table_item["code"] in text_item["code"] or text_item["code"] in table_item["code"]:
-                    match_index = text_index
-                    break
+            if table_item.get("code") and table_item.get("code") == text_item.get("code"):
+                match_index = text_index
+                break
 
         if match_index is None and table_index < len(text_items) and table_index not in used_text_indexes:
             match_index = table_index
@@ -648,7 +651,7 @@ def _merge_table_items_with_text_items(table_items, text_items):
         text_item = text_items[match_index]
         if not table_item["serial_numbers"]:
             table_item["serial_numbers"] = list(text_item.get("serial_numbers") or [])
-        if text_item.get("description"):
+        if not table_item.get("description") and text_item.get("description"):
             table_item["description"] = text_item["description"]
 
     return table_items
@@ -845,15 +848,13 @@ def parse_pdf_invoice(file_path: str) -> dict:
                 if first_page.width > first_page.height * 1.1:
                     # Possible landscape multi-copy layout. Let's check for repeated columns.
                     if plain_text.count("Ara Toplam") >= 2 or plain_text.count("Genel Toplam") >= 2 or plain_text.count("KDV") >= 3:
-                        is_three_copies = plain_text.count("Ara Toplam") >= 3 or plain_text.count("Genel Toplam") >= 3
-                        # Use a small safety margin (0.02) to prevent cutting off the first characters of the rightmost copy
-                        crop_ratio = 0.64 if is_three_copies else 0.48
-                        print(f"Detected multi-copy landscape layout. Cropping to the right {1-crop_ratio:.0%} to prevent horizontal bleed...")
+                        print("Detected multi-copy landscape layout. Cropping to the right third to prevent horizontal bleed...")
                         plain_text = ""
                         layout_text = ""
                         cropped_pages = []
                         for page in pdf.pages:
-                            bbox = (page.width * crop_ratio, 0, page.width, page.height)
+                            # Crop to right 34% (copy 3) to prevent right-side clipping
+                            bbox = (page.width * 0.66, 0, page.width, page.height)
                             cropped = page.crop(bbox)
                             cropped_pages.append(cropped)
                             pt = cropped.extract_text()

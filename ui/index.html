@@ -3,8 +3,44 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Fatura Veri Otomasyonu v50</title>
-    <link rel="stylesheet" href="style.css?v=50">
+    <title>Fatura Veri Otomasyonu v46</title>
+    <link rel="stylesheet" href="style.css?v=25">
+    <!-- Credentials Modal -->
+    <div id="credentials-modal" class="modal hidden">
+        <div class="modal-content" style="max-width: 400px; padding: 2rem; margin: auto;">
+            <h2 style="margin-top: 0; margin-bottom: 1.5rem; text-align: center;">Uyumsoft Kimlik Bilgileri</h2>
+            <div style="margin-bottom: 1rem; text-align: left;">
+                <label for="cred-username" style="display: block; margin-bottom: 0.5rem; font-weight: 600;">Kullanıcı Adı</label>
+                <input type="text" id="cred-username" placeholder="Uyumsoft Kullanıcı Adı" style="width: 100%; padding: 0.75rem; border: 1px solid var(--border-color); border-radius: 8px; background: var(--input-bg); color: var(--text-primary);">
+            </div>
+            <div style="margin-bottom: 1.5rem; text-align: left;">
+                <label for="cred-password" style="display: block; margin-bottom: 0.5rem; font-weight: 600;">Şifre</label>
+                <input type="password" id="cred-password" placeholder="Şifre" style="width: 100%; padding: 0.75rem; border: 1px solid var(--border-color); border-radius: 8px; background: var(--input-bg); color: var(--text-primary);">
+            </div>
+            <div class="modal-actions" style="display: flex; justify-content: flex-end; gap: 1rem;">
+                <button id="cred-cancel-btn" class="secondary-btn">İptal</button>
+                <button id="cred-save-btn" class="primary-btn">Kaydet</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Edit Modal -->
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <!-- Toastify for in-app notifications -->
+    <link rel="stylesheet" type="text/css" href="https://cdn.jsdelivr.net/npm/toastify-js/src/toastify.min.css">
+    <script type="text/javascript" src="https://cdn.jsdelivr.net/npm/toastify-js"></script>
+    <script>
+        // Check for saved theme preference or system preference
+        const savedTheme = localStorage.getItem('theme');
+        if (savedTheme === 'light' || (!savedTheme && window.matchMedia('(prefers-color-scheme: light)').matches)) {
+            document.documentElement.setAttribute('data-theme', 'light');
+        }
+        const savedColor = localStorage.getItem('colorTheme') || 'cyan';
+        if (savedColor) {
+            document.documentElement.setAttribute('data-color', savedColor);
+        }
+    </script>
     <style>
         /* Base Tinting Logic (Applies to all non-default themes) */
         [data-color]:not([data-color="ocean"]) {
@@ -323,43 +359,6 @@
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 <body>
-<!-- Credentials Modal -->
-    <div id="credentials-modal" class="modal hidden">
-        <div class="modal-content" style="max-width: 400px; padding: 2rem; margin: auto;">
-            <h2 style="margin-top: 0; margin-bottom: 1.5rem; text-align: center;">Uyumsoft Kimlik Bilgileri</h2>
-            <div style="margin-bottom: 1rem; text-align: left;">
-                <label for="cred-username" style="display: block; margin-bottom: 0.5rem; font-weight: 600;">Kullanıcı Adı</label>
-                <input type="text" id="cred-username" placeholder="Uyumsoft Kullanıcı Adı" style="width: 100%; padding: 0.75rem; border: 1px solid var(--border-color); border-radius: 8px; background: var(--input-bg); color: var(--text-primary);">
-            </div>
-            <div style="margin-bottom: 1.5rem; text-align: left;">
-                <label for="cred-password" style="display: block; margin-bottom: 0.5rem; font-weight: 600;">Şifre</label>
-                <input type="password" id="cred-password" placeholder="Şifre" style="width: 100%; padding: 0.75rem; border: 1px solid var(--border-color); border-radius: 8px; background: var(--input-bg); color: var(--text-primary);">
-            </div>
-            <div class="modal-actions" style="display: flex; justify-content: flex-end; gap: 1rem;">
-                <button id="cred-cancel-btn" class="secondary-btn">İptal</button>
-                <button id="cred-save-btn" class="primary-btn">Kaydet</button>
-            </div>
-        </div>
-    </div>
-
-    <!-- Edit Modal -->
-    <!-- Google Fonts -->
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-    <!-- Toastify for in-app notifications -->
-    <link rel="stylesheet" type="text/css" href="https://cdn.jsdelivr.net/npm/toastify-js/src/toastify.min.css">
-    <script type="text/javascript" src="https://cdn.jsdelivr.net/npm/toastify-js"></script>
-    <script>
-        // Check for saved theme preference or system preference
-        const savedTheme = localStorage.getItem('theme');
-        if (savedTheme === 'light' || (!savedTheme && window.matchMedia('(prefers-color-scheme: light)').matches)) {
-            document.documentElement.setAttribute('data-theme', 'light');
-        }
-        const savedColor = localStorage.getItem('colorTheme') || 'cyan';
-        if (savedColor) {
-            document.documentElement.setAttribute('data-color', savedColor);
-        }
-    </script>
-    
     <div class="app-container">
         <header style="position: relative;">
             <div style="display: flex; justify-content: flex-end; align-items: center; gap: 15px; margin-bottom: 0.5rem; flex-wrap: wrap;">
