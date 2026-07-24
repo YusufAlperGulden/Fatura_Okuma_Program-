@@ -1029,6 +1029,13 @@ def send_invoice_to_uyumsoft(
                 "details": str(exc),
                 "response_code": 502,
             }
+        except (TimeoutError, OSError) as exc:
+            return {
+                "success": False,
+                "message": "Uyumsoft sunucusu yanıt vermedi (zaman aşımı). Lütfen birkaç dakika sonra tekrar deneyin.",
+                "details": f"{type(exc).__name__}: {str(exc)}",
+                "response_code": 504,
+            }
         except Exception as exc:
             return {
                 "success": False,
@@ -1159,6 +1166,13 @@ def send_invoice_to_uyumsoft(
             "message": "Uyumsoft SOAP request failed.",
             "details": str(exc),
             "response_code": 502,
+        }
+    except (TimeoutError, OSError) as exc:
+        return {
+            "success": False,
+            "message": "Uyumsoft sunucusu yanıt vermedi (zaman aşımı). Lütfen birkaç dakika sonra tekrar deneyin.",
+            "details": f"{type(exc).__name__}: {str(exc)}",
+            "response_code": 504,
         }
     except Exception as exc:
         return {
