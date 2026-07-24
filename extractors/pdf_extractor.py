@@ -922,9 +922,6 @@ def parse_pdf_invoice(file_path: str) -> dict:
 
         for item in data.get("items", []):
             desc = item.get("description", "")
-            cleaned_desc = _description_without_serials(desc).strip()
-            if not cleaned_desc or re.fullmatch(r"[\(\)\[\]\-~,; ]+", cleaned_desc):
-                item["description"] = ""
             if re.match(r"(?i)^kargo\s+ücreti\b", desc):
                 item["description"] = "Kargo Ücreti"
 
