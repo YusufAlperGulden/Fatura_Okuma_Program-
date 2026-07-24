@@ -1349,6 +1349,19 @@ function setBatchNavigationDisabled(disabled) {
     const detailBackButton = document.getElementById('back-to-batch-btn');
     if (batchBackButton) batchBackButton.disabled = disabled;
     if (detailBackButton) detailBackButton.disabled = disabled;
+    // Lock batch rows visually while upload/processing is running
+    const tbody = document.getElementById('batch-table-body');
+    if (tbody) {
+        if (disabled) {
+            tbody.style.pointerEvents = 'none';
+            tbody.style.opacity = '0.75';
+            tbody.title = 'Tüm faturalar okunana kadar bekleyin...';
+        } else {
+            tbody.style.pointerEvents = '';
+            tbody.style.opacity = '';
+            tbody.title = '';
+        }
+    }
 }
 
 function cancelBatchRequests() {
@@ -1428,6 +1441,7 @@ function createBatchRow(file, index, generation) {
         createBatchCell('b-status', ''),
     );
     row.addEventListener('click', () => {
+        if (batchProcessing) return;  // Block clicks until all files are read
         if (!isCurrentBatchGeneration(generation)) return;
         const item = batchResults[index];
         if (item && item.success) openSingleResultFromBatch(index);
