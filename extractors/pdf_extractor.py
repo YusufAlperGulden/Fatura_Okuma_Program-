@@ -182,6 +182,44 @@ def _extract_unlabeled_invoice_no(text):
     return match.group(2) if match else None
 
 
+def _extract_customer_address(text, customer_name, customer_tax_id):
+    if not customer_name:
+        return None
+
+    buyer_lines = _buyer_section_lines(text)
+    if buyer_lines:
+        address_lines = []
+        name_found = False
+        for line in buyer_lines:
+            if not name_found and _clean_customer_name_line(line) == customer_name:
+                name_found = True
+                continue
+            if name_found:
+                if customer_tax_id and customer_tax_id in line:
+                    line = line.replace(customer_tax_id, "").strip()
+                if re.match(r"^(?:vkn|tckn|vergi\s+no|tc|v\.\s*d\.)", line, re.IGNORECASE):
+                    continue
+                if line:
+                    address_lines.append(line)
+        if address_lines:
+            return " ".join(address_lines).strip()
+
+    lines = [re.sub(r"\s+", " ", line).strip() for line in str(text or "").splitlines()]
+    lines = [line for line in lines if line]
+    tax_id_line_index, name_line_index = None, None
+    for index, line in enumerate(lines[:30]):
+        if customer_name in line and name_line_index is None:
+            name_line_index = index
+        if customer_tax_id and customer_tax_id in line and tax_id_line_index is None:
+            tax_id_line_index = index
+
+    if name_line_index is not None and tax_id_line_index is not None and tax_id_line_index > name_line_index:
+        address_lines = lines[name_line_index + 1 : tax_id_line_index]
+        if address_lines:
+            return " ".join(address_lines).strip()
+    return None
+
+
 def _extract_customer_name(text):
     for line in _buyer_section_lines(text):
         customer_name = _clean_customer_name_line(line)
@@ -755,6 +793,7 @@ def parse_invoice_text(text: str, top_text: str = None) -> dict:
         "customer_tax_id": None,
         "customer_name": None,
         "customer_title": None,
+        "customer_address": None,
         "items": [],
         "discount_amount": 0.0,
         "tax_amount": None,
@@ -830,6 +869,9 @@ def parse_invoice_text(text: str, top_text: str = None) -> dict:
     data["customer_tax_id"] = _extract_customer_tax_id(text)
     data["customer_name"] = _extract_customer_name(text)
     data["customer_title"] = data["customer_name"]
+    data["customer_address"] = _extract_customer_address(
+        text, data["customer_name"], data["customer_tax_id"]
+    )
     data["exchange_rate"] = _extract_exchange_rate(text)
     data["notes"] = _extract_invoice_notes(text)
 

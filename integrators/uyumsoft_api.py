@@ -516,6 +516,10 @@ def build_ubl_invoice(invoice: dict[str, Any]) -> str:
     supplier_scheme = _scheme_id(supplier_tax_id)
     customer_scheme = _scheme_id(customer_tax_id)
     customer_party_name_xml = _customer_party_name_xml(customer_name, customer_scheme)
+    customer_address = invoice.get("customer_address") or ""
+    customer_address_xml = ""
+    if customer_address:
+        customer_address_xml = f"""\n      <cac:PostalAddress>\n        <cbc:StreetName>{escape(customer_address)}</cbc:StreetName>\n        <cac:Country>\n          <cbc:Name>Türkiye</cbc:Name>\n        </cac:Country>\n      </cac:PostalAddress>"""
 
     allowance_charge_parts = []
     if discount_amount > 0:
@@ -632,7 +636,7 @@ def build_ubl_invoice(invoice: dict[str, Any]) -> str:
   <cac:AccountingCustomerParty>
     <cac:Party>
       <cac:PartyIdentification><cbc:ID schemeID="{customer_scheme}">{escape(customer_tax_id)}</cbc:ID></cac:PartyIdentification>
-      {customer_party_name_xml}
+      {customer_party_name_xml}{customer_address_xml}
     </cac:Party>
   </cac:AccountingCustomerParty>
   {allowance_charge_xml}{pricing_exchange_rate_xml}

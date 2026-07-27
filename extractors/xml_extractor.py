@@ -121,6 +121,7 @@ def parse_xml_invoice(file_path: str) -> dict:
         "customer_tax_id": None,
         "customer_name": None,
         "customer_title": None,
+        "customer_address": None,
         "items": [],
         "subtotal": None,
         "tax_amount": None,
@@ -205,6 +206,16 @@ def parse_xml_invoice(file_path: str) -> dict:
                 customer_name = customer_name.strip()
                 data["customer_name"] = customer_name
                 data["customer_title"] = customer_name
+                
+            address_parts = []
+            for elem in customer_party.iter():
+                if elem.tag.endswith("}PostalAddress") or elem.tag == "PostalAddress":
+                    for child in elem:
+                        if child.text and child.text.strip() and not child.tag.endswith("Country") and not child.tag.endswith("ID"):
+                            address_parts.append(child.text.strip())
+                    break
+            if address_parts:
+                data["customer_address"] = " ".join(address_parts)
                 
         # 3. Invoice Lines
         has_line_allowance = False
