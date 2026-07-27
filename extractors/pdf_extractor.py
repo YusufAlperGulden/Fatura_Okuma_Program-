@@ -1089,65 +1089,6 @@ def extract_items_via_item_blocks(pages):
 
     return unique_items
 
-def _apply_mode_b_usd_conversion(data: dict):
-    from decimal import Decimal
-    
-    text = data.get("_raw_text", "")
-    text_upper = text.replace('\n', ' ').upper()
-    has_usd_statement = "BEDELİ USD OLARAK" in text_upper or "USD OLARAK TAHSİL" in text_upper
-    has_foreign_total = "DÖVİZ TOPLAM" in text_upper and "$" in text_upper
-    has_exchange_rate = bool(data.get("exchange_rate"))
-    
-    import re
-    foreign_total_match = re.search(r'(?i)Döviz Toplam\s*:\s*\$([\d\.,]+)', text)
-    foreign_total = foreign_total_match.group(1).replace(".", "").replace(",", ".") if foreign_total_match else None
-    
-    if has_usd_statement and has_exchange_rate and (has_foreign_total or foreign_total):
-        try:
-            ex_rate = Decimal(data["exchange_rate"].replace(",", "."))
-            if ex_rate <= 0:
-                return
-            
-            data["local_subtotal"] = data.get("subtotal")
-            data["local_tax_amount"] = data.get("tax_amount")
-            data["local_total"] = data.get("total_amount")
-            
-            def _convert(val_str):
-                if not val_str: return None
-                val = Decimal(str(val_str).replace(".", "").replace(",", "."))
-                converted = (val / ex_rate).quantize(Decimal('0.01'))
-                return f"{converted:.2f}"
-
-            if data.get("local_subtotal"):
-                data["subtotal"] = _convert(data["local_subtotal"])
-            if data.get("local_tax_amount"):
-                data["tax_amount"] = _convert(data["local_tax_amount"])
-            
-            if foreign_total:
-                data["foreign_total"] = foreign_total
-                data["total_amount"] = foreign_total
-            elif data.get("local_total"):
-                data["total_amount"] = _convert(data["local_total"])
-                
-            data["currency"] = "USD"
-            data["document_currency"] = "USD"
-            data["settlement_currency"] = "USD"
-            data["accounting_currency"] = "TRY"
-            
-            for item in data.get("items", []):
-                item["local_unit_price"] = item.get("unit_price")
-                item["local_total_price"] = item.get("total_price")
-                item["local_amount_currency"] = "TRY"
-                
-                if item.get("local_unit_price"):
-                    item["unit_price"] = _convert(item["local_unit_price"])
-                if item.get("local_total_price"):
-                    item["total_price"] = _convert(item["local_total_price"])
-                item["amount_currency"] = "USD"
-                
-        except Exception as e:
-            print(f"Error applying Mode B USD conversion: {e}")
-
 
 def parse_pdf_invoice(file_path: str) -> dict:
     """
@@ -1267,8 +1208,6 @@ def parse_pdf_invoice(file_path: str) -> dict:
             from extractors.ocr_extractor import parse_pdf_invoice_ocr
 
             return parse_pdf_invoice_ocr(file_path)
-
-        _apply_mode_b_usd_conversion(data)
 
         print("Successfully read PDF file.")
         return data

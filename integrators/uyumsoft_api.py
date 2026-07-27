@@ -575,38 +575,6 @@ def build_ubl_invoice(invoice: dict[str, Any]) -> str:
     <cbc:Date>{issue_date}</cbc:Date>
   </cac:PricingExchangeRate>'''
 
-    local_tax_total_xml = ""
-    if currency != "TRY" and rate_decimal > Decimal("0"):
-        local_tax_amount = quantize_money(tax_amount * rate_decimal)
-        if invoice.get("local_tax_amount"):
-            local_tax_amount = _money(invoice.get("local_tax_amount"), field_name="local_tax_amount")
-            
-        local_tax_total_xml += f"""
-  <cac:TaxTotal>
-    <cbc:TaxAmount currencyID="TRY">{_fmt_money(local_tax_amount)}</cbc:TaxAmount>"""
-        for t_rate, t_amounts in tax_subtotals.items():
-            t_local_taxable = quantize_money(t_amounts["taxable"] * rate_decimal)
-            t_local_tax = quantize_money(t_amounts["tax"] * rate_decimal)
-            if len(tax_subtotals) == 1:
-                if invoice.get("local_subtotal"):
-                    t_local_taxable = _money(invoice.get("local_subtotal"), field_name="local_subtotal")
-                if invoice.get("local_tax_amount"):
-                    t_local_tax = _money(invoice.get("local_tax_amount"), field_name="local_tax_amount")
-                    
-            local_tax_total_xml += f"""
-    <cac:TaxSubtotal>
-      <cbc:TaxableAmount currencyID="TRY">{_fmt_money(t_local_taxable)}</cbc:TaxableAmount>
-      <cbc:TaxAmount currencyID="TRY">{_fmt_money(t_local_tax)}</cbc:TaxAmount>
-      <cbc:Percent>{_fmt_tax_rate(t_rate)}</cbc:Percent>
-      <cac:TaxCategory>
-        <cac:TaxScheme>
-          <cbc:Name>KDV</cbc:Name>
-          <cbc:TaxTypeCode>0015</cbc:TaxTypeCode>
-        </cac:TaxScheme>
-      </cac:TaxCategory>
-    </cac:TaxSubtotal>"""
-        local_tax_total_xml += "\n  </cac:TaxTotal>"
-
 
     return f"""<Invoice xmlns="{UBL_INVOICE_NS}" xmlns:cac="{CAC_NS}" xmlns:cbc="{CBC_NS}">
   <cbc:UBLVersionID>2.1</cbc:UBLVersionID>
@@ -636,7 +604,6 @@ def build_ubl_invoice(invoice: dict[str, Any]) -> str:
     </cac:Party>
   </cac:AccountingCustomerParty>
   {allowance_charge_xml}{pricing_exchange_rate_xml}
-  {local_tax_total_xml.lstrip()}
   <cac:TaxTotal>
     <cbc:TaxAmount currencyID="{currency}">{_fmt_money(tax_amount)}</cbc:TaxAmount>
     {doc_tax_subtotal_str}
