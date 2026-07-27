@@ -25,6 +25,58 @@ from utils.invoice_values import (
     quantize_money,
 )
 
+import re
+import unicodedata
+
+TURKISH_CITIES = [
+    "ADANA", "ADIYAMAN", "AFYONKARAHİSAR", "AĞRI", "AMASYA", "ANKARA", "ANTALYA", "ARTVİN", "AYDIN",
+    "BALIKESİR", "BİLECİK", "BİNGÖL", "BİTLİS", "BOLU", "BURDUR", "BURSA", "ÇANAKKALE", "ÇANKIRI",
+    "ÇORUM", "DENİZLİ", "DİYARBAKIR", "EDİRNE", "ELAZIĞ", "ERZİNCAN", "ERZURUM", "ESKİŞEHİR",
+    "GAZİANTEP", "GİRESUN", "GÜMÜŞHANE", "HAKKARİ", "HATAY", "ISPARTA", "MERSİN", "İSTANBUL",
+    "İZMİR", "KARS", "KASTAMONU", "KAYSERİ", "KIRKLARELİ", "KIRŞEHİR", "KOCAELİ", "KONYA", "KÜTAHYA",
+    "MALATYA", "MANİSA", "KAHRAMANMARAŞ", "MARDİN", "MUĞLA", "MUŞ", "NEVŞEHİR", "NİĞDE", "ORDU",
+    "RİZE", "SAKARYA", "SAMSUN", "SİİRT", "SİNOP", "SİVAS", "TEKİRDAĞ", "TOKAT", "TRABZON",
+    "TUNCELİ", "ŞANLIURFA", "UŞAK", "VAN", "YOZGAT", "ZONGULDAK", "AKSARAY", "BAYBURT", "KARAMAN",
+    "KIRIKKALE", "BATMAN", "ŞIRNAK", "BARTIN", "ARDAHAN", "IĞDIR", "YALOVA", "KARABÜK", "KİLİS",
+    "OSMANİYE", "DÜZCE"
+]
+
+def _normalize_text(text):
+    text = text.replace('İ', 'I').replace('ı', 'i')
+    return unicodedata.normalize('NFKD', text).encode('ASCII', 'ignore').decode('utf-8').upper()
+
+def parse_turkish_address(address_text):
+    if not address_text:
+        return {'street': '', 'city': '', 'district': ''}
+    
+    city = ''
+    district = ''
+    street = address_text
+    norm_address = _normalize_text(address_text)
+    
+    found_city = None
+    for c in TURKISH_CITIES:
+        norm_c = _normalize_text(c)
+        if re.search(r'\b' + norm_c + r'\b', norm_address):
+            found_city = norm_c
+            break
+            
+    if found_city:
+        match = re.search(r'\b' + found_city + r'\b', norm_address)
+        if match:
+            start, end = match.span()
+            city = address_text[start:end]
+            
+            pre_city = address_text[:start].strip(' \t\n\r,-/')
+            district_match = re.search(r'([A-Za-zÇŞĞÜÖİçşğüöı]+)\s*$', pre_city)
+            if district_match:
+                district = district_match.group(1)
+                street = re.sub(r'\b' + re.escape(district) + r'\s*[/,-]?\s*' + re.escape(city) + r'\b', '', street, flags=re.IGNORECASE)
+            else:
+                street = re.sub(r'\b' + re.escape(city) + r'\b', '', street, flags=re.IGNORECASE)
+                
+    return {'street': street.strip(' \t\n\r,-/'), 'city': city.strip(), 'district': district.strip()}
+
 def get_tcmb_rate(currency_code, date_str):
     try:
         date_obj = datetime.strptime(date_str, '%Y-%m-%d')
@@ -519,7 +571,13 @@ def build_ubl_invoice(invoice: dict[str, Any]) -> str:
     customer_address = invoice.get("customer_address") or ""
     customer_address_xml = ""
     if customer_address:
-        customer_address_xml = f"""\n      <cac:PostalAddress>\n        <cbc:StreetName>{escape(customer_address)}</cbc:StreetName>\n        <cac:Country>\n          <cbc:Name>Türkiye</cbc:Name>\n        </cac:Country>\n      </cac:PostalAddress>"""
+        parsed_addr = parse_turkish_address(customer_address)
+        street_xml = f"\n        <cbc:StreetName>{escape(parsed_addr['street'])}</cbc:StreetName>" if parsed_addr['street'] else ""
+        district_xml = f"\n        <cbc:CitySubdivisionName>{escape(parsed_addr['district'])}</cbc:CitySubdivisionName>" if parsed_addr['district'] else ""
+        city_xml = f"\n        <cbc:CityName>{escape(parsed_addr['city'])}</cbc:CityName>" if parsed_addr['city'] else ""
+        
+        customer_address_xml = f"""\n      <cac:PostalAddress>{street_xml}{district_xml}{city_xml}\n        <cac:Country>\n          <cbc:Name>Türkiye</cbc:Name>\n        </cac:Country>\n      </cac:PostalAddress>"""
+
 
     allowance_charge_parts = []
     if discount_amount > 0:
