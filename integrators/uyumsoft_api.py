@@ -636,7 +636,7 @@ def build_ubl_invoice(invoice: dict[str, Any]) -> str:
     </cac:Party>
   </cac:AccountingCustomerParty>
   {allowance_charge_xml}{pricing_exchange_rate_xml}
-  {local_tax_total_xml.lstrip()}
+  
   <cac:TaxTotal>
     <cbc:TaxAmount currencyID="{currency}">{_fmt_money(tax_amount)}</cbc:TaxAmount>
     {doc_tax_subtotal_str}
