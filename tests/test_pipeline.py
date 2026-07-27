@@ -788,8 +788,8 @@ class PipelineTests(unittest.TestCase):
             self.assertEqual(items[0]["code"], "3745.012")
             self.assertEqual(items[0]["description"], "NFC Etiket")
             self.assertEqual(items[0]["quantity"], "28.000,00")
-            self.assertEqual(items[0]["unit_price"], "12,22")
-            self.assertEqual(items[0]["total_price"], "342135,25")
+            self.assertEqual(items[0]["unit_price"], "0.26")
+            self.assertEqual(items[0]["total_price"], "7280.00")
             
             self.assertNotIn("₺12,22", items[0]["description"])
             self.assertNotIn("342.135,25", items[0]["description"])
@@ -798,3 +798,33 @@ class PipelineTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+    def test_mufemu_usd_primary_conversion(self):
+        import os
+        import glob
+        from extractors.pdf_extractor import parse_pdf_invoice
+        
+        pdf_files = glob.glob(os.path.join(self.test_data_dir, "*MUFEMU*.pdf"))
+        if not pdf_files:
+            pdf_files = glob.glob("C:/Users/stajyer/Downloads/*MUFEMU*.pdf")
+            
+        if not pdf_files:
+            self.skipTest("MUFEMU pdf not found in test data")
+            
+        result = parse_pdf_invoice(pdf_files[0])
+        self.assertEqual(result["currency"], "USD")
+        self.assertEqual(result["document_currency"], "USD")
+        self.assertEqual(result["accounting_currency"], "TRY")
+        
+        self.assertEqual(result["total_amount"], "4608.00")
+        self.assertEqual(result["foreign_total"], "4608.00")
+        
+        self.assertEqual(result["local_subtotal"], "180.678,53")
+        self.assertEqual(result["local_tax_amount"], "36135,71")
+        self.assertEqual(result["local_total"], "216.814,23")
+        
+        item = result["items"][0]
+        self.assertEqual(item["unit_price"], "1.92")
+        self.assertEqual(item["total_price"], "3840.00")
+        self.assertEqual(item["local_unit_price"], "90,34")
+        self.assertEqual(item["local_total_price"], "180678,53")

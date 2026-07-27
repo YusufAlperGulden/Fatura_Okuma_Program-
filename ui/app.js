@@ -1011,6 +1011,23 @@ document.addEventListener('DOMContentLoaded', () => {
             ? `${sym}${data.subtotal}`
             : '-';
 
+        const fxCard = document.getElementById('fx-card');
+        if (fxCard) {
+            if (data.local_total) {
+                const localSym = getSymbol(data.accounting_currency || 'TRY');
+                let fxContent = `<div>Ara Toplam: ${localSym}${data.local_subtotal || '-'}</div>`;
+                fxContent += `<div>KDV: ${localSym}${data.local_tax_amount || '-'}</div>`;
+                fxContent += `<div>Yekün: ${localSym}${data.local_total}</div>`;
+                if (data.exchange_rate) {
+                    fxContent += `<div>Kur: ${data.exchange_rate}</div>`;
+                }
+                document.getElementById('res-fx-info').innerHTML = fxContent;
+                fxCard.classList.remove('hidden');
+            } else {
+                fxCard.classList.add('hidden');
+            }
+        }
+
         const discountCard = document.getElementById('discount-card');
         if (parseMoney(data.discount_amount) > 0) {
             document.getElementById('res-discount').textContent = `-${sym}${data.discount_amount}`;
