@@ -127,6 +127,18 @@ def _safe_text(value: Any) -> str:
     return str(value).strip()
 
 
+def _format_address(address_val: Any) -> str:
+    if not address_val:
+        return ""
+    if isinstance(address_val, dict):
+        parts = []
+        for key in ('street', 'district', 'city', 'postal_zone', 'country'):
+            if address_val.get(key):
+                parts.append(str(address_val[key]))
+        return ", ".join(parts)
+    return _safe_text(address_val)
+
+
 def _normalize_date(value: Any) -> str:
     text = _safe_text(value)
     if not text:
@@ -263,7 +275,7 @@ def _build_customer_row(invoice: dict[str, Any], source_system: str) -> dict[str
         "customer_code": _safe_text(invoice.get("customer_code") or invoice.get("customer_tax_id")),
         "title": _customer_name(invoice),
         "tax_office": _safe_text(invoice.get("customer_tax_office")),
-        "address": _safe_text(invoice.get("customer_address")),
+        "address": _format_address(invoice.get("customer_address")),
         "city": _safe_text(invoice.get("customer_city")),
         "country": _safe_text(invoice.get("customer_country") or "TR"),
         "email": _safe_text(invoice.get("customer_email")),

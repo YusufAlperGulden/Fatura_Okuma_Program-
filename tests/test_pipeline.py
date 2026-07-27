@@ -211,6 +211,22 @@ class PipelineTests(unittest.TestCase):
         self.assertEqual(data["customer_name"], "DEMO ALICI LTD. ŞTİ.")
         self.assertEqual(data["customer_title"], "DEMO ALICI LTD. ŞTİ.")
 
+    def test_pdf_address_extraction_stops_correctly(self):
+        text = """Fatura
+Satici: Satici AS
+Alici:
+ORNEK MUSTERI SAN TIC LTD STI
+Ornek Mah. Test Cad.
+No: 1 Kat: 2
+Kadikoy / Istanbul
+Vergi Dairesi: Kadikoy VD
+VKN: 1234567890
+Tarih: 01.01.2026
+"""
+        from extractors.pdf_extractor import _extract_customer_address
+        address = _extract_customer_address(text, "ORNEK MUSTERI SAN TIC LTD STI", "1234567890")
+        self.assertEqual(address, "Ornek Mah. Test Cad. No: 1 Kat: 2 Kadikoy / Istanbul")
+
     def test_parse_pdf_explicit_exchange_rate(self):
         text = """
         Fatura Tarihi: 10.07.2026

@@ -186,6 +186,13 @@ def _extract_customer_address(text, customer_name, customer_tax_id):
     if not customer_name:
         return None
 
+    stop_pattern = re.compile(
+        r'\b(?:vergi\s*dairesi|v\.d\.|tarih|fatura\s*no|tel|fax|e-mail|email|e-posta|web|www\.)\b'
+        r'|\d{2}[./-]\d{2}[./-]\d{4}'
+        r'|@',
+        re.IGNORECASE
+    )
+
     buyer_lines = _buyer_section_lines(text)
     if buyer_lines:
         address_lines = []
@@ -195,6 +202,8 @@ def _extract_customer_address(text, customer_name, customer_tax_id):
                 name_found = True
                 continue
             if name_found:
+                if stop_pattern.search(line):
+                    break
                 if customer_tax_id and customer_tax_id in line:
                     line = line.replace(customer_tax_id, "").strip()
                 if re.match(r"^(?:vkn|tckn|vergi\s+no|tc|v\.\s*d\.)", line, re.IGNORECASE):
@@ -214,7 +223,11 @@ def _extract_customer_address(text, customer_name, customer_tax_id):
             tax_id_line_index = index
 
     if name_line_index is not None and tax_id_line_index is not None and tax_id_line_index > name_line_index:
-        address_lines = lines[name_line_index + 1 : tax_id_line_index]
+        address_lines = []
+        for line in lines[name_line_index + 1 : tax_id_line_index]:
+            if stop_pattern.search(line):
+                break
+            address_lines.append(line)
         if address_lines:
             return " ".join(address_lines).strip()
     return None

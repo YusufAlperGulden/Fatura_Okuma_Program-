@@ -207,15 +207,20 @@ def parse_xml_invoice(file_path: str) -> dict:
                 data["customer_name"] = customer_name
                 data["customer_title"] = customer_name
                 
-            address_parts = []
+            address_dict = {}
             for elem in customer_party.iter():
                 if elem.tag.endswith("}PostalAddress") or elem.tag == "PostalAddress":
-                    for child in elem:
-                        if child.text and child.text.strip() and not child.tag.endswith("Country") and not child.tag.endswith("ID"):
-                            address_parts.append(child.text.strip())
+                    address_dict["street"] = child_text_agnostic(elem, "StreetName") or ""
+                    address_dict["district"] = child_text_agnostic(elem, "CitySubdivisionName") or ""
+                    address_dict["city"] = child_text_agnostic(elem, "CityName") or ""
+                    address_dict["postal_zone"] = child_text_agnostic(elem, "PostalZone") or ""
+                    country_elem = next((e for e in elem if e.tag.endswith("}Country") or e.tag == "Country"), None)
+                    address_dict["country"] = child_text_agnostic(country_elem, "Name") if country_elem is not None else ""
                     break
-            if address_parts:
-                data["customer_address"] = " ".join(address_parts)
+            
+            if any(address_dict.values()):
+                # Only populate fields that have truthy string values
+                data["customer_address"] = {k: v.strip() for k, v in address_dict.items() if v and str(v).strip()}
                 
         # 3. Invoice Lines
         has_line_allowance = False

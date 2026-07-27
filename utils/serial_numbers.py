@@ -93,7 +93,7 @@ def safe_merge_ai_data(
 
     if isinstance(source, dict):
         # Preserve high-confidence fields from local extraction
-        for field in ["customer_tax_id", "invoice_no", "date", "time", "currency"]:
+        for field in ["customer_tax_id", "invoice_no", "date", "time", "currency", "customer_address"]:
             val = source.get(field)
             if not val:
                 continue

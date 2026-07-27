@@ -45,10 +45,20 @@ def _normalize_text(text):
     text = text.replace('İ', 'I').replace('ı', 'i')
     return unicodedata.normalize('NFKD', text).encode('ASCII', 'ignore').decode('utf-8').upper()
 
-def parse_turkish_address(address_text):
-    if not address_text:
-        return {'street': '', 'city': '', 'district': ''}
+def parse_turkish_address(address_data):
+    if not address_data:
+        return {'street': '', 'city': '', 'district': '', 'country': '', 'postal_zone': ''}
     
+    if isinstance(address_data, dict):
+        return {
+            'street': address_data.get('street', ''),
+            'city': address_data.get('city', ''),
+            'district': address_data.get('district', ''),
+            'country': address_data.get('country', ''),
+            'postal_zone': address_data.get('postal_zone', '')
+        }
+        
+    address_text = str(address_data)
     city = ''
     district = ''
     street = address_text
@@ -75,7 +85,7 @@ def parse_turkish_address(address_text):
             else:
                 street = re.sub(r'\b' + re.escape(city) + r'\b', '', street, flags=re.IGNORECASE)
                 
-    return {'street': street.strip(' \t\n\r,-/'), 'city': city.strip(), 'district': district.strip()}
+    return {'street': street.strip(' \t\n\r,-/'), 'city': city.strip(), 'district': district.strip(), 'country': '', 'postal_zone': ''}
 
 def get_tcmb_rate(currency_code, date_str):
     try:
@@ -266,19 +276,20 @@ def _customer_display_name(invoice: dict[str, Any], customer_tax_id: str) -> str
     return "BILINMEYEN MUSTERI"
 
 
-def _customer_party_name_xml(customer_name: str, customer_scheme: str) -> str:
+def _customer_party_name_xml(customer_name: str, customer_scheme: str) -> tuple[str, str]:
     """Build customer name XML without duplicating TCKN display names.
 
     Uyumsoft renders a TCKN party by joining Person/FirstName and
     Person/FamilyName.  Writing the full display name into both elements made
     the portal show values such as ``ALPER23 ALPER23``.  Split a multi-word
     name once; for a single-token name, emit only FirstName.
+    Returns (party_name_xml, person_xml).
     """
     normalized_name = " ".join(str(customer_name or "").split())
     escaped_name = escape(normalized_name)
 
     if customer_scheme != "TCKN":
-        return f"<cac:PartyName><cbc:Name>{escaped_name}</cbc:Name></cac:PartyName>"
+        return f"\n      <cac:PartyName><cbc:Name>{escaped_name}</cbc:Name></cac:PartyName>", ""
 
     name_parts = normalized_name.rsplit(maxsplit=1)
     first_name = escape(name_parts[0])
@@ -287,8 +298,8 @@ def _customer_party_name_xml(customer_name: str, customer_scheme: str) -> str:
         if len(name_parts) == 2
         else ""
     )
-    return (
-        f"<cac:Person><cbc:FirstName>{first_name}</cbc:FirstName>"
+    return "", (
+        f"\n      <cac:Person><cbc:FirstName>{first_name}</cbc:FirstName>"
         f"{family_name_xml}</cac:Person>"
     )
 
@@ -567,7 +578,7 @@ def build_ubl_invoice(invoice: dict[str, Any]) -> str:
 
     supplier_scheme = _scheme_id(supplier_tax_id)
     customer_scheme = _scheme_id(customer_tax_id)
-    customer_party_name_xml = _customer_party_name_xml(customer_name, customer_scheme)
+    customer_party_name_xml, customer_person_xml = _customer_party_name_xml(customer_name, customer_scheme)
     customer_address = invoice.get("customer_address") or ""
     customer_address_xml = ""
     if customer_address:
@@ -575,8 +586,11 @@ def build_ubl_invoice(invoice: dict[str, Any]) -> str:
         street_xml = f"\n        <cbc:StreetName>{escape(parsed_addr['street'])}</cbc:StreetName>" if parsed_addr['street'] else ""
         district_xml = f"\n        <cbc:CitySubdivisionName>{escape(parsed_addr['district'])}</cbc:CitySubdivisionName>" if parsed_addr['district'] else ""
         city_xml = f"\n        <cbc:CityName>{escape(parsed_addr['city'])}</cbc:CityName>" if parsed_addr['city'] else ""
+        postal_xml = f"\n        <cbc:PostalZone>{escape(parsed_addr['postal_zone'])}</cbc:PostalZone>" if parsed_addr['postal_zone'] else ""
+        country_name = parsed_addr['country'] or "Türkiye"
+        country_xml = f"\n        <cac:Country>\n          <cbc:Name>{escape(country_name)}</cbc:Name>\n        </cac:Country>"
         
-        customer_address_xml = f"""\n      <cac:PostalAddress>{street_xml}{district_xml}{city_xml}\n        <cac:Country>\n          <cbc:Name>Türkiye</cbc:Name>\n        </cac:Country>\n      </cac:PostalAddress>"""
+        customer_address_xml = f"""\n      <cac:PostalAddress>{street_xml}{district_xml}{city_xml}{postal_xml}{country_xml}\n      </cac:PostalAddress>"""
 
 
     allowance_charge_parts = []
@@ -693,8 +707,7 @@ def build_ubl_invoice(invoice: dict[str, Any]) -> str:
   </cac:AccountingSupplierParty>
   <cac:AccountingCustomerParty>
     <cac:Party>
-      <cac:PartyIdentification><cbc:ID schemeID="{customer_scheme}">{escape(customer_tax_id)}</cbc:ID></cac:PartyIdentification>
-      {customer_party_name_xml}{customer_address_xml}
+      <cac:PartyIdentification><cbc:ID schemeID="{customer_scheme}">{escape(customer_tax_id)}</cbc:ID></cac:PartyIdentification>{customer_party_name_xml}{customer_address_xml}{customer_person_xml}
     </cac:Party>
   </cac:AccountingCustomerParty>
   {allowance_charge_xml}{pricing_exchange_rate_xml}

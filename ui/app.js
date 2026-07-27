@@ -116,6 +116,10 @@ document.addEventListener('DOMContentLoaded', () => {
         handleEdit(-1, 'customer_name', e.target.value);
     });
 
+    document.getElementById('res-customer-address').addEventListener('input', (e) => {
+        handleEdit(-1, 'customer_address', e.target.value);
+    });
+
     document.querySelectorAll('.edit-input-top').forEach(input => {
         input.addEventListener('blur', () => {
             syncCanonicalInputs(currentInvoiceData);
@@ -355,6 +359,22 @@ document.addEventListener('DOMContentLoaded', () => {
             'res-customer-name',
             data.customer_name || data.customer_title || data.customer || '',
         );
+
+        let addressStr = '';
+        if (data.customer_address) {
+            if (typeof data.customer_address === 'object') {
+                const addrParts = [];
+                if (data.customer_address.street) addrParts.push(data.customer_address.street);
+                if (data.customer_address.district) addrParts.push(data.customer_address.district);
+                if (data.customer_address.city) addrParts.push(data.customer_address.city);
+                if (data.customer_address.postal_zone) addrParts.push(data.customer_address.postal_zone);
+                if (data.customer_address.country) addrParts.push(data.customer_address.country);
+                addressStr = addrParts.join(', ');
+            } else {
+                addressStr = data.customer_address;
+            }
+        }
+        updateInputIfNotFocused('res-customer-address', addressStr);
 
         if (!Array.isArray(data.items)) return;
         const editableFields = [
@@ -715,6 +735,7 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('res-time').value = '';
         document.getElementById('res-vkn').value = '';
         document.getElementById('res-customer-name').value = '';
+        document.getElementById('res-customer-address').value = '';
         document.getElementById('res-method').textContent = '-';
 
         document.getElementById('res-subtotal').textContent = '-';

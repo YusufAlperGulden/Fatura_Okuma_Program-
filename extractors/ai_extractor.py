@@ -178,6 +178,7 @@ Beklenen JSON alani:
   "time": "HH:MM veya HH:MM:SS",
   "customer_tax_id": "10 veya 11 haneli VKN/TCKN; belgede yoksa bos string",
   "customer_name": "Alicinin (Musterinin) Unvani veya Adi Soyadi (string)",
+  "customer_address": "Alicinin acik adresi (varsa)",
   "subtotal": 0.0,
   "discount_amount": 0.0,
   "tax_amount": 0.0,
