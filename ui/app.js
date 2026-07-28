@@ -271,11 +271,17 @@ document.addEventListener('DOMContentLoaded', () => {
     function updateEnvironmentBadges(environment) {
         const isProd = environment === 'prod';
         const isTest = environment === 'test';
-        const text = isProd
+        let text = isProd
             ? 'Uyumsoft ortamı: GERÇEK / CANLI'
             : isTest
                 ? 'Uyumsoft ortamı: TEST / ÖN KABUL'
-                : 'Uyumsoft ortamı: BİLİNMİYOR — gönderim kapalı';
+                : 'Uyumsoft ortamı: BİLİNMİYOR - gönderim kapalı';
+                
+        const username = sessionStorage.getItem('appUsername');
+        if (username) {
+            text += ` | Firma: ${username.toUpperCase()}`;
+        }
+        
         document.querySelectorAll(
             '#uyumsoft-environment-badge, #batch-uyumsoft-environment-badge'
         ).forEach(badge => {
