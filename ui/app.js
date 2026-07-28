@@ -1,6 +1,7 @@
 document.addEventListener('DOMContentLoaded', () => {
     const {
         calculateTaxBreakdown,
+        fetchWithTimeout,
         formatCentsTr,
         parseLocaleNumber,
     } = window.InvoiceUiHelpers;
@@ -9,6 +10,14 @@ document.addEventListener('DOMContentLoaded', () => {
     const themeBtn = document.getElementById('theme-toggle');
     if (themeBtn) {
         themeBtn.addEventListener('click', () => {
+            const icon = document.getElementById('theme-icon');
+            if (icon) {
+                icon.classList.remove('theme-spin-animate');
+                // trigger reflow to restart animation
+                void icon.offsetWidth;
+                icon.classList.add('theme-spin-animate');
+                setTimeout(() => icon.classList.remove('theme-spin-animate'), 400);
+            }
             const isLight = document.documentElement.getAttribute('data-theme') === 'light';
             if (isLight) {
                 document.documentElement.removeAttribute('data-theme');
@@ -22,7 +31,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Color theme logic
     const colorDots = document.querySelectorAll('.color-dot');
-    const savedColor = localStorage.getItem('colorTheme') || 'ocean';
+    const savedColor = localStorage.getItem('colorTheme') || 'cyan';
     
     // Set initial active state based on savedColor
     colorDots.forEach(dot => {
@@ -64,7 +73,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let currentSendAbortController = null;
 
     // Add event listener for draft send
-    document.getElementById('send-draft-btn').addEventListener('click', () => {
+    document.getElementById('send-draft-btn').addEventListener('click', async () => {
         if (currentValidationState === 'pending') {
             showDraftValidationPopup(
                 ['Yaptığınız değişikliklerin doğrulanması henüz tamamlanmadı. Lütfen kısa bir süre sonra tekrar deneyin.'],
@@ -72,10 +81,14 @@ document.addEventListener('DOMContentLoaded', () => {
             );
             return;
         }
-        if (!currentInvoiceIsValid) {
-            showDraftValidationPopup();
+        if (currentValidationState === 'invalid') {
+            showDraftValidationPopup(currentValidationErrors, "Fatura hatalı.");
             return;
         }
+
+        const proceed = await ensureUyumsoftCredentials();
+        if (!proceed) return;
+
         if (confirm("Bu faturayı Uyumsoft'a taslak olarak göndermek istediğinize emin misiniz?")) {
             runUyumsoftAction();
         }
@@ -103,6 +116,10 @@ document.addEventListener('DOMContentLoaded', () => {
         handleEdit(-1, 'customer_name', e.target.value);
     });
 
+    document.getElementById('res-customer-address').addEventListener('input', (e) => {
+        handleEdit(-1, 'customer_address', e.target.value);
+    });
+
     document.querySelectorAll('.edit-input-top').forEach(input => {
         input.addEventListener('blur', () => {
             syncCanonicalInputs(currentInvoiceData);
@@ -121,24 +138,85 @@ document.addEventListener('DOMContentLoaded', () => {
     async function loadRuntimeConfig() {
         try {
             const response = await fetch('/runtime-config');
-            if (!response.ok) throw new Error(`HTTP ${response.status}`);
-            const config = await response.json();
-            if (config.uyumsoft_portal_url) {
-                UYUMSOFT_PORTAL_URL = config.uyumsoft_portal_url;
+            if (response.ok) {
+                const config = await response.json();
+                if (config.uyumsoft_portal_url) {
+                    UYUMSOFT_PORTAL_URL = config.uyumsoft_portal_url;
+                }
             }
-            const environment = config.uyumsoft_environment === 'prod' ? 'prod' : 'test';
-            document.documentElement.dataset.uyumsoftEnvironment = environment;
-            const select = document.getElementById('environment-select');
-            if (select) {
-                select.value = environment;
-                select.disabled = true;
-            }
-            updateEnvironmentBadges(environment);
         } catch (error) {
-            console.warn('Uyumsoft ortam ayarı okunamadı.', error);
-            delete document.documentElement.dataset.uyumsoftEnvironment;
-            updateEnvironmentBadges(null);
+            console.warn('Uyumsoft portal URL okunamadı.', error);
         }
+
+        const localEnv = localStorage.getItem('uyumsoft_environment') || 'test';
+        document.documentElement.dataset.uyumsoftEnvironment = localEnv;
+        const selects = document.querySelectorAll('.env-dropdown');
+        selects.forEach(s => s.value = localEnv);
+        updateEnvironmentBadges(localEnv);
+    }
+
+    // Credentials Modal Logic
+    const credModal = document.getElementById('credentials-modal');
+    const credSaveBtn = document.getElementById('cred-save-btn');
+    const credCancelBtn = document.getElementById('cred-cancel-btn');
+    const credUser = document.getElementById('cred-username');
+    const credPass = document.getElementById('cred-password');
+    const envSelects = document.querySelectorAll('.env-dropdown');
+
+    envSelects.forEach(select => {
+        select.addEventListener('change', (e) => {
+            const val = e.target.value;
+            localStorage.setItem('uyumsoft_environment', val);
+            document.documentElement.dataset.uyumsoftEnvironment = val;
+            updateEnvironmentBadges(val);
+            
+            // Sync other dropdowns
+            envSelects.forEach(s => {
+                if (s !== e.target) s.value = val;
+            });
+        });
+    });
+
+    function ensureUyumsoftCredentials() {
+        return new Promise((resolve) => {
+            const env = localStorage.getItem('uyumsoft_environment') || 'test';
+            if (env !== 'prod') {
+                resolve(true);
+                return;
+            }
+            const savedUser = localStorage.getItem('uyumsoft_username');
+            const savedPass = localStorage.getItem('uyumsoft_password');
+            if (savedUser && savedPass) {
+                resolve(true);
+                return;
+            }
+            
+            // Show modal and wait for user
+            credUser.value = savedUser || '';
+            credPass.value = savedPass || '';
+            credModal.classList.remove('hidden');
+
+            const onSave = () => {
+                localStorage.setItem('uyumsoft_username', credUser.value.trim());
+                localStorage.setItem('uyumsoft_password', credPass.value.trim());
+                cleanup();
+                resolve(true);
+            };
+
+            const onCancel = () => {
+                cleanup();
+                resolve(false);
+            };
+
+            const cleanup = () => {
+                credModal.classList.add('hidden');
+                credSaveBtn.removeEventListener('click', onSave);
+                credCancelBtn.removeEventListener('click', onCancel);
+            };
+
+            credSaveBtn.addEventListener('click', onSave);
+            credCancelBtn.addEventListener('click', onCancel);
+        });
     }
 
     function updateEnvironmentBadges(environment) {
@@ -282,6 +360,15 @@ document.addEventListener('DOMContentLoaded', () => {
             data.customer_name || data.customer_title || data.customer || '',
         );
 
+
+        
+        let addressStr = '';
+        if (data.customer_address && typeof data.customer_address === 'string') {
+            addressStr = data.customer_address;
+        } else if (data.customer_postal_address && typeof data.customer_postal_address === 'object') {
+            addressStr = formatPostalAddressOneLine(data.customer_postal_address);
+        }
+        updateInputIfNotFocused('res-customer-address', addressStr);
         if (!Array.isArray(data.items)) return;
         const editableFields = [
             'code',
@@ -641,6 +728,7 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('res-time').value = '';
         document.getElementById('res-vkn').value = '';
         document.getElementById('res-customer-name').value = '';
+        document.getElementById('res-customer-address').value = '';
         document.getElementById('res-method').textContent = '-';
 
         document.getElementById('res-subtotal').textContent = '-';
@@ -781,12 +869,20 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!currentInvoiceData || draftSendInProgress) return;
         
         if (itemIndex === -1) {
-            currentInvoiceData[fieldName] = newValue;
-            if (fieldName === 'customer_name') {
-                // customer_name is the editable/canonical field. Keep the
-                // legacy alias in sync so no downstream serializer can revive
-                // the pre-edit value.
-                currentInvoiceData.customer_title = newValue;
+            if (fieldName.startsWith('customer_postal_address.')) {
+                if (!currentInvoiceData.customer_postal_address) {
+                    currentInvoiceData.customer_postal_address = {};
+                }
+                const subField = fieldName.split('.')[1];
+                currentInvoiceData.customer_postal_address[subField] = newValue;
+            } else {
+                currentInvoiceData[fieldName] = newValue;
+                if (fieldName === 'customer_name') {
+                    // customer_name is the editable/canonical field. Keep the
+                    // legacy alias in sync so no downstream serializer can revive
+                    // the pre-edit value.
+                    currentInvoiceData.customer_title = newValue;
+                }
             }
         } else if (
             Array.isArray(currentInvoiceData.items)
@@ -936,6 +1032,23 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('res-subtotal').textContent = data.subtotal !== null && data.subtotal !== undefined && data.subtotal !== ''
             ? `${sym}${data.subtotal}`
             : '-';
+
+        const fxCard = document.getElementById('fx-card');
+        if (fxCard) {
+            if (data.local_total) {
+                const localSym = getSymbol(data.accounting_currency || 'TRY');
+                let fxContent = `<div>Ara Toplam: ${localSym}${data.local_subtotal || '-'}</div>`;
+                fxContent += `<div>KDV: ${localSym}${data.local_tax_amount || '-'}</div>`;
+                fxContent += `<div>Yekün: ${localSym}${data.local_total}</div>`;
+                if (data.exchange_rate) {
+                    fxContent += `<div>Kur: ${data.exchange_rate}</div>`;
+                }
+                document.getElementById('res-fx-info').innerHTML = fxContent;
+                fxCard.classList.remove('hidden');
+            } else {
+                fxCard.classList.add('hidden');
+            }
+        }
 
         const discountCard = document.getElementById('discount-card');
         if (parseMoney(data.discount_amount) > 0) {
@@ -1103,7 +1216,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 },
                 body: JSON.stringify({
                     invoice_data: invoiceSnapshot,
-                    action: action
+                    action: action,
+                    environment: localStorage.getItem('uyumsoft_environment') || 'test',
+                    username: localStorage.getItem('uyumsoft_username') || null,
+                    password: localStorage.getItem('uyumsoft_password') || null
                 }),
                 signal: sendAbortController.signal
             });
@@ -1261,6 +1377,7 @@ let batchUploadAbortController = null;
 let batchSendAbortController = null;
 let activeBatchIndex = null;
 let batchDetailRevision = 0;
+const BATCH_FILE_TIMEOUT_MS = 60 * 1000;
 
 function isCurrentBatchGeneration(generation) {
     return Boolean(generation) && batchGenerationId === generation;
@@ -1271,6 +1388,19 @@ function setBatchNavigationDisabled(disabled) {
     const detailBackButton = document.getElementById('back-to-batch-btn');
     if (batchBackButton) batchBackButton.disabled = disabled;
     if (detailBackButton) detailBackButton.disabled = disabled;
+    // Lock batch rows visually while upload/processing is running
+    const tbody = document.getElementById('batch-table-body');
+    if (tbody) {
+        if (disabled) {
+            tbody.style.pointerEvents = 'none';
+            tbody.style.opacity = '0.75';
+            tbody.title = 'Tüm faturalar okunana kadar bekleyin...';
+        } else {
+            tbody.style.pointerEvents = '';
+            tbody.style.opacity = '';
+            tbody.title = '';
+        }
+    }
 }
 
 function cancelBatchRequests() {
@@ -1291,6 +1421,8 @@ function invalidateBatchForSingleUpload() {
     document.getElementById('batch-table-body').replaceChildren();
     document.getElementById('send-all-btn').style.display = 'none';
     document.getElementById('send-all-success-text').style.display = 'none';
+    const loadingText3 = document.getElementById('send-all-loading-text');
+    if (loadingText3) loadingText3.style.display = 'none';
     setBatchNavigationDisabled(false);
 }
 
@@ -1348,7 +1480,8 @@ function createBatchRow(file, index, generation) {
         createBatchCell('b-status', ''),
     );
     row.addEventListener('click', () => {
-        if (!isCurrentBatchGeneration(generation) || batchProcessing) return;
+        if (batchProcessing) return;  // Block clicks until all files are read
+        if (!isCurrentBatchGeneration(generation)) return;
         const item = batchResults[index];
         if (item && item.success) openSingleResultFromBatch(index);
     });
@@ -1362,7 +1495,13 @@ function setBatchStatus(index, state, label, details = '', suppliedRow = null) {
     const cell = row.querySelector('.b-status');
     const badge = document.createElement('span');
     badge.className = `status-badge status-${state}`;
-    badge.textContent = label;
+    if (label === 'Gönderildi') {
+        badge.insertAdjacentHTML('beforeend', `<svg style="width: 14px; height: 14px; margin-right: 4px;" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>${label}`);
+        badge.style.display = 'inline-flex';
+        badge.style.alignItems = 'center';
+    } else {
+        badge.textContent = label;
+    }
     if (details) {
         badge.title = details;
         badge.style.cursor = 'help';
@@ -1408,6 +1547,13 @@ function updateBatchRow(index) {
 
     if (item.sent) {
         setBatchStatus(index, 'success', 'Gönderildi');
+    } else if (item.timedOut) {
+        setBatchStatus(
+            index,
+            'error',
+            'Zaman Aşımı (Geçildi)',
+            item.errorMessage || 'Dosya 1 dakika içinde tamamlanamadı; sonraki dosyaya geçildi.',
+        );
     } else if (!item.success) {
         setBatchStatus(index, 'error', 'Hata (Tıkla)', item.errorMessage || 'Dosya işlenemedi.');
     } else if (item.validationPending) {
@@ -1423,6 +1569,7 @@ function updateBatchRow(index) {
 function updateBatchActions() {
     const sendAllButton = document.getElementById('send-all-btn');
     const successText = document.getElementById('send-all-success-text');
+    const loadingText = document.getElementById('send-all-loading-text');
     const liveItems = batchResults.filter(item => item && item.generation === batchGenerationId);
     const retryableItems = liveItems.filter(item => (
         item.success && !item.sent && !item.validationPending && item.result.is_valid !== false
@@ -1437,10 +1584,10 @@ function updateBatchActions() {
     }
 
     if (batchProcessing && typeof batchSendAbortController !== 'undefined' && batchSendAbortController) {
-        sendAllButton.style.display = 'inline-flex';
-        sendAllButton.disabled = true;
-        sendAllButton.innerHTML = '<span class="loading-spinner" style="margin-right: 0.5rem;"></span> Taslak Oluştur çalışıyor...';
+        sendAllButton.style.display = 'none';
+        if (loadingText) loadingText.style.display = 'flex';
     } else {
+        if (loadingText) loadingText.style.display = 'none';
         sendAllButton.style.display = !batchProcessing && retryableItems.length > 0 ? 'inline-flex' : 'none';
         sendAllButton.disabled = batchProcessing || retryableItems.length === 0;
         sendAllButton.innerHTML = sentCount > 0
@@ -1483,6 +1630,7 @@ async function handleBatchFiles(files) {
         success: false,
         sent: false,
         validationPending: false,
+        timedOut: false,
         generation: capturedBatchGeneration,
         errorMessage: '',
     }));
@@ -1495,9 +1643,9 @@ async function handleBatchFiles(files) {
         const progTd = document.createElement('td');
         progTd.colSpan = 7;
         const barContainer = document.createElement('div');
-        barContainer.className = 'progress-bar-container';
+        barContainer.className = 'batch-progress-container';
         const bar = document.createElement('div');
-        bar.className = 'progress-bar';
+        bar.className = 'batch-progress-bar';
         barContainer.appendChild(bar);
         progTd.appendChild(barContainer);
         progTr.appendChild(progTd);
@@ -1505,7 +1653,8 @@ async function handleBatchFiles(files) {
     });
 
     batchProcessing = true;
-    batchUploadAbortController = new AbortController();
+    const capturedBatchUploadController = new AbortController();
+    batchUploadAbortController = capturedBatchUploadController;
     setBatchNavigationDisabled(true);
     updateBatchActions();
 
@@ -1513,16 +1662,18 @@ async function handleBatchFiles(files) {
         for (let index = 0; index < files.length; index += 1) {
             if (!isCurrentBatchGeneration(capturedBatchGeneration)) return;
             const item = batchResults[index];
-            try {
-                setBatchStatus(index, 'pending', 'Okunuyor...');
-                const formData = new FormData();
-                formData.append('file', item.file);
+            setBatchStatus(index, 'pending', 'Okunuyor...');
+            const formData = new FormData();
+            formData.append('file', item.file);
 
-                const response = await fetch('/upload', {
-                    method: 'POST',
-                    body: formData,
-                    signal: batchUploadAbortController.signal,
-                });
+            try {
+                const response = await fetchWithTimeout(
+                    fetch,
+                    '/upload',
+                    { method: 'POST', body: formData },
+                    BATCH_FILE_TIMEOUT_MS,
+                    capturedBatchUploadController.signal,
+                );
                 const result = await readJsonResponse(response);
                 if (!isCurrentBatchGeneration(capturedBatchGeneration)) return;
                 if (!response.ok || !result || !result.data) {
@@ -1535,21 +1686,31 @@ async function handleBatchFiles(files) {
                     item.errorMessage = '';
                 }
             } catch (error) {
-                if (error && error.name === 'AbortError') return;
-                if (!isCurrentBatchGeneration(capturedBatchGeneration)) return;
+                if (capturedBatchUploadController.signal.aborted) {
+                    console.warn('Batch upload aborted');
+                    break;
+                }
+                if (error.name === 'TimeoutError') {
+                    item.success = false;
+                    item.timedOut = true;
+                    item.result = null;
+                    item.errorMessage = 'Dosya 1 dakika içinde tamamlanamadı; sonraki dosyaya geçildi.';
+                    updateBatchRow(index);
+                    continue;
+                }
+                console.error('File extraction error:', error);
                 item.success = false;
-                item.errorMessage = (error && error.message) ? error.message : 'Bağlantı Hatası';
+                item.result = null;
+                item.errorMessage = error.message || 'Sunucu hatası veya zaman aşımı.';
             }
-            try {
-                updateBatchRow(index);
-            } catch (e) {
-                console.error('Error updating batch row', e);
-            }
+            updateBatchRow(index);
         }
     } finally {
         if (isCurrentBatchGeneration(capturedBatchGeneration)) {
             batchProcessing = false;
-            batchUploadAbortController = null;
+            if (batchUploadAbortController === capturedBatchUploadController) {
+                batchUploadAbortController = null;
+            }
             setBatchNavigationDisabled(false);
             updateBatchActions();
         }
@@ -1558,7 +1719,7 @@ async function handleBatchFiles(files) {
 
 function openSingleResultFromBatch(index) {
     const item = batchResults[index];
-    if (!item || !item.success || item.generation !== batchGenerationId || batchProcessing) return;
+    if (!item || !item.success || item.generation !== batchGenerationId) return;
 
     activeBatchIndex = index;
     batchDetailRevision += 1;
@@ -1606,7 +1767,7 @@ function openSingleResultFromBatch(index) {
 }
 
 document.getElementById('back-to-batch-btn').addEventListener('click', () => {
-    if (batchProcessing || draftSendInProgress || currentValidationState === 'pending') return;
+    if (batchProcessing || draftSendInProgress) return;
     persistActiveBatchItem();
     validationRevision += 1;
     if (validationAbortController) validationAbortController.abort();
@@ -1640,6 +1801,9 @@ document.getElementById('send-all-btn').addEventListener('click', async () => {
     }
     if (!confirm(`${eligibleIndexes.length} geçerli faturayı Uyumsoft'a taslak olarak göndermek istediğinize emin misiniz?`)) return;
 
+    const proceed = await ensureUyumsoftCredentials();
+    if (!proceed) return;
+
     const capturedBatchGeneration = batchGenerationId;
     batchProcessing = true;
     batchSendAbortController = new AbortController();
@@ -1649,12 +1813,18 @@ document.getElementById('send-all-btn').addEventListener('click', async () => {
         for (const index of eligibleIndexes) {
             if (!isCurrentBatchGeneration(capturedBatchGeneration)) return;
             const item = batchResults[index];
+            setBatchStatus(index, 'pending', 'Gönderiliyor...');
             try {
-                setBatchStatus(index, 'pending', 'Gönderiliyor...');
                 const response = await fetch('/send-uyumsoft', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ invoice_data: item.result.data, action: 'draft' }),
+                    body: JSON.stringify({ 
+                        invoice_data: item.result.data, 
+                        action: 'draft',
+                        environment: localStorage.getItem('uyumsoft_environment') || 'test',
+                        username: localStorage.getItem('uyumsoft_username') || null,
+                        password: localStorage.getItem('uyumsoft_password') || null
+                    }),
                     signal: batchSendAbortController.signal,
                 });
                 const result = await readJsonResponse(response);
@@ -1667,17 +1837,12 @@ document.getElementById('send-all-btn').addEventListener('click', async () => {
                     item.errorMessage = `Uyumsoft Hatası: ${formatApiError(result)}`;
                 }
             } catch (error) {
-                if (error && error.name === 'AbortError') return;
-                if (!isCurrentBatchGeneration(capturedBatchGeneration)) return;
+                if (error.name === 'AbortError' || !isCurrentBatchGeneration(capturedBatchGeneration)) return;
                 item.sent = false;
-                item.errorMessage = (error && error.message) ? error.message : 'Ağ Hatası';
+                item.errorMessage = error.message || 'Ağ Hatası';
             }
-            try {
-                if (item.sent) setBatchStatus(index, 'success', 'Gönderildi');
-                else setBatchStatus(index, 'error', 'Gönderim Hatası (Tıkla)', item.errorMessage);
-            } catch (e) {
-                console.error('Error updating batch status', e);
-            }
+            if (item.sent) setBatchStatus(index, 'success', 'Gönderildi');
+            else setBatchStatus(index, 'error', 'Gönderim Hatası (Tıkla)', item.errorMessage);
         }
     } finally {
         if (isCurrentBatchGeneration(capturedBatchGeneration)) {
@@ -1700,6 +1865,8 @@ document.getElementById('batch-back-btn').addEventListener('click', () => {
     document.querySelector('.upload-section').classList.remove('hidden');
     document.getElementById('send-all-btn').style.display = 'none';
     document.getElementById('send-all-success-text').style.display = 'none';
+    const loadingText2 = document.getElementById('send-all-loading-text');
+    if (loadingText2) loadingText2.style.display = 'none';
     setBatchNavigationDisabled(false);
 });
 
@@ -1711,4 +1878,442 @@ window.addEventListener('beforeunload', () => {
     if (currentSendAbortController) currentSendAbortController.abort();
     cancelBatchRequests();
 });
+
+// --- History & Dashboard Logic ---
+const historyToggleBtn = document.getElementById('history-toggle');
+const closeHistoryBtn = document.getElementById('close-history-btn');
+const historySection = document.getElementById('history-section');
+const uploadSection = document.querySelector('.upload-section');
+const splitContainer = document.getElementById('split-container');
+const batchSection = document.getElementById('batch-section');
+
+let historyChartInstance = null;
+let topCustomersChartInstance = null;
+let allCustomersChartInstance = null;
+let currencyChartInstance = null;
+
+if (historyToggleBtn) {
+    historyToggleBtn.addEventListener('click', () => {
+        const icon = document.getElementById('history-icon');
+        if (icon) {
+            icon.classList.remove('history-rewind-animate');
+            void icon.offsetWidth; // trigger reflow
+            icon.classList.add('history-rewind-animate');
+            setTimeout(() => icon.classList.remove('history-rewind-animate'), 500);
+        }
+        if (!historySection.classList.contains('hidden')) {
+            historySection.classList.add('hidden');
+            uploadSection.classList.remove('hidden');
+            return;
+        }
+        
+        // Hide other sections
+        uploadSection.classList.add('hidden');
+        splitContainer.classList.add('hidden');
+        batchSection.classList.add('hidden');
+        document.querySelector('.app-container').classList.remove('wide-mode');
+        
+        // Show history
+        historySection.classList.remove('hidden');
+        loadHistoryDashboard();
+        loadHistoryTable(1);
+    });
+}
+
+if (closeHistoryBtn) {
+    closeHistoryBtn.addEventListener('click', () => {
+        historySection.classList.add('hidden');
+        uploadSection.classList.remove('hidden');
+    });
+}
+
+async function loadHistoryDashboard() {
+    try {
+        const res = await fetch('/api/history/dashboard');
+        const json = await res.json();
+        
+        if (json.success && json.data) {
+            // Format numbers
+            const formatter = new Intl.NumberFormat('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+            document.getElementById('history-total-revenue').textContent = formatter.format(json.data.total_revenue) + ' TL';
+            document.getElementById('history-total-count').textContent = json.data.total_count;
+            
+            // Draw chart
+            renderHistoryChart(json.data.trend);
+            renderTopCustomersChart(json.data.top_customers);
+            if (json.data.all_customers) renderAllCustomersChart(json.data.all_customers);
+            if (json.data.currency_distribution) renderCurrencyChart(json.data.currency_distribution);
+                    }
+    } catch (e) {
+        console.error('Error loading history dashboard', e);
+    }
+}
+
+
+
+function renderTopCustomersChart(topCustomersData) {
+    const ctx = document.getElementById('topCustomersChart').getContext('2d');
+    
+    if (topCustomersChartInstance) {
+        topCustomersChartInstance.destroy();
+    }
+    
+    if (!topCustomersData || topCustomersData.length === 0) {
+        return;
+    }
+    
+    const labels = topCustomersData.map(item => item.customer_name);
+    const dataPoints = topCustomersData.map(item => item.total_revenue);
+    
+    const colors = [
+        '#10b981', '#3b82f6', '#f59e0b', '#ef4444', '#8b5cf6'
+    ];
+    
+    topCustomersChartInstance = new Chart(ctx, {
+        type: 'doughnut',
+        data: {
+            labels: labels,
+            datasets: [{
+                data: dataPoints,
+                backgroundColor: colors,
+                borderWidth: 1,
+                borderColor: '#1e293b'
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: { position: 'right', labels: { color: '#94a3b8' } },
+                tooltip: {
+                    callbacks: {
+                        label: function(context) {
+                            return new Intl.NumberFormat('tr-TR').format(context.raw) + ' ₺';
+                        }
+                    }
+                }
+            }
+        }
+    });
+}
+
+function renderHistoryChart(trendData) {
+    const ctx = document.getElementById('historyChart').getContext('2d');
+    
+    if (historyChartInstance) {
+        historyChartInstance.destroy();
+    }
+    
+    if (!trendData || trendData.length === 0) {
+        return; // Empty state handles gracefully in chart.js if no data, or we just don't draw
+    }
+    
+    const labels = trendData.map(item => item.month); // e.g. "2026-07"
+    const dataPoints = trendData.map(item => item.monthly_revenue);
+    
+    const computedStyle = getComputedStyle(document.documentElement);
+    const accentColor = computedStyle.getPropertyValue('--accent-color').trim() || '#10b981';
+    
+    historyChartInstance = new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: labels,
+            datasets: [{
+                label: 'Aylık Ciro (TL)',
+                data: dataPoints,
+                borderColor: accentColor,
+                backgroundColor: 'rgba(16, 185, 129, 0.1)',
+                borderWidth: 2,
+                fill: true,
+                tension: 0.3
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: { display: false }
+            },
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    ticks: {
+                        callback: function(value) {
+                            return new Intl.NumberFormat('tr-TR').format(value) + ' ₺';
+                        }
+                    }
+                }
+            }
+        }
+    });
+}
+function renderAllCustomersChart(allCustomersData) {
+    const ctx = document.getElementById('allCustomersChart').getContext('2d');
+    if (allCustomersChartInstance) allCustomersChartInstance.destroy();
+    if (!allCustomersData || allCustomersData.length === 0) return;
+    
+    // Group small customers into Diğer (Other) if there are too many (e.g. > 15)
+    let processedData = [];
+    if (allCustomersData.length > 15) {
+        processedData = allCustomersData.slice(0, 14);
+        let otherTotal = 0;
+        for (let i = 14; i < allCustomersData.length; i++) {
+            otherTotal += allCustomersData[i].total_revenue || 0;
+        }
+        processedData.push({ customer_name: 'Diğer', total_revenue: otherTotal });
+    } else {
+        processedData = allCustomersData;
+    }
+    
+    const labels = processedData.map(item => item.customer_name || 'Bilinmiyor');
+    const dataPoints = processedData.map(item => item.total_revenue || 0);
+    
+    // Generate some random colors for the pie chart
+    const bgColors = [
+        '#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6',
+        '#ec4899', '#06b6d4', '#84cc16', '#f97316', '#6366f1',
+        '#14b8a6', '#f43f5e', '#a855f7', '#eab308', '#64748b'
+    ];
+    
+    allCustomersChartInstance = new Chart(ctx, {
+        type: 'pie',
+        data: {
+            labels: labels,
+            datasets: [{
+                data: dataPoints,
+                backgroundColor: bgColors.slice(0, processedData.length),
+                borderWidth: 1,
+                borderColor: '#1e293b'
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: { position: 'bottom', labels: { color: '#94a3b8' }, display: false },
+                tooltip: {
+                    callbacks: {
+                        label: function(context) {
+                            return new Intl.NumberFormat('tr-TR').format(context.raw) + ' TL';
+                        }
+                    }
+                }
+            }
+        }
+    });
+}
+
+
+function renderCurrencyChart(currencyData) {
+    const ctx = document.getElementById('currencyChart').getContext('2d');
+    if (currencyChartInstance) currencyChartInstance.destroy();
+    if (!currencyData || currencyData.length === 0) return;
+    
+    const labels = currencyData.map(item => item.currency || 'TRY');
+    const dataPoints = currencyData.map(item => item.total);
+    
+    currencyChartInstance = new Chart(ctx, {
+        type: 'pie',
+        data: {
+            labels: labels,
+            datasets: [{
+                data: dataPoints,
+                backgroundColor: ['#3b82f6', '#10b981', '#f59e0b', '#8b5cf6', '#ec4899'],
+                borderWidth: 1,
+                borderColor: '#1e293b'
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: { position: 'bottom', labels: { color: '#94a3b8' } },
+                tooltip: {
+                    callbacks: {
+                        label: function(context) {
+                            return new Intl.NumberFormat('tr-TR').format(context.raw) + ' ' + context.label;
+                        }
+                    }
+                }
+            }
+        }
+    });
+}
+
+
+
+let searchTimeout = null;
+
+document.getElementById('history-search-input')?.addEventListener('input', (e) => {
+    if (searchTimeout) clearTimeout(searchTimeout);
+    searchTimeout = setTimeout(() => {
+        loadHistoryTable(1);
+    }, 500); // Debounce search
+});
+
+document.getElementById('history-date-filter')?.addEventListener('change', () => {
+    loadHistoryTable(1);
+});
+
+document.getElementById('toggle-advanced-filters')?.addEventListener('click', () => {
+    const panel = document.getElementById('advanced-filters-panel');
+    const toggleBtn = document.getElementById('toggle-advanced-filters');
+    if (panel.classList.contains('hidden')) {
+        panel.classList.remove('hidden');
+        toggleBtn.textContent = '▲ Gelişmiş Filtreleme Seçenekleri (Gizle)';
+    } else {
+        panel.classList.add('hidden');
+        toggleBtn.textContent = '▼ Gelişmiş Filtreleme Seçenekleri';
+    }
+});
+
+document.getElementById('history-apply-filters-btn')?.addEventListener('click', () => {
+    const startDateVal = document.getElementById('history-start-date')?.value;
+    const endDateVal = document.getElementById('history-end-date')?.value;
+    
+    if (startDateVal && endDateVal && startDateVal > endDateVal) {
+        Toastify({
+            text: "Başlangıç tarihi, bitiş tarihinden sonra olamaz!",
+            duration: 3000,
+            close: true,
+            gravity: "bottom",
+            position: "right",
+            style: {
+                background: "linear-gradient(to right, #6b0000, #a52a2a)",
+                color: "#fff",
+                borderRadius: "8px",
+                fontFamily: "Inter, sans-serif",
+                fontSize: "14px",
+                boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.1)"
+            }
+        }).showToast();
+        return;
+    }
+
+    loadHistoryTable(1);
+});
+
+document.getElementById('history-clear-filters-btn')?.addEventListener('click', () => {
+    const startDate = document.getElementById('history-start-date');
+    if (startDate) startDate.value = '';
+    const endDate = document.getElementById('history-end-date');
+    if (endDate) endDate.value = '';
+    const minAmount = document.getElementById('history-min-amount');
+    if (minAmount) minAmount.value = '';
+    const maxAmount = document.getElementById('history-max-amount');
+    if (maxAmount) maxAmount.value = '';
+    const statusFilter = document.getElementById('history-status-filter');
+    if (statusFilter) statusFilter.value = '';
+    const sortFilter = document.getElementById('history-sort-by');
+    if (sortFilter) sortFilter.value = '';
+    
+    loadHistoryTable(1);
+});
+
+async function loadHistoryTable(page) {
+    const tbody = document.getElementById('history-table-body');
+    
+    const searchInput = document.getElementById('history-search-input');
+    const dateFilter = document.getElementById('history-date-filter');
+    const searchVal = searchInput ? searchInput.value.trim() : '';
+    const dateVal = dateFilter ? dateFilter.value : 'all';
+    
+    const startDateVal = document.getElementById('history-start-date')?.value;
+    const endDateVal = document.getElementById('history-end-date')?.value;
+    const minAmountVal = document.getElementById('history-min-amount')?.value;
+    const maxAmountVal = document.getElementById('history-max-amount')?.value;
+    const statusVal = document.getElementById('history-status-filter')?.value;
+    const sortVal = document.getElementById('history-sort-by')?.value;
+    
+    tbody.innerHTML = '<tr><td colspan="5" style="text-align: center; padding: 2rem; color: var(--text-secondary);">Yükleniyor...</td></tr>';
+    
+    try {
+        let url = `/api/history/invoices?page=${page}&limit=1000000`;
+        if (searchVal) url += `&search=${encodeURIComponent(searchVal)}`;
+        if (dateVal && dateVal !== 'all') url += `&date_filter=${encodeURIComponent(dateVal)}`;
+        
+        if (startDateVal) url += `&start_date=${encodeURIComponent(startDateVal)}`;
+        if (endDateVal) url += `&end_date=${encodeURIComponent(endDateVal)}`;
+        if (minAmountVal) url += `&min_amount=${encodeURIComponent(minAmountVal)}`;
+        if (maxAmountVal) url += `&max_amount=${encodeURIComponent(maxAmountVal)}`;
+        if (statusVal) url += `&status_filter=${encodeURIComponent(statusVal)}`;
+        if (sortVal) url += `&sort_by=${encodeURIComponent(sortVal)}`;
+        
+        const res = await fetch(url);
+        const json = await res.json();
+        
+        if (json.success && json.data) {
+            const data = json.data;
+            
+            if (data.items.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="4" style="text-align: center; padding: 2rem; color: var(--text-secondary);">Henüz hiç fatura gönderilmemiş.</td></tr>';
+                return;
+            }
+            
+            const formatter = new Intl.NumberFormat('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+            tbody.innerHTML = '';
+            
+            data.items.forEach(item => {
+                const tr = document.createElement('tr');
+                
+                // Determine display status based on Uyumsoft or Local status
+                let badgeClass = "badge-neutral";
+                let statusText = item.uyumsoft_status || item.status || "Bilinmiyor";
+                const exactStatus = statusText;
+                
+                // Exact status mapping per Uyumsoft specifications
+                const blueStatuses = ['Queued', 'Processing', 'SentToGib', 'WaitingForAprovement'];
+                const greenStatuses = ['Approved', 'Kabul Edildi'];
+                const redStatuses = ['Declined', 'Return', 'Error', 'HATALI', 'Reddedildi'];
+                const yellowStatuses = ['Draft', 'Taslak'];
+                
+                if (redStatuses.includes(exactStatus)) {
+                    badgeClass = "badge-danger";
+                } else if (greenStatuses.includes(exactStatus)) {
+                    badgeClass = "badge-success";
+                } else if (yellowStatuses.includes(exactStatus)) {
+                    badgeClass = "badge-warning";
+                } else if (blueStatuses.includes(exactStatus)) {
+                    badgeClass = "badge-info";
+                }
+                
+                // 1. Date column
+                const tdDate = document.createElement('td');
+                tdDate.textContent = item.date || item.created_at.split(' ')[0];
+                tr.appendChild(tdDate);
+                
+                // 2. Invoice No column
+                const tdNo = document.createElement('td');
+                const noStrong = document.createElement('strong');
+                noStrong.textContent = item.invoice_no || '-';
+                tdNo.appendChild(noStrong);
+                tr.appendChild(tdNo);
+                
+                // 3. Customer column
+                const tdCustomer = document.createElement('td');
+                tdCustomer.style.maxWidth = '250px';
+                tdCustomer.style.overflow = 'hidden';
+                tdCustomer.style.textOverflow = 'ellipsis';
+                tdCustomer.style.whiteSpace = 'nowrap';
+                tdCustomer.title = item.customer_name || '-';
+                tdCustomer.textContent = item.customer_name || '-';
+                tr.appendChild(tdCustomer);
+                
+                // 4. Amount column
+                const tdAmount = document.createElement('td');
+                tdAmount.style.textAlign = 'right';
+                tdAmount.style.fontWeight = '600';
+                tdAmount.textContent = `${formatter.format(item.amount_try || 0)} TL`;
+                tr.appendChild(tdAmount);
+                
+                // Status column removed
+                tbody.appendChild(tr);
+            });
+        }
+    } catch (e) {
+        console.error("Error loading history:", e);
+        tbody.innerHTML = '<tr><td colspan="4" style="text-align: center; padding: 2rem; color: #ef4444;">Kayıtlar yüklenirken hata oluştu.</td></tr>';
+    }
+}
+
 });

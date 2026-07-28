@@ -5,6 +5,7 @@ from fastapi import FastAPI, UploadFile, File
 from fastapi.responses import RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
+from starlette.concurrency import run_in_threadpool
 
 # Import our pipeline modules
 from extractors.excel_extractor import parse_excel_invoice
@@ -19,6 +20,10 @@ from integrators.uyumsoft_api import (
 from utils.serial_numbers import safe_merge_ai_data
 
 app = FastAPI(title="Invoice Pipeline API")
+
+# Ensure database is initialized (especially for ephemeral environments like Render)
+from database import init_db
+init_db()
 
 # Serve the static UI files
 app.mount("/ui", StaticFiles(directory="ui", html=True), name="ui")
@@ -61,6 +66,9 @@ class ProcessResponse(BaseModel):
 class SendUyumsoftRequest(BaseModel):
     invoice_data: dict
     action: str | None = None
+    environment: str | None = None
+    username: str | None = None
+    password: str | None = None
 
 
 DEFAULT_MAX_UPLOAD_BYTES = 20 * 1024 * 1024
@@ -138,8 +146,7 @@ def _try_gemini_extraction(file_path: str, ext: str) -> tuple[dict, bool, list[s
     return data, is_valid, errors
 
 
-@app.post("/upload", response_model=ProcessResponse)
-async def upload_invoice(file: UploadFile = File(...)):
+def _process_upload(file: UploadFile):
     import traceback
     from fastapi.responses import JSONResponse
 
@@ -259,17 +266,8 @@ async def upload_invoice(file: UploadFile = File(...)):
                 elif ext == '.webp': mime_type = "image/webp"
                 
                 ai_data = extract_invoice_with_ai(file_bytes, mime_type)
-                merged = safe_merge_ai_data(ai_data, local_data_for_serials)
-                merged["_extraction_method"] = "Google Gemini Yapay Zeka"
-                
-                ai_valid, _ = _validate_candidate(merged)
-                if ai_valid or not local_data_for_serials:
-                    data = merged
-                    local_error = not ai_valid
-                elif len(merged.get("items") or []) > len(local_data_for_serials.get("items") or []):
-                    data = merged
-                else:
-                    data = local_data_for_serials
+                data = safe_merge_ai_data(ai_data, local_data_for_serials)
+                data["_extraction_method"] = "Google Gemini Yapay Zeka"
             except Exception as e:
                 if _is_gemini_quota_error(e):
                     errors.append("Gemini limiti doldu; yerel okuyucu sonucu korundu.")
@@ -288,9 +286,6 @@ async def upload_invoice(file: UploadFile = File(...)):
             is_valid, validation_errors = validate_invoice(data)
             if is_valid:
                 errors = []
-            elif local_error and local_errors:
-                errors.extend(local_errors)
-                errors.append("--- Yapay Zeka Yedekleme Sonucu ---")
             errors.extend(validation_errors)
         elif local_errors:
             errors.extend(local_errors)
@@ -329,6 +324,14 @@ async def upload_invoice(file: UploadFile = File(...)):
                 os.remove(temp_path)
             except OSError:
                 pass
+
+
+@app.post("/upload", response_model=ProcessResponse)
+async def upload_invoice(file: UploadFile = File(...)):
+    # PDF parsing, OCR, Gemini and Uyumsoft lookups are synchronous. Running
+    # them directly in this async endpoint used to block the server event loop,
+    # so one stalled file could prevent the next batch request from starting.
+    return await run_in_threadpool(_process_upload, file)
 
 @app.post("/validate")
 async def api_validate(invoice_data: dict):
@@ -388,11 +391,88 @@ async def send_uyumsoft_api(request: SendUyumsoftRequest):
     result = send_invoice_to_uyumsoft(
         invoice_data,
         action="draft",
+        environment=request.environment,
+        prod_username=request.username,
+        prod_password=request.password,
     )
     
     if isinstance(result, dict) and not result.get("success", True):
-        status = result.get("response_code") or 500
-        if isinstance(status, int) and status >= 400:
-            return JSONResponse(status_code=status, content=result)
+        status_code = result.get("response_code") or 400
+        # Fix SOAP fallthrough: return early even if status_code is 200
+        return JSONResponse(status_code=status_code if status_code >= 400 else 400, content=result)
             
+    # Save to history if successful
+    try:
+        document_id = result.get("document_id")
+        from database import save_invoice
+        save_invoice(
+            invoice_data, 
+            is_valid=True, 
+            uyumsoft_document_id=document_id,
+            uyumsoft_environment=request.environment,
+            uyumsoft_status="Draft"
+        )
+    except Exception as e:
+        print(f"Error saving to history: {e}")
+            
+    return result
+
+@app.get("/api/history/dashboard")
+def api_history_dashboard():
+    """Returns dashboard statistics (total revenue, invoice count, and trend data)."""
+    from database import get_dashboard_stats
+    try:
+        stats = get_dashboard_stats()
+        return {"success": True, "data": stats}
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return JSONResponse(status_code=500, content={"success": False, "message": "Failed to load dashboard stats", "details": str(e)})
+
+@app.get("/api/history/invoices")
+def api_history_invoices(page: int = 1, limit: int = 20, search: str = None, date_filter: str = None,
+                           start_date: str = None, end_date: str = None, min_amount: float = None, max_amount: float = None, status_filter: str = None, sort_by: str = None):
+    """Returns paginated history of invoices."""
+    from database import get_paginated_invoices
+    try:
+        data = get_paginated_invoices(page=page, limit=limit, search_query=search, date_filter=date_filter,
+                                      start_date=start_date, end_date=end_date, min_amount=min_amount, max_amount=max_amount, status_filter=status_filter, sort_by=sort_by)
+        return {"success": True, "data": data}
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return JSONResponse(status_code=500, content={"success": False, "message": "Failed to load history", "details": str(e)})
+
+class StatusUpdateRequest(BaseModel):
+    environment: str = None
+    username: str = None
+    password: str = None
+
+@app.post("/api/history/update_status/{invoice_id}")
+async def api_update_invoice_status(invoice_id: int):
+    from database import get_uyumsoft_metadata, update_uyumsoft_status_by_id
+    from integrators.uyumsoft_api import query_invoice_status
+    from fastapi.responses import JSONResponse
+
+    metadata = get_uyumsoft_metadata(invoice_id)
+    if not metadata or not metadata.get("uyumsoft_document_id"):
+        return JSONResponse(
+            status_code=404, 
+            content={"success": False, "message": "Bu fatura i\u00e7in Uyumsoft Belge ID bulunamad\u0131 (sadece yeni g\u00f6nderilenlerde mevcuttur)."}
+        )
+        
+    document_id = metadata["uyumsoft_document_id"]
+    environment = metadata.get("uyumsoft_environment")
+        
+    result = query_invoice_status(
+        document_id,
+        environment=environment
+    )
+    
+    if result.get("success"):
+        new_status = result.get("status")
+        status_code = result.get("status_code")
+        message = result.get("message")
+        update_uyumsoft_status_by_id(invoice_id, status=new_status, status_code=status_code, message=message)
+        
     return result

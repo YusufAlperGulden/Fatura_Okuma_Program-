@@ -9,7 +9,11 @@ except ImportError:  # Keep non-AI helpers importable in lightweight test instal
     genai = None
     genai_types = None
 
-from utils.serial_numbers import normalize_invoice_serial_numbers
+from utils.serial_numbers import (
+    format_customer_postal_address,
+    normalize_customer_postal_address,
+    normalize_invoice_serial_numbers,
+)
 
 
 DEFAULT_GEMINI_MODEL = "gemini-2.5-flash"
@@ -126,6 +130,21 @@ def _stringify_amount_fields(data: dict) -> dict:
             if key in item and item[key] is not None:
                 item[key] = str(item[key])
 
+    postal_address = normalize_customer_postal_address(
+        data.get("customer_postal_address")
+        or (
+            data.get("customer_address")
+            if isinstance(data.get("customer_address"), dict)
+            else None
+        )
+    )
+    if postal_address:
+        data["customer_postal_address"] = postal_address
+        if not isinstance(data.get("customer_address"), str):
+            data["customer_address"] = format_customer_postal_address(
+                postal_address
+            )
+
     return normalize_invoice_serial_numbers(data)
 
 
@@ -167,7 +186,8 @@ ve sadece gecerli JSON dondur. Markdown, aciklama, kod blogu veya ek metin yazma
 DİKKAT: Faturadaki TÜM KALEMLERİ (satırları) eksiksiz olarak 'items' dizisine ekle.
 DİKKAT: Eğer faturada İskonto (Discount) varsa "discount_amount" alanına yazmayı unutma!
 DİKKAT: JSON formatının KESİNLİKLE GEÇERLİ (VALID) olduğundan emin ol. Özellikle 'items' dizisi içindeki objelerde süslü parantez '{}' kapatmayı ve aralardaki virgülleri kesinlikle unutma.
-DİKKAT: "notes" alanına yazacağın metin uzunsa veya satır atlamaları (enter) içeriyorsa JSON'ı bozmaması için tüm satır atlamalarını boşluk karakteri ile değiştir (tek satır yap) ve tırnak işaretlerini '\\"' şeklinde düzgünce kaçış (escape) karakteriyle yaz.
+DİKKAT: "notes" alanına yazacağın metin uzunsa veya satır atlamaları (enter) içeriyorsa JSON'ı bozmaması için tüm satır atlamalarını boşluk karakteri ile değiştir (tek satır yap) ve tırnak işaretlerini '\\"' şeklinde düzgünce kaç (escape) karakteriyle yaz.
+DİKKAT: Müşteri/Alıcı ünvanı her zaman "Sayın", "Müşteri" vb. etiketlerle belirtilmeyebilir. Adresin ve VKN/TCKN numarasının (genellikle 10 veya 11 haneli sayı) bulunduğu bloktaki şirket/kişi ismini alıcı ünvanı ("customer_name") olarak kabul et. Satıcı bilgilerini (genellikle en üstte veya logolu olan) alıcı ünvanına yazma!
 
 Beklenen JSON alani:
 {
@@ -177,6 +197,19 @@ Beklenen JSON alani:
   "time": "HH:MM veya HH:MM:SS",
   "customer_tax_id": "10 veya 11 haneli VKN/TCKN; belgede yoksa bos string",
   "customer_name": "Alicinin (Musterinin) Unvani veya Adi Soyadi (string)",
+  "customer_address": "Alicinin belgede yazan acik adresinin ham, tek satir metni (varsa)",
+  "customer_postal_address": {
+    "street_name": "Cadde veya sokak adi; yoksa bos string",
+    "building_name": "Apartman, site, plaza veya bina adi; yoksa bos string",
+    "building_number": "Bina/kapi numarasi; yoksa bos string",
+    "city_subdivision_name": "Ilce adi; yoksa bos string",
+    "city_name": "Il/sehir adi; yoksa bos string",
+    "postal_zone": "Posta kodu; yoksa bos string",
+    "district": "Mahalle adi; yoksa bos string",
+    "country_code": "ISO 3166-1 alpha-2 ulke kodu (TR, DE, US gibi); bilinmiyorsa bos string",
+    "country_name": "Ulke adi; yoksa bos string",
+    "address_lines": ["Yukaridaki alanlara kayipsiz yerlestirilemeyen ek adres satirlari; yoksa bos dizi"]
+  },
   "subtotal": 0.0,
   "discount_amount": 0.0,
   "tax_amount": 0.0,
@@ -217,3 +250,4 @@ Ondalikli degerleri JSON number olarak ver. JSON formatini asla bozma!
         return _stringify_amount_fields(_load_json_response(raw_json))
     except json.JSONDecodeError as exc:
         raise RuntimeError(f"Failed to parse Gemini JSON output: {exc}\nRaw output: {raw_json}")
+

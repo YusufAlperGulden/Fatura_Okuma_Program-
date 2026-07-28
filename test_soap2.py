@@ -1,37 +1,29 @@
 import urllib.request
-import urllib.error
+from integrators.uyumsoft_api import UyumsoftSoapClient, _server_credentials
 
-url = "https://efatura-test.uyumsoft.com.tr/Services/Integration"
-operation_body = '<TestConnection xmlns="http://tempuri.org/" />'
-username = "Uyumsoft"
-password = "Uyumsoft"
-SOAP_ENV_NS = "http://schemas.xmlsoap.org/soap/envelope/"
-envelope = f"""<s:Envelope xmlns:s="{SOAP_ENV_NS}" xmlns:wsse="http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-wssecurity-secext-1.0.xsd">
-  <s:Header>
-    <wsse:Security s:mustUnderstand="1">
-      <wsse:UsernameToken>
-        <wsse:Username>{username}</wsse:Username>
-        <wsse:Password>{password}</wsse:Password>
-      </wsse:UsernameToken>
-    </wsse:Security>
-  </s:Header>
-  <s:Body>{operation_body}</s:Body>
-</s:Envelope>"""
+username, password = _server_credentials("test")
+client = UyumsoftSoapClient(username, password, environment="test")
 
-req = urllib.request.Request(
-    url,
-    data=envelope.encode("utf-8"),
-    headers={
-        'Content-Type': 'text/xml; charset=utf-8',
-        'SOAPAction': '"http://tempuri.org/IIntegration/TestConnection"'
-    },
-    method='POST'
-)
+operation_body = """<GetOutboxInvoiceStatusWithLogs xmlns="http://tempuri.org/">
+  <invoiceIds>
+    <guid xmlns="http://schemas.microsoft.com/2003/10/Serialization/Arrays">619c55e7-a175-4d94-bac5-acf0c03bcfd0</guid>
+  </invoiceIds>
+</GetOutboxInvoiceStatusWithLogs>"""
 
-try:
-    response = urllib.request.urlopen(req)
-    print("SUCCESS", response.getcode())
-    print(response.read().decode('utf-8'))
-except urllib.error.HTTPError as e:
-    print(f"HTTP {e.code}")
-    print(e.read()[:500].decode('utf-8', errors='replace'))
+operation_body_2 = """<GetOutboxInvoiceStatusWithLogs xmlns="http://tempuri.org/">
+  <invoiceId>619c55e7-a175-4d94-bac5-acf0c03bcfd0</invoiceId>
+</GetOutboxInvoiceStatusWithLogs>"""
+
+result = client._call("GetOutboxInvoiceStatusWithLogs", operation_body_2)
+print("Result with invoiceId:")
+print(result)
+
+operation_body_3 = """<GetOutboxInvoiceStatusWithLogs xmlns="http://tempuri.org/">
+  <invoiceIds>
+    <string xmlns="http://schemas.microsoft.com/2003/10/Serialization/Arrays">619c55e7-a175-4d94-bac5-acf0c03bcfd0</string>
+  </invoiceIds>
+</GetOutboxInvoiceStatusWithLogs>"""
+
+result_3 = client._call("GetOutboxInvoiceStatusWithLogs", operation_body_3)
+print("Result with invoiceIds string array:")
+print(result_3)

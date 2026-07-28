@@ -8,6 +8,23 @@ from typing import Any
 
 _SERIAL_SEPARATOR_RE = re.compile(r"[~,;\r\n]+")
 _OUTER_WRAPPERS = {"(": ")", "[": "]", "{": "}"}
+POSTAL_ADDRESS_FIELDS = (
+    "street_name",
+    "building_name",
+    "building_number",
+    "city_subdivision_name",
+    "city_name",
+    "postal_zone",
+    "district",
+    "country_code",
+    "country_name",
+    "address_lines",
+)
+_POSTAL_ADDRESS_ALIASES = {
+    "street": "street_name",
+    "city": "city_name",
+    "country": "country_name",
+}
 
 
 def _serial_text(value: Any) -> str:
@@ -80,6 +97,105 @@ def normalize_invoice_serial_numbers(data: dict[str, Any]) -> dict[str, Any]:
     return data
 
 
+def normalize_customer_postal_address(value: Any) -> dict[str, Any]:
+    """Return a clean canonical postal-address mapping.
+
+    The legacy pipeline used ``street``, ``city`` and ``country`` keys in a
+    handful of places.  Accepting those aliases here keeps old saved invoices
+    readable while ensuring new data always leaves this function with one
+    stable schema.
+    """
+
+    if not isinstance(value, Mapping):
+        return {}
+
+    canonical: dict[str, Any] = {}
+    for raw_key, raw_value in value.items():
+        key = _POSTAL_ADDRESS_ALIASES.get(str(raw_key), str(raw_key))
+        if key not in POSTAL_ADDRESS_FIELDS or raw_value is None:
+            continue
+
+        if key == "address_lines":
+            if isinstance(raw_value, str):
+                candidates = re.split(r"[|\r\n]+", raw_value)
+            elif isinstance(raw_value, Iterable) and not isinstance(
+                raw_value, (str, bytes, Mapping)
+            ):
+                candidates = raw_value
+            else:
+                continue
+
+            lines: list[str] = []
+            seen: set[str] = set()
+            for candidate in candidates:
+                line = str(candidate or "").strip()
+                folded = line.casefold()
+                if line and folded not in seen:
+                    seen.add(folded)
+                    lines.append(line)
+            if lines:
+                canonical[key] = lines
+            continue
+
+        if isinstance(raw_value, (str, int, float)):
+            text = str(raw_value).strip()
+            if text:
+                canonical[key] = (
+                    text.upper() if key == "country_code" else text
+                )
+
+    return canonical
+
+
+def merge_customer_postal_addresses(
+    preferred: Any, fallback: Any
+) -> dict[str, Any]:
+    """Merge address components without allowing fallback values to erase preferred ones."""
+
+    merged = normalize_customer_postal_address(fallback)
+    preferred_address = normalize_customer_postal_address(preferred)
+    for field, value in preferred_address.items():
+        if value:
+            merged[field] = value
+    return merged
+
+
+def format_customer_postal_address(value: Any) -> str:
+    """Render a postal-address object as readable text, never as a Python/JS object."""
+
+    if isinstance(value, str):
+        return value.strip()
+
+    address = normalize_customer_postal_address(value)
+    if not address:
+        return ""
+
+    candidates: list[str] = [
+        *address.get("address_lines", []),
+        address.get("district", ""),
+        address.get("street_name", ""),
+        address.get("building_name", ""),
+        (
+            f"No: {address['building_number']}"
+            if address.get("building_number")
+            else ""
+        ),
+        address.get("city_subdivision_name", ""),
+        address.get("city_name", ""),
+        address.get("postal_zone", ""),
+        address.get("country_name") or address.get("country_code", ""),
+    ]
+    parts: list[str] = []
+    seen: set[str] = set()
+    for candidate in candidates:
+        text = str(candidate or "").strip()
+        folded = text.casefold()
+        if text and folded not in seen:
+            seen.add(folded)
+            parts.append(text)
+    return ", ".join(parts)
+
+
 def _normalized_item_code(item: Any) -> str:
     if not isinstance(item, Mapping):
         return ""
@@ -103,6 +219,44 @@ def safe_merge_ai_data(
                 if not (val_str.isdigit() and len(val_str) in (10, 11)):
                     continue
             target[field] = val
+
+        target_postal_address = normalize_customer_postal_address(
+            target.get("customer_postal_address")
+            or (
+                target.get("customer_address")
+                if isinstance(target.get("customer_address"), Mapping)
+                else None
+            )
+        )
+        source_postal_address = normalize_customer_postal_address(
+            source.get("customer_postal_address")
+            or (
+                source.get("customer_address")
+                if isinstance(source.get("customer_address"), Mapping)
+                else None
+            )
+        )
+        merged_postal_address = merge_customer_postal_addresses(
+            source_postal_address, target_postal_address
+        )
+        if merged_postal_address:
+            target["customer_postal_address"] = merged_postal_address
+
+        source_raw_address = source.get("customer_address")
+        if isinstance(source_raw_address, str) and source_raw_address.strip():
+            target["customer_address"] = source_raw_address.strip()
+        elif source_postal_address:
+            target["customer_address"] = format_customer_postal_address(
+                source_postal_address
+            )
+        elif isinstance(target.get("customer_address"), Mapping):
+            target["customer_address"] = format_customer_postal_address(
+                target["customer_address"]
+            )
+        elif not target.get("customer_address") and merged_postal_address:
+            target["customer_address"] = format_customer_postal_address(
+                merged_postal_address
+            )
 
     normalize_invoice_serial_numbers(target)
     if not isinstance(source, dict):

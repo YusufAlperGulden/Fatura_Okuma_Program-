@@ -1,7 +1,43 @@
 import pandas as pd
 import os
 
-from utils.serial_numbers import normalize_serial_numbers
+from utils.serial_numbers import (
+    format_customer_postal_address,
+    normalize_customer_postal_address,
+    normalize_serial_numbers,
+)
+
+
+def _address_export_fields(invoice):
+    raw_address = invoice.get("customer_address")
+    postal_address = normalize_customer_postal_address(
+        invoice.get("customer_postal_address")
+        or (raw_address if isinstance(raw_address, dict) else None)
+    )
+    if isinstance(raw_address, str):
+        raw_address = raw_address.strip()
+    else:
+        raw_address = format_customer_postal_address(
+            postal_address or raw_address
+        )
+    if not raw_address:
+        raw_address = format_customer_postal_address(postal_address)
+
+    return {
+        "Müşteri Adresi": raw_address,
+        "Cadde/Sokak Adı": postal_address.get("street_name", ""),
+        "Bina Adı": postal_address.get("building_name", ""),
+        "Bina No": postal_address.get("building_number", ""),
+        "İlçe": postal_address.get("city_subdivision_name", ""),
+        "İl": postal_address.get("city_name", ""),
+        "Posta Kodu": postal_address.get("postal_zone", ""),
+        "Mahalle": postal_address.get("district", ""),
+        "Ülke Kodu": postal_address.get("country_code", ""),
+        "Ülke Adı": postal_address.get("country_name", ""),
+        "Adres Satırları": "|".join(
+            postal_address.get("address_lines", [])
+        ),
+    }
 
 def export_to_uyumsoft_excel(valid_invoices, output_path="Uyumsoft_Aktarim_Taslagi.xlsx"):
     """
@@ -25,7 +61,8 @@ def export_to_uyumsoft_excel(valid_invoices, output_path="Uyumsoft_Aktarim_Tasla
                 "Satır Toplamı": item.get("total_price"),
                 "Fatura Ara Toplam": invoice.get("subtotal"),
                 "Fatura KDV": invoice.get("tax_amount"),
-                "Fatura Genel Toplam": invoice.get("total_amount")
+                "Fatura Genel Toplam": invoice.get("total_amount"),
+                **_address_export_fields(invoice),
             }
             rows.append(row)
             

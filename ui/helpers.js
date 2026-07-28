@@ -173,9 +173,50 @@
         return `${negative ? '-' : ''}${whole},${fraction}`;
     }
 
+    async function fetchWithTimeout(fetchImpl, url, init, timeoutMs, parentSignal = null) {
+        if (typeof fetchImpl !== 'function') {
+            throw new TypeError('fetchImpl must be a function.');
+        }
+
+        const controller = new AbortController();
+        let didTimeout = false;
+        const abortFromParent = () => controller.abort();
+
+        if (parentSignal) {
+            if (parentSignal.aborted) {
+                abortFromParent();
+            } else {
+                parentSignal.addEventListener('abort', abortFromParent, { once: true });
+            }
+        }
+
+        const timeoutId = setTimeout(() => {
+            didTimeout = true;
+            controller.abort();
+        }, timeoutMs);
+
+        try {
+            return await fetchImpl(url, { ...(init || {}), signal: controller.signal });
+        } catch (error) {
+            if (didTimeout && !(parentSignal && parentSignal.aborted)) {
+                const timeoutError = new Error(`Request exceeded ${timeoutMs} ms.`);
+                timeoutError.name = 'TimeoutError';
+                timeoutError.cause = error;
+                throw timeoutError;
+            }
+            throw error;
+        } finally {
+            clearTimeout(timeoutId);
+            if (parentSignal) {
+                parentSignal.removeEventListener('abort', abortFromParent);
+            }
+        }
+    }
+
     return {
         calculateTaxBreakdown,
         decimalToScaledInteger,
+        fetchWithTimeout,
         formatCentsTr,
         normalizeLocaleDecimal,
         parseLocaleNumber,

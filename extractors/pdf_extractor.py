@@ -2,14 +2,14 @@ import re
 
 import pdfplumber
 
+from utils.serial_numbers import normalize_customer_postal_address
+
 
 CURRENCY_SYMBOLS = "₺$€£"
 AMOUNT_NUMBER_RE = r"\d{1,3}(?:[.,]\d{3})*[.,]\d{2}|\d+[.,]\d{2}"
 MONEY_RE = rf"(?:[{CURRENCY_SYMBOLS}][ \t]*)?({AMOUNT_NUMBER_RE})(?:[ \t]*(?:TL|TRY|USD|EUR|GBP|DOLAR|EURO|[{CURRENCY_SYMBOLS}]))?"
 MONEY_TOKEN_RE = rf"(?:[{CURRENCY_SYMBOLS}][ \t]*)?{AMOUNT_NUMBER_RE}(?:[ \t]*(?:TL|TRY|USD|EUR|GBP|DOLAR|EURO|[{CURRENCY_SYMBOLS}]))?"
 UNIT_RE = r"Adet|AdeTt|Kg|Lt|Paket|Pak|Kutu|Ay|Yıl|Yil|Ad\.|M2|M3|Saat|Hizmet|Gün|Gun"
-WATERMARK_CHARS = "A-ZÇĞİÖŞÜ"
-
 
 def _fix_mojibake_currency(text):
     return (
@@ -25,7 +25,7 @@ def _first_match(patterns, text, flags=0):
     for pattern in patterns:
         match = re.search(pattern, text, flags)
         if match:
-            return re.sub(r"[\s\xa0]+", "", match.group(1)).strip()
+            return re.sub(r"[ \t\xa0]+", "", match.group(1)).strip()
     return None
 
 
@@ -108,7 +108,7 @@ def _extract_unlabeled_header_customer_name(text):
 
     tax_id_line_index = None
     for index, line in enumerate(lines[:20]):
-        if re.search(r"\b(?:\d[ \t]*){10,11}\b", line):
+        if re.search(r"\b(?:\d[ \t]*){10,12}\b", line):
             tax_id_line_index = index
             break
 
@@ -130,7 +130,7 @@ def _extract_unlabeled_header_customer_name(text):
         return None
 
     for line in lines[: tax_id_line_index + 1]:
-        candidate_line = re.sub(r"\b(?:\d[ \t]*){10,11}\b.*$", "", line).strip(" :-")
+        candidate_line = re.sub(r"\b(?:\d[ \t]*){10,12}\b.*$", "", line).strip(" :-")
         if not candidate_line:
             continue
         if re.search(
@@ -141,6 +141,14 @@ def _extract_unlabeled_header_customer_name(text):
         if re.search(
             r"\b(?:Satıcı|Satici|Supplier|Alıcı|Alici|Buyer|Customer)"
             r"(?:\s+Bilgileri)?\b",
+            candidate_line,
+            re.IGNORECASE,
+        ):
+            continue
+            
+        # Ignore table header rows that might be OCR'd before the tax ID
+        if re.search(
+            r"\b(?:Kodu|Açıklama|Aciklama|Miktar|Birim|Fiyatı|Fiyati|Tutar|Toplam)\b",
             candidate_line,
             re.IGNORECASE,
         ):
@@ -176,6 +184,80 @@ def _extract_unlabeled_invoice_no(text):
     return match.group(2) if match else None
 
 
+def _extract_customer_address(text, customer_name, customer_tax_id):
+    if not customer_name:
+        return None
+
+    stop_pattern = re.compile(
+        r'\b(?:vergi\s*dairesi|v\.d\.|tarih|fatura\s*no|tel|fax|e-mail|email|e-posta|web|www\.)\b'
+        r'|\d{2}[./-]\d{2}[./-]\d{4}'
+        r'|@',
+        re.IGNORECASE
+    )
+
+    buyer_lines = _buyer_section_lines(text)
+    if buyer_lines:
+        address_lines = []
+        name_found = False
+        for line in buyer_lines:
+            if not name_found and _clean_customer_name_line(line) == customer_name:
+                name_found = True
+                continue
+            if name_found:
+                if stop_pattern.search(line):
+                    break
+                if customer_tax_id and customer_tax_id in line:
+                    line = line.replace(customer_tax_id, "").strip()
+                if re.match(r"^(?:vkn|tckn|vergi\s+no|tc|v\.\s*d\.)", line, re.IGNORECASE):
+                    continue
+                if line:
+                    address_lines.append(line)
+        if address_lines:
+            return " ".join(address_lines).strip()
+
+    lines = [re.sub(r"\s+", " ", line).strip() for line in str(text or "").splitlines()]
+    lines = [line for line in lines if line]
+    tax_id_line_index, name_line_index = None, None
+    for index, line in enumerate(lines[:30]):
+        if customer_name in line and name_line_index is None:
+            name_line_index = index
+        if customer_tax_id and customer_tax_id in line and tax_id_line_index is None:
+            tax_id_line_index = index
+
+    if name_line_index is not None and tax_id_line_index is not None and tax_id_line_index > name_line_index:
+        address_lines = []
+        for line in lines[name_line_index + 1 : tax_id_line_index]:
+            if stop_pattern.search(line):
+                break
+            address_lines.append(line)
+        if address_lines:
+            return " ".join(address_lines).strip()
+    return None
+
+
+def _structure_customer_address(address):
+    """Parse a flat address through the shared Uyumsoft parser without an import cycle."""
+
+    if not address:
+        return None
+    from integrators.uyumsoft_api import parse_turkish_address
+
+    structured = normalize_customer_postal_address(
+        parse_turkish_address(address)
+    )
+    return structured or None
+
+
+def _with_structured_customer_address(data):
+    if not isinstance(data, dict):
+        return data
+    if not data.get("customer_postal_address") and data.get("customer_address"):
+        data["customer_postal_address"] = _structure_customer_address(
+            data["customer_address"]
+        )
+    return data
+
+
 def _extract_customer_name(text):
     for line in _buyer_section_lines(text):
         customer_name = _clean_customer_name_line(line)
@@ -194,23 +276,30 @@ def _extract_customer_name(text):
 
 
 def _extract_customer_tax_id(text):
+    tax_id = None
     for line in _buyer_section_lines(text):
         match = re.search(
-            r"\b(?:TC|TCKN|VKN|VKN/TCKN|Vergi[ \t]*No)[ \t]*[:#-]?[ \t]*(\d(?:[\s\xa0]*\d){9,10})\b",
+            r"\b(?:TC|TCKN|VKN|VKN/TCKN|Vergi[ \t]*No)[ \t]*[:#-]?[ \t]*(\d(?:[ \t\xa0]*\d){9,11})\b",
             line,
             re.IGNORECASE,
         )
         if match:
-            return re.sub(r"[\s\xa0]+", "", match.group(1))
+            tax_id = re.sub(r"[ \t\xa0]+", "", match.group(1))
+            break
 
-    return _first_match(
-        [
-            r"\b(?:TC|TCKN|VKN|VKN/TCKN|Vergi[ \t]*No)[ \t]*[:#-]?[ \t]*(\d(?:[\s\xa0]*\d){9,10})\b",
-            r"\b(\d(?:[\s\xa0]*\d){9,10})\b",
-        ],
-        text,
-        re.IGNORECASE,
-    )
+    if not tax_id:
+        tax_id = _first_match(
+            [
+                r"\b(?:TC|TCKN|VKN|VKN/TCKN|Vergi[ \t]*No)[ \t]*[:#-]?[ \t]*(\d(?:[ \t\xa0]*\d){9,11})\b",
+                r"\b(\d(?:[ \t\xa0]*\d){9,11})\b",
+            ],
+            text,
+            re.IGNORECASE,
+        )
+
+    if tax_id and len(tax_id) == 12 and set(tax_id) == {"1"}:
+        return "11111111111"
+    return tax_id
 
 
 def _parse_money_number(value):
@@ -310,27 +399,10 @@ def _clean_pdf_line(line):
     line = _fix_mojibake_currency(line)
     line = line.replace("\xa0", " ")
     line = re.sub(r"\bAdeTt\b", "Adet", line)
+    
+    # Fix missing spaces between concatenated monetary values (e.g. 90,34₺180.678,53)
+    line = re.sub(rf"(\d)([{re.escape(CURRENCY_SYMBOLS)}]|TL|TRY|USD|EUR|GBP)", r"\1 \2", line, flags=re.IGNORECASE)
 
-    # Vertical watermark letters sometimes land inside codes, units, or amounts.
-    line = re.sub(rf"(\d{{4}})[{WATERMARK_CHARS}]\.(\d{{3}})", r"\1.\2", line)
-    line = re.sub(rf"(\d{{4}}\.\d{{3}})[{WATERMARK_CHARS}](?=[A-Za-zÇĞİÖŞÜçğıöşü])", r"\1 ", line)
-    line = re.sub(rf"(?<=\s)[{WATERMARK_CHARS}]+([{re.escape(CURRENCY_SYMBOLS)}])(?=\d)", r"\1", line)
-    line = re.sub(rf"([{re.escape(CURRENCY_SYMBOLS)}])[ \t]*[{WATERMARK_CHARS}]+[ \t]*(?=\d)", r"\1", line)
-    line = re.sub(rf"([.,])[ \t]*[{WATERMARK_CHARS}]+[ \t]*(?=\d{{2,3}}\b)", r"\1", line)
-    line = re.sub(
-        rf"(%[ \t]*\d+(?:[.,]\d+)?)[ \t]*[{WATERMARK_CHARS}]+[ \t]*([{re.escape(CURRENCY_SYMBOLS)}])",
-        r"\1 \2",
-        line,
-    )
-    line = re.sub(rf"\bK[{WATERMARK_CHARS}]*D[{WATERMARK_CHARS}]*V\b", "KDV", line, flags=re.IGNORECASE)
-    line = re.sub(rf"(?<=\s)[{WATERMARK_CHARS}]+({UNIT_RE})\b", r"\1", line, flags=re.IGNORECASE)
-    line = re.sub(rf"(\d+(?:[.,]\d+)?)[ \t]*[{WATERMARK_CHARS}]+({UNIT_RE})\b", r"\1 \2", line, flags=re.IGNORECASE)
-    line = re.sub(
-        rf"(?<=\s)[{WATERMARK_CHARS}]+(\d+(?:[.,]\d+)?)[ \t]+({UNIT_RE})\b",
-        r"\1 \2",
-        line,
-        flags=re.IGNORECASE,
-    )
     return line
 
 
@@ -344,20 +416,6 @@ def clean_table_cell(value):
         return ""
 
     text = str(value).replace("\n", " ").replace("\xa0", " ").strip()
-    text = re.sub(r"\b[A-ZÇĞİÖŞÜ]\b", "", text)
-    text = re.sub(
-        r"(\d+(?:[.,]\d+)?)[A-ZÇĞİÖŞÜ]+(Adet|Saat|Hizmet|Kg|Lt|Paket|Kutu)",
-        r"\1 \2",
-        text,
-        flags=re.IGNORECASE,
-    )
-    text = re.sub(
-        r"\b[A-ZÇĞİÖŞÜ]+(Adet|Saat|Hizmet|Kg|Lt|Paket|Kutu)\b",
-        r"\1",
-        text,
-        flags=re.IGNORECASE,
-    )
-    text = re.sub(r"([€$₺£]\d+[.,])[A-ZÇĞİÖŞÜ]+(?=\d)", r"\1", text)
     return re.sub(r"\s+", " ", text).strip()
 
 
@@ -380,7 +438,7 @@ def _is_serial_token(value):
 
 def _serials_from_group(value, require_multiple=True):
     compact = re.sub(r"\s+", "", str(value or "")).strip("()[]{}")
-    parts = [part for part in re.split(r"[~,;]+", compact) if part]
+    parts = [part for part in re.split(r"[~,;\-]+", compact) if part]
     if require_multiple and len(parts) < 2:
         return []
     if not parts or not all(_is_serial_token(part) for part in parts):
@@ -398,7 +456,7 @@ def _extract_item_serial_numbers(text):
     # reconstructs that value without changing ordinary description text.
     for match in SERIAL_GROUP_RE.finditer(source):
         body = match.group(2)
-        if "~" not in body and ";" not in body and "," not in body:
+        if "~" not in body and ";" not in body and "," not in body and "-" not in body:
             continue
         serials.extend(_serials_from_group(body, require_multiple=True))
 
@@ -448,10 +506,10 @@ def _is_likely_item_description(line):
     return True
 
 
-def extract_items_from_tables(pdf):
+def extract_items_from_tables(pages):
     items = []
 
-    for page in pdf.pages:
+    for page in pages:
         tables = page.extract_tables() or []
 
         for table in tables:
@@ -489,7 +547,7 @@ def extract_items_from_tables(pdf):
                     "code": code,
                     "description": description,
                     "serial_numbers": serial_numbers,
-                    "quantity": quantity_match.group(0).replace(".", ",") if quantity_match else quantity.replace(".", ","),
+                    "quantity": quantity_match.group(0) if quantity_match else quantity,
                     "unit_price": _format_amount(_parse_money_number(unit_price)),
                     "tax_rate": tax_match.group(0) if tax_match else tax_rate,
                     "total_price": _format_amount(_parse_money_number(total_price)),
@@ -500,13 +558,13 @@ def extract_items_from_tables(pdf):
 
 def _find_items(text):
     item_line_pattern = re.compile(
-        rf"^[ \t]*(?P<code>(?:\d{{4}}\.\d{{3}}|[A-Z]{{2,4}}-\d{{3}}|[-\w][\w.-]*))[ \t]+"
+        rf"^[ \t]*(?P<code>(?:\d{{4}}\.\d{{3}}|[A-Z]{{2,4}}-\d{{3}}|[A-Za-z0-9][\w.-]*))[ \t]+"
         rf"(?P<description>.*?)[ \t]*"
         rf"(?P<quantity>\d+(?:[.,]\d+)?(?:[.,]\d+)?)[ \t]+"
         rf"(?:(?P<unit>{UNIT_RE})[ \t]+)?"
-        rf"(?:(?P<unit_price>{MONEY_TOKEN_RE})[ \t]*)?"
-        rf"(?:%?[ \t]*(?P<tax_rate>\d+(?:[.,]\d+)?)[ \t]*%?[ \t]*)?"
-        rf"(?P<total_price>{MONEY_TOKEN_RE})(?:[ \t]+.*)?$",
+        rf"(?:(?P<unit_price>{MONEY_TOKEN_RE})[ \t]+)?"
+        rf"(?:%?[ \t]*(?P<tax_rate>\d+(?:[.,]\d+)?)[ \t]*%?(?=\s|$)[ \t]*)?"
+        rf"(?P<total_price>{MONEY_TOKEN_RE})(?:[ \t]+[^0-9]+)?$",
         re.IGNORECASE,
     )
 
@@ -525,13 +583,51 @@ def _find_items(text):
                 segments.append(segment)
         return segments
 
-    cleaned_lines = [_clean_pdf_line(line).strip() for line in text.splitlines()]
+    def _join_wrapped_item_lines(lines):
+        joined_lines = []
+        i = 0
+        while i < len(lines):
+            line = lines[i]
+            if re.match(r"^[ \t]*(?:\d{4}\.\d{3}|[A-Z]{2,4}-\d{3})", line) and not item_line_pattern.match(line):
+                matched = False
+                candidates = [(line, 0)]
+                for j in range(1, 6):
+                    if i + j < len(lines):
+                        new_candidates = []
+                        for c_text, _ in candidates:
+                            new_candidates.append((c_text + " " + lines[i+j], j))
+                            new_candidates.append((c_text + lines[i+j], j))
+                        
+                        for c_text, consumed in new_candidates:
+                            if item_line_pattern.match(c_text):
+                                joined_lines.append(c_text)
+                                i += consumed
+                                matched = True
+                                break
+                        if matched:
+                            break
+                        candidates = new_candidates
+                if matched:
+                    i += 1
+                    continue
+            joined_lines.append(line)
+            i += 1
+        return joined_lines
+
+    raw_cleaned = [_clean_pdf_line(line).strip() for line in text.splitlines()]
+    cleaned_lines = _join_wrapped_item_lines(raw_cleaned)
     items = []
     seen = set()
     for line_idx, line in enumerate(cleaned_lines):
+        if re.match(r"(?i)^[ \t]*(?:Fatura\s+(?:Seri|No|Tarihi|Tutar|Bedeli)|Seri\s+No|İrsaliye|Irsaliye)\b", line):
+            continue
+
         for segment in split_repeated_item_line(line):
             match = item_line_pattern.match(segment)
             if not match:
+                continue
+
+            if re.match(r"(?i)^(?:kodu|kod\b|açıklama|aciklama|mal\s*/?\s*hizmet|ürün|urun|miktar|birim|ara\s*toplam|kdv|k\.?d\.?v\.?|yekun|genel\s*toplam|ödenecek|odenecek|indirim|iskonto|toplam)", match.group("code")):
                 continue
 
             unit_price_str = match.group("unit_price")
@@ -554,10 +650,7 @@ def _find_items(text):
                 "total_price": _format_amount(total_price_val),
                 "_line_idx": line_idx,
             }
-            key = (item["code"], item["description"], item["quantity"], item["unit_price"], item["total_price"])
-            if key not in seen:
-                seen.add(key)
-                items.append(item)
+            items.append(item)
 
     section_stop = re.compile(
         r"(?i)^(?:ara\s*toplam|kdv|yekun|genel\s*toplam|odenecek|vergi|toplam\s*tutar)\b"
@@ -578,18 +671,40 @@ def _find_items(text):
         open_group = item["description"].count("(") + item["description"].count("[")
         open_group -= item["description"].count(")") + item["description"].count("]")
         desc_no_serials = _description_without_serials(item["description"]).strip()
-        if not desc_no_serials or re.fullmatch(r"[\(\)\[\]\-~,; ]+", desc_no_serials):
+        if (
+            not desc_no_serials
+            or re.fullmatch(r"[\(\)\[\]\-~,; ]+", desc_no_serials)
+            or "~" in desc_no_serials
+            or bool(_extract_item_serial_numbers(desc_no_serials))
+        ):
             previous_idx = line_idx - 1
-            while previous_idx >= 0 and not cleaned_lines[previous_idx]:
+            while previous_idx >= 0:
+                prev_line = cleaned_lines[previous_idx]
+                if not prev_line:
+                    previous_idx -= 1
+                    continue
+                if _extract_item_serial_numbers(prev_line) or "~" in prev_line or prev_line.startswith("("):
+                    serial_context.insert(0, prev_line)
+                    previous_idx -= 1
+                    continue
+                if _is_likely_item_description(prev_line):
+                    serial_context.insert(0, prev_line)
+                    break
                 previous_idx -= 1
-            if previous_idx >= 0 and _is_likely_item_description(cleaned_lines[previous_idx]):
-                serial_context.insert(0, cleaned_lines[previous_idx])
 
         for continuation in cleaned_lines[line_idx + 1 : next_line_idx]:
             if not continuation or section_stop.search(continuation):
                 break
-            
-            if re.match(r"(?i)^(?:Notlar|İrsaliye|Irsaliye|Fatura\s+Tarihi|Sipariş|Siparis|Banka|IBAN|Hesap|Döviz|Doviz|Yalnız|Yalniz|Yazıyla|Yaziyla|Fatura|İ\s*Bu|Is\s*Bu|İş\s*Bu)\b", continuation):
+
+            # Stop if this line looks like a new product code starting alone
+            if re.match(r"^\d{4}\.\d{3}\b|^[A-Z]{2,4}-\d{3}\b", continuation):
+                break
+
+            # Stop if this line contains a price/currency token — it's a data row, not a description
+            if re.search(r"(?:₺|TL|USD|EUR)\s*[\d.,]+|[\d.,]+\s*(?:₺|TL|USD|EUR)", continuation):
+                break
+
+            if re.match(r"(?i)^(?:Notlar|İrsaliye|Irsaliye|Fatura\s+Tarihi|Sipariş|Siparis|Banka|IBAN|Hesap|Hesaba|Havale|Sanal|Döviz|Doviz|Yalnız|Yalniz|Yalnızca|Yazıyla|Yaziyla|Fatura|İ\s*Bu|Is\s*Bu|İş\s*Bu|DSM\s+GRUP|\*[ \t]*Fatura)\b", continuation):
                 break
 
             serial_context.append(continuation)
@@ -629,10 +744,39 @@ def _merge_table_items_with_text_items(table_items, text_items):
         text_item = text_items[match_index]
         if not table_item["serial_numbers"]:
             table_item["serial_numbers"] = list(text_item.get("serial_numbers") or [])
-        if not table_item.get("description") and text_item.get("description"):
+        table_desc_clean = _description_without_serials(table_item.get("description", "")).strip()
+        if (not table_item.get("description") or not table_desc_clean or re.fullmatch(r"[\(\)\[\]\-~,; ]+", table_desc_clean)) and text_item.get("description"):
             table_item["description"] = text_item["description"]
 
     return table_items
+
+
+def _trim_trailing_row_bleed(items):
+    """Trim trailing words from an item description if they match the start of the next item description."""
+    for i in range(len(items) - 1):
+        curr_desc = (items[i].get("description") or "").strip()
+        next_desc = (items[i + 1].get("description") or "").strip()
+
+        curr_words = curr_desc.split()
+        next_words = next_desc.split()
+
+        if not curr_words or not next_words:
+            continue
+
+        for start_idx in range(1, len(curr_words)):
+            suffix = " ".join(curr_words[start_idx:]).strip()
+            suffix_lower = suffix.lower()
+            next_desc_lower = next_desc.lower()
+
+            if (
+                next_desc_lower.startswith(suffix_lower)
+                or suffix_lower.startswith(next_desc_lower[:len(suffix_lower)])
+            ):
+                new_curr = " ".join(curr_words[:start_idx]).strip(" -:,")
+                if new_curr:
+                    items[i]["description"] = new_curr
+                break
+    return items
 
 
 def _sum_tax_lines(text):
@@ -641,6 +785,8 @@ def _sum_tax_lines(text):
     seen_tax_parts = set()
     for line in text.splitlines():
         if "KDV" not in line.upper() and "K.D.V" not in line.upper():
+            continue
+        if "MATRAH" in line.upper():
             continue
         parts = re.split(r'(?i)\bK\.?D\.?V\.?\b', line)
         for part in parts[1:]:
@@ -685,6 +831,8 @@ def parse_invoice_text(text: str, top_text: str = None) -> dict:
         "customer_tax_id": None,
         "customer_name": None,
         "customer_title": None,
+        "customer_address": None,
+        "customer_postal_address": None,
         "items": [],
         "discount_amount": 0.0,
         "tax_amount": None,
@@ -710,7 +858,7 @@ def parse_invoice_text(text: str, top_text: str = None) -> dict:
 
     data["invoice_no"] = _first_match(
         [
-            r"(?:Fatura|Belge|Invoice)[ \t]*(?:No|Numarası|Numarasi|Number)?[ \t]*[:#-][ \t]*([A-Z0-9-]+)",
+            r"(?:Fatura|Belge|Invoice)[ \t]*(?:No|Numarası|Numarasi|Number)?[ \t]*[:#-][ \t]*([A-Z0-9-/]+)",
             r"\b([A-Z]{3}\d{13})\b",
         ],
         text,
@@ -760,6 +908,12 @@ def parse_invoice_text(text: str, top_text: str = None) -> dict:
     data["customer_tax_id"] = _extract_customer_tax_id(text)
     data["customer_name"] = _extract_customer_name(text)
     data["customer_title"] = data["customer_name"]
+    data["customer_address"] = _extract_customer_address(
+        text, data["customer_name"], data["customer_tax_id"]
+    )
+    data["customer_postal_address"] = _structure_customer_address(
+        data["customer_address"]
+    )
     data["exchange_rate"] = _extract_exchange_rate(text)
     data["notes"] = _extract_invoice_notes(text)
 
@@ -792,6 +946,293 @@ def parse_invoice_text(text: str, top_text: str = None) -> dict:
     return data
 
 
+def extract_items_via_item_blocks(pages):
+    """
+    Item Block Geometry Extractor:
+    Uses word coordinates (x, y) to construct vertical item bands, match financial anchors,
+    and cleanly separate product descriptions from multiline serial blocks.
+    """
+    items = []
+    for page in pages:
+        words = page.extract_words()
+        if not words:
+            continue
+
+        code_words = []
+        for w in words:
+            text = w["text"].strip()
+            if re.fullmatch(r"\d{3,5}\.\d{3}|[A-Z]{2,4}-\d{3}", text):
+                code_words.append(w)
+
+        if not code_words:
+            continue
+
+        words_sorted = sorted(words, key=lambda w: (w["top"], w["x0"]))
+        lines = []
+        for w in words_sorted:
+            w_center = (w["top"] + w["bottom"]) / 2
+            matched_line = None
+            for line in lines[-5:]:
+                line_center = (line["top"] + line["bottom"]) / 2
+                if abs(w_center - line_center) <= 4:
+                    matched_line = line
+                    break
+            if matched_line is None:
+                lines.append({"top": w["top"], "bottom": w["bottom"], "words": [w]})
+            else:
+                matched_line["words"].append(w)
+                matched_line["top"] = min(matched_line["top"], w["top"])
+                matched_line["bottom"] = max(matched_line["bottom"], w["bottom"])
+
+        anchors = []
+        for code_w in code_words:
+            code_y = (code_w["top"] + code_w["bottom"]) / 2
+            best_line = None
+            min_dist = 999999
+            for line in lines:
+                line_y = (line["top"] + line["bottom"]) / 2
+                line_text = " ".join(w["text"] for w in line["words"])
+                if abs(line_y - code_y) <= 80:
+                    if re.search(r"[\d.,]+,\d{2}", line_text):
+                        dist = abs(line_y - code_y)
+                        if dist < min_dist:
+                            min_dist = dist
+                            best_line = line
+            if best_line:
+                anchors.append({
+                    "code": code_w["text"],
+                    "code_word": code_w,
+                    "anchor_y": (best_line["top"] + best_line["bottom"]) / 2,
+                    "line": best_line
+                })
+
+        anchors = sorted(anchors, key=lambda a: a["anchor_y"])
+        if not anchors:
+            continue
+
+        # Detect Table Header Bottom & Footer Top for generic item_top / item_bottom bounds
+        header_bottom = 0.0
+        footer_top = page.height
+
+        for l in lines:
+            l_text = " ".join(w["text"] for w in l["words"])
+            if re.search(r"(?i)\b(?:kodu|aciklama|açıklama|miktar|birim|fiyat)\b", l_text):
+                if l["bottom"] > header_bottom:
+                    header_bottom = l["bottom"]
+            if re.search(r"(?i)\b(?:ara\s*toplam|kdv|yekun|genel\s*toplam|odenecek)\b", l_text):
+                if l["top"] < footer_top:
+                    footer_top = l["top"]
+
+        # Detect Horizontal Rule lines on page for item-table bottom boundary
+        h_rules = []
+        for l in (page.lines or []):
+            if abs(l["top"] - l["bottom"]) <= 3 and (l["x1"] - l["x0"]) >= 50:
+                h_rules.append(l["top"])
+        for r in (page.rects or []):
+            if r.get("height", 0) <= 3 and r.get("width", 0) >= 50:
+                h_rules.append(r["top"])
+
+        table_top = header_bottom if header_bottom > 0 else (min(a["anchor_y"] for a in anchors) - 40)
+        table_bottom = footer_top if footer_top < page.height else (max(a["anchor_y"] for a in anchors) + 40)
+
+        for idx, anchor in enumerate(anchors):
+            top_y = table_top if idx == 0 else (anchors[idx - 1]["anchor_y"] + anchor["anchor_y"]) / 2
+            bot_y = table_bottom if idx == len(anchors) - 1 else (anchor["anchor_y"] + anchors[idx + 1]["anchor_y"]) / 2
+
+            if idx < len(anchors) - 1:
+                next_anchor = anchors[idx + 1]
+                next_code_y = next_anchor["anchor_y"]
+                # Check lines between current anchor and next anchor for next item's pre-anchor description line
+                # A pre-anchor line is close to next_code_y (< 15pt above next anchor) and starts before next_line_top
+                candidate_pre_lines = []
+                for l in lines:
+                    l_center = (l["top"] + l["bottom"]) / 2
+                    if anchor["anchor_y"] + 5 < l_center < next_code_y:
+                        l_text = " ".join(w["text"] for w in l["words"]).strip()
+                        # If line is close to next anchor (< 15pt) and does not look like current item continuation
+                        if (next_code_y - l_center) <= 15:
+                            candidate_pre_lines.append(l["top"])
+                
+                limit_y = min(candidate_pre_lines) - 0.5 if candidate_pre_lines else (next_anchor["line"]["top"] - 0.5)
+                bot_y = min(bot_y, limit_y)
+
+            if idx == len(anchors) - 1:
+                rules_below = [r_y for r_y in h_rules if r_y > anchor["anchor_y"] + 5]
+                if rules_below:
+                    bot_y = min(bot_y, min(rules_below))
+
+            # Filter lines above and below anchor using local continuity
+            anchor_line_y = (anchor["line"]["top"] + anchor["line"]["bottom"]) / 2
+            
+            # Pre-anchor lines: scan upward step-by-step starting from anchor line
+            pre_anchor_lines = []
+            curr_y = anchor["line"]["top"]
+            lines_above = sorted([l for l in lines if top_y <= (l["top"] + l["bottom"]) / 2 < anchor_line_y - 4], key=lambda l: l["bottom"], reverse=True)
+            
+            for l in lines_above:
+                gap = curr_y - l["bottom"]
+                l_text = " ".join(w["text"] for w in l["words"]).strip()
+                if gap > 22 or re.search(r"(?i)^(?:Kodu|Kod\b|Açıklama|Aciklama|Miktar|Birim|Fiyat|TC\b|Tarih|Posta|Adres|Sayın|Müşteri)", l_text):
+                    break
+                pre_anchor_lines.append(l)
+                curr_y = l["top"]
+            pre_anchor_lines.reverse()
+
+            # Post-anchor & anchor lines
+            post_anchor_lines = [l for l in lines if anchor_line_y - 4 <= (l["top"] + l["bottom"]) / 2 <= bot_y]
+
+            band_lines = pre_anchor_lines + post_anchor_lines
+
+            desc_parts = []
+            serial_raw_parts = []
+            in_serial_block = False
+            paren_balance = 0
+
+            for line in sorted(band_lines, key=lambda l: l["top"]):
+                line_y = (line["top"] + line["bottom"]) / 2
+                is_anchor = abs(line_y - anchor["anchor_y"]) <= 4
+
+                # Classify the entire physical line FIRST before column filtering
+                full_line_text = " ".join(w["text"].strip() for w in line["words"]).strip()
+                full_line_x0 = min(w["x0"] for w in line["words"])
+                full_line_x1 = max(w["x1"] for w in line["words"])
+
+                # Check if this line is a structural footer/note prose block
+                if not is_anchor and line_y > anchor["anchor_y"] + 10:
+                    is_footer_prose = (
+                        re.search(r"(?i)^(?:İş\s*bu\s*fatura|Fatura\s*üzerindeki|\*\s*RFIDmarket|\*\s*E-İrsaliye|\*\s*Kredi\s*kartı|Döviz\s*Kuru|Döviz\s*Toplam|Ara\s*Toplam|KDV|Yekün|Genel\s*Toplam)", full_line_text)
+                        or ((full_line_x1 - full_line_x0 > 320) and full_line_x0 < 80)
+                    )
+                    if is_footer_prose:
+                        break
+
+                filtered_words = [w for w in line["words"] if w["text"].strip() != anchor["code"]]
+                line_words_clean = []
+                for w in sorted(filtered_words, key=lambda w: w["x0"]):
+                    t = w["text"].strip()
+                    if w["x0"] > (anchor["code_word"]["x0"] + 90):
+                        if any(c in t for c in ("₺", "$", "€")) or t in ("TL", "USD", "EUR"):
+                            continue
+                        if re.search(r"\d{1,3}(?:\.\d{3})*(?:,\d{2})", t) or re.fullmatch(r"\d+(?:[.,]\d{2,})", t):
+                            continue
+                    elif is_anchor:
+                        if re.fullmatch(r"[₺$€]?\s*\d{1,3}(?:\.\d{3})*(?:,\d{2})", t) or t in ("₺", "TL", "USD", "EUR"):
+                            continue
+                    line_words_clean.append(t)
+
+                clean_text = " ".join(line_words_clean).strip()
+                if not clean_text:
+                    continue
+
+                if re.search(r"(?i)^(?:Ara\s*Toplam|KDV|Yekün|Genel\s*Toplam|Top|Toplam)", clean_text):
+                    break
+
+                has_serial = bool(_extract_item_serial_numbers(clean_text) or re.search(r"[A-Z]{2,}\d{3,}", clean_text))
+                if in_serial_block or ("(" in clean_text and has_serial and any(c in clean_text for c in ("~", ";", ",", "-"))):
+                    in_serial_block = True
+                    serial_raw_parts.append(clean_text)
+                    paren_balance += clean_text.count("(") - clean_text.count(")")
+                    if paren_balance <= 0 and ")" in clean_text:
+                        in_serial_block = False
+                else:
+                    if not re.fullmatch(r"[\(\)\[\]\-~,; ]+", clean_text):
+                        desc_parts.append(clean_text)
+
+            raw_serial = "".join(serial_raw_parts).strip("()[] ")
+            serials = [s.strip() for s in re.split(r"[~,;\-]+", raw_serial) if s.strip() and _is_serial_token(s.strip())]
+            
+            raw_description = " ".join(desc_parts).strip()
+            extra_serials = _extract_item_serial_numbers(raw_description)
+            if extra_serials and not serials:
+                serials = extra_serials
+
+            description = _description_without_serials(raw_description)
+            description = re.sub(r"\s+", " ", description)
+            description = re.sub(r"\s+([,.:;])", r"\1", description).strip()
+
+            # Deduplicate repeated phrase copies from multi-copy landscape layouts
+            desc_words = description.split()
+            for n in (3, 2):
+                if desc_words and len(desc_words) % n == 0:
+                    k = len(desc_words) // n
+                    chunk = desc_words[:k]
+                    if all(desc_words[i * k : (i + 1) * k] == chunk for i in range(1, n)):
+                        description = " ".join(chunk)
+                        break
+
+            items.append({
+                "code": anchor["code"],
+                "description": description,
+                "serial_numbers": serials,
+            })
+
+    unique_items = []
+    for it in items:
+        if not any(u["code"] == it["code"] and u["description"] == it["description"] for u in unique_items):
+            unique_items.append(it)
+
+    return unique_items
+
+def _apply_mode_b_usd_conversion(data: dict):
+    from decimal import Decimal
+    
+    text = data.get("_raw_text", "")
+    text_upper = text.replace('\n', ' ').upper()
+    has_usd_statement = "BEDELİ USD OLARAK" in text_upper or "USD OLARAK TAHSİL" in text_upper
+    has_foreign_total = "DÖVİZ TOPLAM" in text_upper and "$" in text_upper
+    has_exchange_rate = bool(data.get("exchange_rate"))
+    
+    import re
+    foreign_total_match = re.search(r'(?i)Döviz Toplam\s*:\s*\$([\d\.,]+)', text)
+    foreign_total = foreign_total_match.group(1).replace(".", "").replace(",", ".") if foreign_total_match else None
+    
+    if has_usd_statement and has_exchange_rate and (has_foreign_total or foreign_total):
+        try:
+            ex_rate = Decimal(data["exchange_rate"].replace(",", "."))
+            if ex_rate <= 0:
+                return
+            
+            data["local_subtotal"] = data.get("subtotal")
+            data["local_tax_amount"] = data.get("tax_amount")
+            data["local_total"] = data.get("total_amount")
+            
+            def _convert(val_str):
+                if not val_str: return None
+                val = Decimal(str(val_str).replace(".", "").replace(",", "."))
+                converted = (val / ex_rate).quantize(Decimal('0.01'))
+                return f"{converted:.2f}"
+
+            if data.get("local_subtotal"):
+                data["subtotal"] = _convert(data["local_subtotal"])
+            if data.get("local_tax_amount"):
+                data["tax_amount"] = _convert(data["local_tax_amount"])
+            
+            if foreign_total:
+                data["foreign_total"] = foreign_total
+                data["total_amount"] = foreign_total
+            elif data.get("local_total"):
+                data["total_amount"] = _convert(data["local_total"])
+                
+            data["currency"] = "USD"
+            data["document_currency"] = "USD"
+            data["settlement_currency"] = "USD"
+            data["accounting_currency"] = "TRY"
+            
+            for item in data.get("items", []):
+                item["local_unit_price"] = item.get("unit_price")
+                item["local_total_price"] = item.get("total_price")
+                item["local_amount_currency"] = "TRY"
+                
+                if item.get("local_unit_price"):
+                    item["unit_price"] = _convert(item["local_unit_price"])
+                if item.get("local_total_price"):
+                    item["total_price"] = _convert(item["local_total_price"])
+                item["amount_currency"] = "USD"
+                
+        except Exception as e:
+            print(f"Error applying Mode B USD conversion: {e}")
+
+
 def parse_pdf_invoice(file_path: str) -> dict:
     """
     Parses a digital PDF invoice using pdfplumber and regex.
@@ -800,8 +1241,6 @@ def parse_pdf_invoice(file_path: str) -> dict:
 
     try:
         with pdfplumber.open(file_path) as pdf:
-            table_items = extract_items_from_tables(pdf)
-
             plain_text = ""
             layout_text = ""
             top_text = None
@@ -826,24 +1265,35 @@ def parse_pdf_invoice(file_path: str) -> dict:
                 if first_page.width > first_page.height * 1.1:
                     # Possible landscape multi-copy layout. Let's check for repeated columns.
                     if plain_text.count("Ara Toplam") >= 2 or plain_text.count("Genel Toplam") >= 2 or plain_text.count("KDV") >= 3:
-                        print("Detected multi-copy landscape layout. Cropping to the left third to prevent horizontal bleed...")
+                        print("Detected multi-copy landscape layout. Cropping to the right third to prevent horizontal bleed...")
                         plain_text = ""
                         layout_text = ""
+                        cropped_pages = []
                         for page in pdf.pages:
-                            # Crop to left 34%
-                            bbox = (0, 0, page.width * 0.34, page.height)
+                            # Crop to right 34% (copy 3) to prevent right-side clipping
+                            bbox = (page.width * 0.66, 0, page.width, page.height)
                             cropped = page.crop(bbox)
+                            cropped_pages.append(cropped)
                             pt = cropped.extract_text()
                             lt = cropped.extract_text(layout=True)
                             if pt: plain_text += pt + "\n"
                             if lt: layout_text += lt + "\n"
+                        table_items = extract_items_from_tables(cropped_pages)
+                    else:
+                        table_items = extract_items_from_tables(pdf.pages)
+                else:
+                    table_items = extract_items_from_tables(pdf.pages)
+            else:
+                table_items = []
 
             candidate_texts = [text.strip() for text in (plain_text, layout_text) if text and text.strip()]
             if not candidate_texts:
                 print("No selectable text found via pdfplumber. Falling back to OCR...")
                 from extractors.ocr_extractor import parse_pdf_invoice_ocr
 
-                return parse_pdf_invoice_ocr(file_path)
+                return _with_structured_customer_address(
+                    parse_pdf_invoice_ocr(file_path)
+                )
 
             candidates = []
             for text in candidate_texts:
@@ -858,14 +1308,58 @@ def parse_pdf_invoice(file_path: str) -> dict:
                     data.get("items", []),
                 )
 
+        # Fikir 4.1 Item Block Geometry Reconciliation:
+        # If an item's description is missing, contains only serial numbers, or lost pre-anchor lines (e.g. ASYAPORT, KATLAN),
+        # use the Item Block Geometry Extractor to reconstruct the complete description & multiline serial block.
+        geom_items = None
+        for item in data.get("items", []):
+            desc_clean = _description_without_serials(item.get("description", "")).strip()
+            needs_geom = (
+                not item.get("description")
+                or not desc_clean
+                or re.fullmatch(r"[\(\)\[\]\-~,; ]+", desc_clean)
+            )
+
+            if geom_items is None:
+                try:
+                    target_pages = cropped_pages if 'cropped_pages' in locals() and cropped_pages else pdf.pages
+                    geom_items = extract_items_via_item_blocks(target_pages)
+                except Exception as ge:
+                    print(f"Geometry item block extraction note: {ge}")
+                    geom_items = []
+
+            if geom_items:
+                for g in geom_items:
+                    if g.get("code") == item.get("code") and g.get("description"):
+                        item["description"] = g["description"]
+                        if g.get("serial_numbers") and not item.get("serial_numbers"):
+                            item["serial_numbers"] = g["serial_numbers"]
+                        break
+
+        data["items"] = _trim_trailing_row_bleed(data.get("items", []))
+
+        for item in data.get("items", []):
+            desc = item.get("description", "")
+            if _extract_item_serial_numbers(desc) and not item.get("serial_numbers"):
+                item["serial_numbers"] = _extract_item_serial_numbers(desc)
+            desc_clean = _description_without_serials(desc)
+            if desc_clean:
+                item["description"] = desc_clean
+            if re.match(r"(?i)^kargo\s+ücreti\b", item.get("description", "")):
+                item["description"] = "Kargo Ücreti"
+
         if not data["items"]:
             print("PDF text was read, but line items were not matched. Falling back to OCR...")
             from extractors.ocr_extractor import parse_pdf_invoice_ocr
 
-            return parse_pdf_invoice_ocr(file_path)
+            return _with_structured_customer_address(
+                parse_pdf_invoice_ocr(file_path)
+            )
+
+        _apply_mode_b_usd_conversion(data)
 
         print("Successfully read PDF file.")
-        return data
+        return _with_structured_customer_address(data)
 
     except Exception as e:
         print(f"Error parsing PDF file {file_path}: {e}")

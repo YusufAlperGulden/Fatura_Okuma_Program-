@@ -13,6 +13,10 @@ from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
 from pathlib import Path
 from typing import Any, Iterable
 
+from utils.serial_numbers import (
+    format_customer_postal_address,
+    normalize_customer_postal_address,
+)
 from validators.invoice_validator import validate_invoice
 
 
@@ -125,6 +129,10 @@ def _safe_text(value: Any) -> str:
     if value is None:
         return ""
     return str(value).strip()
+
+
+def _format_address(address_val: Any) -> str:
+    return format_customer_postal_address(address_val)
 
 
 def _normalize_date(value: Any) -> str:
@@ -257,15 +265,28 @@ def _build_header_row(invoice: dict[str, Any], package_id: str, source_system: s
 
 
 def _build_customer_row(invoice: dict[str, Any], source_system: str) -> dict[str, Any]:
+    raw_address = invoice.get("customer_address")
+    postal_address = normalize_customer_postal_address(
+        invoice.get("customer_postal_address")
+        or (raw_address if isinstance(raw_address, dict) else None)
+    )
     return {
         "source_system": source_system,
         "customer_tax_id": _safe_text(invoice.get("customer_tax_id")),
         "customer_code": _safe_text(invoice.get("customer_code") or invoice.get("customer_tax_id")),
         "title": _customer_name(invoice),
         "tax_office": _safe_text(invoice.get("customer_tax_office")),
-        "address": _safe_text(invoice.get("customer_address")),
-        "city": _safe_text(invoice.get("customer_city")),
-        "country": _safe_text(invoice.get("customer_country") or "TR"),
+        "address": _format_address(postal_address or raw_address),
+        "city": _safe_text(
+            invoice.get("customer_city")
+            or postal_address.get("city_name")
+        ),
+        "country": _safe_text(
+            invoice.get("customer_country")
+            or postal_address.get("country_code")
+            or postal_address.get("country_name")
+            or "TR"
+        ),
         "email": _safe_text(invoice.get("customer_email")),
     }
 

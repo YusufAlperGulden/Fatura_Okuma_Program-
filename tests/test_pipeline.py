@@ -211,6 +211,22 @@ class PipelineTests(unittest.TestCase):
         self.assertEqual(data["customer_name"], "DEMO ALICI LTD. ŞTİ.")
         self.assertEqual(data["customer_title"], "DEMO ALICI LTD. ŞTİ.")
 
+    def test_pdf_address_extraction_stops_correctly(self):
+        text = """Fatura
+Satici: Satici AS
+Alici:
+ORNEK MUSTERI SAN TIC LTD STI
+Ornek Mah. Test Cad.
+No: 1 Kat: 2
+Kadikoy / Istanbul
+Vergi Dairesi: Kadikoy VD
+VKN: 1234567890
+Tarih: 01.01.2026
+"""
+        from extractors.pdf_extractor import _extract_customer_address
+        address = _extract_customer_address(text, "ORNEK MUSTERI SAN TIC LTD STI", "1234567890")
+        self.assertEqual(address, "Ornek Mah. Test Cad. No: 1 Kat: 2 Kadikoy / Istanbul")
+
     def test_parse_pdf_explicit_exchange_rate(self):
         text = """
         Fatura Tarihi: 10.07.2026
@@ -645,6 +661,155 @@ class PipelineTests(unittest.TestCase):
         self.assertIsNotNone(match)
         self.assertEqual(match["Title"], "OTO ISMAIL OTOMOTIV SAN. VE TIC. LTD. STI. Test Kullanicisi")
         self.assertEqual(match["PostboxAlias"], "urn:mail:defaultpk@otoismail.com.tr")
+
+    def test_katlan_golden_regression(self):
+        text = """
+        Elektronik Barkod Kodlayıcı / Yazıcı
+        1390.151 (DBJ251703926~DBJ251703864~DBJ251703909~DBJ251703825~DBJ 6,00 ₺43.703,98 ₺262.223,89
+        251703866~DBJ254618071)
+        1984.001 Kargo Ücreti 1,00 ₺445,96 ₺445,96
+        Ara Toplam ₺262.669,85
+        KDV 18(%20) ₺52.533,97
+        Yekün ₺315.203,82
+        """
+        data = parse_invoice_text(text)
+        self.assertEqual(len(data["items"]), 2)
+        self.assertEqual(data["items"][0]["code"], "1390.151")
+        self.assertEqual(data["items"][0]["description"], "Elektronik Barkod Kodlayıcı / Yazıcı")
+        self.assertEqual(
+            data["items"][0]["serial_numbers"],
+            [
+                "DBJ251703926",
+                "DBJ251703864",
+                "DBJ251703909",
+                "DBJ251703825",
+                "DBJ251703866",
+                "DBJ254618071",
+            ],
+        )
+        self.assertTrue(
+            all(s not in data["items"][0]["description"] for s in data["items"][0]["serial_numbers"])
+        )
+        self.assertEqual(data["items"][1]["code"], "1984.001")
+        self.assertEqual(data["items"][1]["description"], "Kargo Ücreti")
+
+    def test_asyaport_golden_regression_if_file_exists(self):
+        import os, glob
+        from extractors.pdf_extractor import parse_pdf_invoice
+        pdfs = glob.glob('*asyaport*.pdf') + glob.glob('../*asyaport*.pdf') + glob.glob('uploads/*asyaport*.pdf') + glob.glob('C:/Users/stajyer/Downloads/*asyaport*.pdf')
+        if pdfs and os.path.exists(pdfs[0]):
+            res = parse_pdf_invoice(pdfs[0])
+            items = res.get("items", [])
+            self.assertGreaterEqual(len(items), 1)
+            self.assertEqual(items[0]["code"], "0219.001")
+            expected_desc = (
+                "Standart Pvc, 2K Bit (256Byte) Hafızalı, 2 Uygulama Alanlı, "
+                "Programlanmamış, Parlak Beyaz Ön Ve Arka Yüzey, "
+                "Mürekkeple Basılmış Dış Numara, Kart Delgeç işaretli "
+                "Temassız Akıllı Kart"
+            )
+            self.assertEqual(items[0]["description"], expected_desc)
+            self.assertNotIn("Ara Toplam", items[0]["description"])
+            self.assertNotIn("KDV", items[0]["description"])
+
+    def test_desan_golden_regression_if_file_exists(self):
+        import os, glob
+        from extractors.pdf_extractor import parse_pdf_invoice
+        pdfs = glob.glob('*DESAN*.pdf') + glob.glob('../*DESAN*.pdf') + glob.glob('uploads/*DESAN*.pdf') + glob.glob('C:/Users/stajyer/Downloads/*DESAN*.pdf')
+        if pdfs and os.path.exists(pdfs[0]):
+            res = parse_pdf_invoice(pdfs[0])
+            items = res.get("items", [])
+            self.assertEqual(len(items), 7)
+            
+            expected_items = [
+                ("0655.009", "9 Mt. K06 Sert Anten Kablosu"),
+                ("0789.082", "CN0106.2 Anten Tarafı Konnektör Takımı - K06 Kablosu İçin v2"),
+                ("0789.415", "CN2006.2 Okuyucu Tarafı Konnektör Takımı - K06 Anten Kablosu İçin - Sma Male"),
+                ("2245.001", "Endüstriyel Radyo Frekans Anteni"),
+                ("0215.030", "Hibrit Kart - HID 26 Bit + H9 PVC Kart"),
+                ("3190.024", "Merkezi Kontrol Ünitesi"),
+                ("0001.009", "UHF PVC Kart - Düz Beyaz (H47)"),
+            ]
+            
+            for idx, (exp_code, exp_desc) in enumerate(expected_items):
+                self.assertEqual(items[idx]["code"], exp_code)
+                self.assertEqual(items[idx]["description"], exp_desc)
+                
+            self.assertNotIn("İŞ BU FATURA", items[6]["description"])
+            self.assertNotIn("2.601,60 USD", items[6]["description"])
+            self.assertNotIn("BEDELİ USD", items[6]["description"])
+
+    def test_anpa_gross_golden_regression_if_file_exists(self):
+        import os, glob
+        from extractors.pdf_extractor import parse_pdf_invoice
+        pdfs = glob.glob('*ANPA*.pdf') + glob.glob('../*ANPA*.pdf') + glob.glob('uploads/*ANPA*.pdf') + glob.glob('C:/Users/stajyer/Downloads/*ANPA*.pdf')
+        if pdfs and os.path.exists(pdfs[0]):
+            res = parse_pdf_invoice(pdfs[0])
+            items = res.get("items", [])
+            self.assertEqual(len(items), 7)
+            
+            target_item = next((it for it in items if it.get("code") == "4210.058"), None)
+            self.assertIsNotNone(target_item)
+            
+            self.assertEqual(
+                target_item["description"],
+                "Dış Ortam (Outdoor)Yönlü GSM&GPS Gateway USB + Anten 45"
+            )
+            
+            expected_serials = [
+                "1919.0230001",
+                "1919.0230002",
+                "868018076846834",
+                "868018076691636",
+                "868018076802324",
+                "868018076858193",
+                "868018076805806"
+            ]
+            self.assertEqual(target_item["serial_numbers"], expected_serials)
+            self.assertEqual(target_item["quantity"], "7,00")
+            self.assertEqual(target_item["unit_price"], "18803,92")
+            self.assertEqual(target_item["total_price"], "131627,44")
+            
+            self.assertNotIn("1919.0230001", target_item["description"])
+            self.assertNotIn("868018076846834", target_item["description"])
+            self.assertNotIn("~", target_item["description"])
+
+    def test_erdem_cevik_golden_regression_if_file_exists(self):
+        import os, glob
+        from extractors.pdf_extractor import parse_pdf_invoice
+        pdfs = glob.glob('*ERDEM*.pdf') + glob.glob('../*ERDEM*.pdf') + glob.glob('uploads/*ERDEM*.pdf') + glob.glob('C:/Users/stajyer/Downloads/*ERDEM*.pdf') + glob.glob('erdem_cevik.pdf')
+        if pdfs and os.path.exists(pdfs[0]):
+            res = parse_pdf_invoice(pdfs[0])
+            items = res.get("items", [])
+            self.assertEqual(len(items), 1)
+            self.assertEqual(items[0]["code"], "0213.215")
+            self.assertEqual(items[0]["description"], "NFC Black Kart")
+            self.assertEqual(items[0]["quantity"], "1,00")
+            self.assertEqual(items[0]["unit_price"], "187,42")
+            self.assertEqual(items[0]["total_price"], "187,42")
+            
+            self.assertNotIn("TC", items[0]["description"])
+            self.assertNotIn("11111111111", items[0]["description"])
+            self.assertNotIn("22.04.2025", items[0]["description"])
+            self.assertNotIn("10:54", items[0]["description"])
+
+    def test_nurol_golden_regression_if_file_exists(self):
+        import os, glob
+        from extractors.pdf_extractor import parse_pdf_invoice
+        pdfs = glob.glob('*NUROL*.pdf') + glob.glob('../*NUROL*.pdf') + glob.glob('uploads/*NUROL*.pdf') + glob.glob('C:/Users/stajyer/Downloads/*NUROL*.pdf') + glob.glob('nurol.pdf')
+        if pdfs and os.path.exists(pdfs[0]):
+            res = parse_pdf_invoice(pdfs[0])
+            items = res.get("items", [])
+            self.assertEqual(len(items), 1)
+            self.assertEqual(items[0]["code"], "3745.012")
+            self.assertEqual(items[0]["description"], "NFC Etiket")
+            self.assertEqual(items[0]["quantity"], "28.000,00")
+            self.assertEqual(items[0]["unit_price"], "0.26")
+            self.assertEqual(items[0]["total_price"], "7280.00")
+            
+            self.assertNotIn("₺12,22", items[0]["description"])
+            self.assertNotIn("342.135,25", items[0]["description"])
+            self.assertEqual(items[0]["description"].count("NFC Etiket"), 1)
 
 
 if __name__ == "__main__":

@@ -17,7 +17,6 @@ _CURRENCY_ALIASES = {
     "₺": "TRY",
     "TÜRK LİRASI": "TRY",
     "TURK LIRASI": "TRY",
-    "TÜRK LIRASI": "TRY",
     "USD": "USD",
     "DOLAR": "USD",
     "$": "USD",
@@ -35,7 +34,6 @@ _CURRENCY_ALIASES = {
 _NUMBER_TOKENS = (
     "TÜRK LİRASI",
     "TURK LIRASI",
-    "TÜRK LIRASI",
     "AMERİKAN DOLARI",
     "AMERIKAN DOLARI",
     "STERLİN",

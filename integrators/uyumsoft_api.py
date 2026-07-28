@@ -25,6 +25,339 @@ from utils.invoice_values import (
     quantize_money,
 )
 
+import re
+import unicodedata
+
+# Address matching is performed on an ASCII-folded representation, while the
+# canonical Turkish spelling is returned to callers.
+_CANONICAL_TURKISH_CITIES = (
+    "ADANA", "ADIYAMAN", "AFYONKARAHİSAR", "AĞRI", "AMASYA", "ANKARA",
+    "ANTALYA", "ARTVİN", "AYDIN", "BALIKESİR", "BİLECİK", "BİNGÖL",
+    "BİTLİS", "BOLU", "BURDUR", "BURSA", "ÇANAKKALE", "ÇANKIRI", "ÇORUM",
+    "DENİZLİ", "DİYARBAKIR", "EDİRNE", "ELAZIĞ", "ERZİNCAN", "ERZURUM",
+    "ESKİŞEHİR", "GAZİANTEP", "GİRESUN", "GÜMÜŞHANE", "HAKKARİ", "HATAY",
+    "ISPARTA", "MERSİN", "İSTANBUL", "İZMİR", "KARS", "KASTAMONU",
+    "KAYSERİ", "KIRKLARELİ", "KIRŞEHİR", "KOCAELİ", "KONYA", "KÜTAHYA",
+    "MALATYA", "MANİSA", "KAHRAMANMARAŞ", "MARDİN", "MUĞLA", "MUŞ",
+    "NEVŞEHİR", "NİĞDE", "ORDU", "RİZE", "SAKARYA", "SAMSUN", "SİİRT",
+    "SİNOP", "SİVAS", "TEKİRDAĞ", "TOKAT", "TRABZON", "TUNCELİ",
+    "ŞANLIURFA", "UŞAK", "VAN", "YOZGAT", "ZONGULDAK", "AKSARAY",
+    "BAYBURT", "KARAMAN", "KIRIKKALE", "BATMAN", "ŞIRNAK", "BARTIN",
+    "ARDAHAN", "IĞDIR", "YALOVA", "KARABÜK", "KİLİS", "OSMANİYE", "DÜZCE",
+)
+
+_ADDRESS_KEYS = (
+    "street_name",
+    "building_name",
+    "building_number",
+    "city_subdivision_name",
+    "city_name",
+    "postal_zone",
+    "district",
+    "country_code",
+    "country_name",
+    "address_lines",
+)
+
+_TURKISH_CHARACTER_FOLD = str.maketrans(
+    {
+        "ı": "i", "İ": "I", "ş": "s", "Ş": "S", "ğ": "g", "Ğ": "G",
+        "ü": "u", "Ü": "U", "ö": "o", "Ö": "O", "ç": "c", "Ç": "C",
+        # Common Windows-1254 mojibake left in historic extracted data.
+        "ý": "i", "Ý": "I", "þ": "s", "Þ": "S", "ð": "g", "Ð": "G",
+    }
+)
+
+
+def _address_fold(value: Any) -> str:
+    """Return a case-insensitive, Turkish-aware representation for matching."""
+    translated = str(value or "").translate(_TURKISH_CHARACTER_FOLD)
+    decomposed = unicodedata.normalize("NFKD", translated)
+    return "".join(char for char in decomposed if not unicodedata.combining(char)).upper()
+
+
+def _blank_span(value: str, start: int, end: int) -> str:
+    """Remove a matched slice without changing offsets used by folded text."""
+    return value[:start] + (" " * (end - start)) + value[end:]
+
+
+def _clean_address_value(value: Any) -> str:
+    if value is None:
+        return ""
+    if isinstance(value, (list, tuple)):
+        value = " ".join(str(part) for part in value if part not in (None, ""))
+    return " ".join(str(value).split()).strip(" \t\r\n,;/")
+
+
+def _deduplicate_address_lines(lines: list[str]) -> list[str]:
+    result: list[str] = []
+    seen: set[str] = set()
+    for line in lines:
+        cleaned = _clean_address_value(line)
+        folded = _address_fold(cleaned)
+        if cleaned and folded not in seen:
+            seen.add(folded)
+            result.append(cleaned)
+    return result
+
+
+def _empty_postal_address() -> dict[str, Any]:
+    return {
+        "street_name": "",
+        "building_name": "",
+        "building_number": "",
+        "city_subdivision_name": "",
+        "city_name": "",
+        "postal_zone": "",
+        "district": "",
+        "country_code": "",
+        "country_name": "",
+        "address_lines": [],
+    }
+
+
+def _is_turkish_city(value: str) -> bool:
+    folded = _address_fold(value)
+    return any(folded == _address_fold(city) for city in _CANONICAL_TURKISH_CITIES)
+
+
+def _normalize_structured_address(address_data: dict[str, Any]) -> dict[str, Any]:
+    """Normalize canonical dictionaries and tolerate the previous XML aliases."""
+    fields = _empty_postal_address()
+
+    # The previous XML extractor used street/city/country and used district for
+    # CitySubdivisionName. Supporting those aliases here prevents data loss
+    # while all extractors migrate to the canonical schema.
+    legacy_shape = any(
+        key in address_data for key in ("street", "city", "country", "address_line")
+    )
+    aliases = {
+        "street": "street_name",
+        "city": "city_name",
+        "country": "country_name",
+    }
+    for source_key, target_key in aliases.items():
+        if target_key not in address_data and source_key in address_data:
+            fields[target_key] = _clean_address_value(address_data[source_key])
+
+    for key in _ADDRESS_KEYS:
+        if key not in address_data:
+            continue
+        value = address_data[key]
+        if key == "address_lines":
+            if isinstance(value, str):
+                fields[key] = [value]
+            elif isinstance(value, (list, tuple)):
+                fields[key] = [
+                    _clean_address_value(line)
+                    for line in value
+                    if line not in (None, "")
+                ]
+            elif value not in (None, ""):
+                fields[key] = [_clean_address_value(value)]
+        elif legacy_shape and key == "district" and "city_subdivision_name" not in address_data:
+            fields["city_subdivision_name"] = _clean_address_value(value)
+        else:
+            fields[key] = _clean_address_value(value)
+
+    legacy_lines = address_data.get("address_line")
+    if legacy_lines and not fields["address_lines"]:
+        fields["address_lines"] = (
+            [_clean_address_value(legacy_lines)]
+            if isinstance(legacy_lines, str)
+            else [_clean_address_value(line) for line in legacy_lines if line]
+        )
+
+    fields["address_lines"] = _deduplicate_address_lines(fields["address_lines"])
+    fields["country_code"] = fields["country_code"].upper()
+
+    country_folded = _address_fold(fields["country_name"])
+    if fields["country_code"] == "TR" and not fields["country_name"]:
+        fields["country_name"] = "Türkiye"
+    elif country_folded in {"TURKIYE", "TURKEY"} and not fields["country_code"]:
+        fields["country_code"] = "TR"
+        fields["country_name"] = "Türkiye"
+    elif (
+        not fields["country_code"]
+        and not fields["country_name"]
+        and _is_turkish_city(fields["city_name"])
+    ):
+        fields["country_code"] = "TR"
+        fields["country_name"] = "Türkiye"
+
+    return fields
+
+
+def _take_address_match(
+    text: str, pattern: str, *, value_group: int = 0
+) -> tuple[str, str]:
+    """Return the original matched value and blank the entire matched slice."""
+    match = re.search(pattern, _address_fold(text), re.IGNORECASE)
+    if not match:
+        return "", text
+    value_start, value_end = match.span(value_group)
+    full_start, full_end = match.span(0)
+    value = _clean_address_value(text[value_start:value_end])
+    return value, _blank_span(text, full_start, full_end)
+
+
+def parse_turkish_address(address_data: Any) -> dict[str, Any]:
+    """Return a loss-aware canonical postal address.
+
+    Turkish free-form addresses are split conservatively. Recognised
+    components are mapped to UBL fields; any non-empty slice that cannot be
+    mapped with confidence remains in ``address_lines`` instead of being
+    silently discarded.
+    """
+    if not address_data or address_data == "-":
+        return _empty_postal_address()
+    if isinstance(address_data, dict):
+        return _normalize_structured_address(address_data)
+
+    raw_address = " ".join(str(address_data).split()).strip()
+    if not raw_address or raw_address == "-":
+        return _empty_postal_address()
+
+    fields = _empty_postal_address()
+    working = raw_address
+
+    # Postal codes may appear before or after the city. Prefer the rightmost
+    # five-digit value, which is the conventional address position.
+    postal_matches = list(re.finditer(r"(?<!\d)(\d{5})(?!\d)", _address_fold(working)))
+    if postal_matches:
+        postal_match = postal_matches[-1]
+        fields["postal_zone"] = working[postal_match.start(1):postal_match.end(1)]
+        working = _blank_span(working, postal_match.start(), postal_match.end())
+
+    # Select the rightmost city occurrence. This distinguishes the destination
+    # city from street names such as "ANKARA CAD." and "İSTANBUL CADDESİ".
+    folded_working = _address_fold(working)
+    city_candidates: list[tuple[int, int, str]] = []
+    for city in _CANONICAL_TURKISH_CITIES:
+        folded_city = _address_fold(city)
+        for match in re.finditer(rf"(?<![A-Z0-9]){re.escape(folded_city)}(?![A-Z0-9])", folded_working):
+            city_candidates.append((match.start(), match.end(), city))
+
+    trailing_text = ""
+    city_separator_present = False
+    if city_candidates:
+        city_start, city_end, city_name = max(
+            city_candidates, key=lambda candidate: (candidate[0], candidate[1] - candidate[0])
+        )
+        fields["city_name"] = city_name
+        fields["country_code"] = "TR"
+        fields["country_name"] = "Türkiye"
+        before_city = working[:city_start]
+        city_separator_present = before_city.rstrip().endswith(("/", ",", ";"))
+        trailing_text = working[city_end:]
+        working = before_city
+
+        folded_trailing = _address_fold(trailing_text).strip(" \t\r\n,;/")
+        if folded_trailing in {"TR", "TURKIYE", "TURKEY"}:
+            trailing_text = ""
+
+    # Unit/door details have no dedicated field in the canonical model. Keep
+    # them as AddressLine values rather than confusing them with the building
+    # number.
+    unit_pattern = (
+        r"\b(?:IC\s*KAPI(?:\s*NO)?|DAIRE(?:\s*NO)?|KAT)"
+        r"\s*[:.]?\s*[A-Z0-9/-]+\b"
+    )
+    unit_lines: list[str] = []
+    while True:
+        match = re.search(unit_pattern, _address_fold(working), re.IGNORECASE)
+        if not match:
+            break
+        unit_lines.append(_clean_address_value(working[match.start():match.end()]))
+        working = _blank_span(working, match.start(), match.end())
+
+    word = r"[A-Z0-9][A-Z0-9.'’/-]*"
+    fields["district"], working = _take_address_match(
+        working,
+        rf"(?:{word}\s+){{0,4}}(?:MAHALLESI|MAHALLE|MAH)(?:\.)?",
+    )
+    fields["street_name"], working = _take_address_match(
+        working,
+        rf"(?:{word}\s+){{0,5}}"
+        r"(?:CADDESI|CADDE|CAD|SOKAGI|SOKAK|SOK|BULVARI|BULVAR|BULV|BLV)(?:\.)?",
+    )
+    fields["building_name"], working = _take_address_match(
+        working,
+        rf"(?:{word}\s+){{0,4}}"
+        r"(?:APARTMANI|APARTMAN|APT|SITESI|SITE|PLAZA|BLOK)(?:\.)?",
+    )
+    fields["building_number"], working = _take_address_match(
+        working,
+        r"\b(?:DIS\s*KAPI\s*NO|BINA\s*NO|KAPI\s*NO|NO|NUMARA)"
+        r"\s*[:.]?\s*([0-9]+(?:\s*[-/]?\s*[A-Z])?)\b",
+        value_group=1,
+    )
+
+    unmatched_lines: list[str] = []
+    remainder = re.sub(r"\s+", " ", working).strip(" \t\r\n,;/")
+    if remainder and fields["city_name"]:
+        segments = [
+            _clean_address_value(segment)
+            for segment in re.split(r"[,;/|]+", remainder)
+            if _clean_address_value(segment)
+        ]
+        subdivision_candidate = segments[-1] if segments else ""
+        subdivision_candidate = re.sub(
+            r"^(?:ILCE|ILCESI)\s*[:.-]?\s*",
+            "",
+            subdivision_candidate,
+            flags=re.IGNORECASE,
+        ).strip()
+        candidate_folded = _address_fold(subdivision_candidate)
+        candidate_words = candidate_folded.split()
+        if (
+            subdivision_candidate
+            and re.fullmatch(r"[A-Z][A-Z .'\-]*", candidate_folded)
+            and len(candidate_words) <= 3
+            and (city_separator_present or len(candidate_words) == 1)
+        ):
+            fields["city_subdivision_name"] = subdivision_candidate
+            unmatched_lines.extend(segments[:-1])
+        else:
+            unmatched_lines.extend(segments)
+    elif remainder:
+        unmatched_lines.append(remainder)
+
+    trailing_clean = re.sub(r"\s+", " ", trailing_text).strip(" \t\r\n,;/")
+    if trailing_clean:
+        unmatched_lines.append(trailing_clean)
+
+    fields["address_lines"] = _deduplicate_address_lines(unit_lines + unmatched_lines)
+    return fields
+
+
+def _merge_postal_address_fallback(
+    primary: dict[str, Any], fallback: dict[str, Any]
+) -> dict[str, Any]:
+    """Fill missing structured components from a legacy flat address.
+
+    A UI may submit only the structured field that the user edited while also
+    retaining the original ``customer_address``. Component-level fallback
+    prevents that partial edit from erasing the rest of the parsed address.
+    An explicit country in the primary object is kept as a unit so a foreign
+    country name can never acquire a fallback ``TR`` code.
+    """
+    merged = _empty_postal_address()
+    primary_has_country = bool(
+        primary.get("country_code") or primary.get("country_name")
+    )
+    for key in _ADDRESS_KEYS:
+        if key == "address_lines":
+            merged[key] = _deduplicate_address_lines(
+                list(primary.get(key) or []) + list(fallback.get(key) or [])
+            )
+        elif key in {"country_code", "country_name"} and primary_has_country:
+            merged[key] = primary.get(key) or ""
+        else:
+            merged[key] = primary.get(key) or fallback.get(key) or ""
+    return merged
+
+
 def get_tcmb_rate(currency_code, date_str):
     try:
         date_obj = datetime.strptime(date_str, '%Y-%m-%d')
@@ -214,19 +547,20 @@ def _customer_display_name(invoice: dict[str, Any], customer_tax_id: str) -> str
     return "BILINMEYEN MUSTERI"
 
 
-def _customer_party_name_xml(customer_name: str, customer_scheme: str) -> str:
+def _customer_party_name_xml(customer_name: str, customer_scheme: str) -> tuple[str, str]:
     """Build customer name XML without duplicating TCKN display names.
 
     Uyumsoft renders a TCKN party by joining Person/FirstName and
     Person/FamilyName.  Writing the full display name into both elements made
     the portal show values such as ``ALPER23 ALPER23``.  Split a multi-word
     name once; for a single-token name, emit only FirstName.
+    Returns (party_name_xml, person_xml).
     """
     normalized_name = " ".join(str(customer_name or "").split())
     escaped_name = escape(normalized_name)
 
     if customer_scheme != "TCKN":
-        return f"<cac:PartyName><cbc:Name>{escaped_name}</cbc:Name></cac:PartyName>"
+        return f"\n      <cac:PartyName><cbc:Name>{escaped_name}</cbc:Name></cac:PartyName>", ""
 
     name_parts = normalized_name.rsplit(maxsplit=1)
     first_name = escape(name_parts[0])
@@ -235,8 +569,8 @@ def _customer_party_name_xml(customer_name: str, customer_scheme: str) -> str:
         if len(name_parts) == 2
         else ""
     )
-    return (
-        f"<cac:Person><cbc:FirstName>{first_name}</cbc:FirstName>"
+    return "", (
+        f"\n      <cac:Person><cbc:FirstName>{first_name}</cbc:FirstName>"
         f"{family_name_xml}</cac:Person>"
     )
 
@@ -297,13 +631,15 @@ def build_ubl_invoice(invoice: dict[str, Any]) -> str:
     if not isinstance(invoice, dict):
         raise ValueError("invoice must be an object")
 
-    invoice_uuid = invoice.get("uuid")
-    if not invoice_uuid:
-        invoice_uuid = str(uuid.uuid4())
-        invoice["uuid"] = invoice_uuid
-
     invoice_no = _resolve_invoice_no(invoice.get("invoice_no"))
     issue_date = _parse_date(invoice.get("date"))
+    
+    # E-Fatura kuralları gereği geçmiş yıllara ait fatura kesilemez.
+    # Uyumsoft'un "varsayılan seri bilgisi bulunamadı" hatasını önlemek için 
+    # eski yıllara ait faturaların tarihini bugüne eşitliyoruz.
+    current_year = datetime.now().year
+    if int(issue_date[:4]) < current_year:
+        issue_date = datetime.now().date().isoformat()
     issue_time = _parse_time(invoice.get("time"))
     issue_time_xml = (
         f"\n  <cbc:IssueTime>{escape(issue_time)}</cbc:IssueTime>"
@@ -343,6 +679,8 @@ def build_ubl_invoice(invoice: dict[str, Any]) -> str:
 
     customer_tax_id_raw = str(invoice.get("customer_tax_id") or "").strip()
     customer_tax_id = "".join(filter(str.isdigit, customer_tax_id_raw))
+    if len(customer_tax_id) == 12 and set(customer_tax_id) == {"1"}:
+        customer_tax_id = "11111111111"
     if len(customer_tax_id) not in (10, 11):
         raise ValueError("customer_tax_id must contain 10 or 11 digits")
         
@@ -511,7 +849,83 @@ def build_ubl_invoice(invoice: dict[str, Any]) -> str:
 
     supplier_scheme = _scheme_id(supplier_tax_id)
     customer_scheme = _scheme_id(customer_tax_id)
-    customer_party_name_xml = _customer_party_name_xml(customer_name, customer_scheme)
+    customer_party_name_xml, customer_person_xml = _customer_party_name_xml(customer_name, customer_scheme)
+    structured_address = invoice.get("customer_postal_address")
+    legacy_address = invoice.get("customer_address")
+    address_data = structured_address or legacy_address
+    customer_address_xml = ""
+    if address_data:
+        parsed_addr = parse_turkish_address(address_data)
+        if structured_address and legacy_address:
+            parsed_addr = _merge_postal_address_fallback(
+                parsed_addr,
+                parse_turkish_address(legacy_address),
+            )
+        has_address_content = any(
+            parsed_addr.get(key)
+            for key in _ADDRESS_KEYS
+        )
+        
+        # UBL 2.1 TR requirements
+        # cbc:District is Mahalle
+        # cbc:StreetName is Cadde/Sokak
+        # cbc:BuildingName is Bina Adı
+        # cbc:BuildingNumber is Kapı No
+        # cbc:CitySubdivisionName is İlçe
+        # cbc:CityName is İl
+        
+        street_xml = f"\n        <cbc:StreetName>{escape(parsed_addr['street_name'])}</cbc:StreetName>" if parsed_addr['street_name'] else ""
+        building_name_xml = f"\n        <cbc:BuildingName>{escape(parsed_addr['building_name'])}</cbc:BuildingName>" if parsed_addr['building_name'] else ""
+        building_num_xml = f"\n        <cbc:BuildingNumber>{escape(parsed_addr['building_number'])}</cbc:BuildingNumber>" if parsed_addr['building_number'] else ""
+        city_sub_xml = f"\n        <cbc:CitySubdivisionName>{escape(parsed_addr['city_subdivision_name'])}</cbc:CitySubdivisionName>" if parsed_addr['city_subdivision_name'] else ""
+        city_xml = f"\n        <cbc:CityName>{escape(parsed_addr['city_name'])}</cbc:CityName>" if parsed_addr['city_name'] else ""
+        postal_xml = f"\n        <cbc:PostalZone>{escape(parsed_addr['postal_zone'])}</cbc:PostalZone>" if parsed_addr['postal_zone'] else ""
+        district_xml = f"\n        <cbc:District>{escape(parsed_addr['district'])}</cbc:District>" if parsed_addr['district'] else ""
+        
+        # Do not silently turn an explicitly foreign structured address into a
+        # Turkish address. The parser sets TR/Türkiye only when a Turkish city
+        # (or an explicit Turkish country value) supports it.
+        country_code = parsed_addr["country_code"]
+        country_name = parsed_addr["country_name"]
+        country_children = ""
+        if country_code:
+            country_children += (
+                "\n          <cbc:IdentificationCode>"
+                f"{escape(country_code)}</cbc:IdentificationCode>"
+            )
+        if country_name:
+            country_children += f"\n          <cbc:Name>{escape(country_name)}</cbc:Name>"
+        country_xml = (
+            f"\n        <cac:Country>{country_children}\n        </cac:Country>"
+            if country_children
+            else ""
+        )
+        
+        address_lines_xml = ""
+        for line in parsed_addr['address_lines']:
+            if line:
+                address_lines_xml += f"\n        <cac:AddressLine><cbc:Line>{escape(line)}</cbc:Line></cac:AddressLine>"
+                
+        # Defensive fallback for historic raw values. The current parser
+        # already preserves an unrecognised raw string in address_lines.
+        if not (
+            district_xml
+            or street_xml
+            or building_name_xml
+            or building_num_xml
+            or city_sub_xml
+            or city_xml
+            or postal_xml
+            or address_lines_xml
+        ) and isinstance(address_data, str):
+            address_lines_xml = f"\n        <cac:AddressLine><cbc:Line>{escape(address_data)}</cbc:Line></cac:AddressLine>"
+
+        # UBL AddressType is sequence-sensitive. Keep this exact order:
+        # StreetName, BuildingName, BuildingNumber, CitySubdivisionName,
+        # CityName, PostalZone, District, AddressLine, Country.
+        if has_address_content:
+            customer_address_xml = f"""\n      <cac:PostalAddress>{street_xml}{building_name_xml}{building_num_xml}{city_sub_xml}{city_xml}{postal_xml}{district_xml}{address_lines_xml}{country_xml}\n      </cac:PostalAddress>"""
+
 
     allowance_charge_parts = []
     if discount_amount > 0:
@@ -571,6 +985,38 @@ def build_ubl_invoice(invoice: dict[str, Any]) -> str:
     <cbc:Date>{issue_date}</cbc:Date>
   </cac:PricingExchangeRate>'''
 
+    local_tax_total_xml = ""
+    if currency != "TRY" and rate_decimal > Decimal("0"):
+        local_tax_amount = quantize_money(tax_amount * rate_decimal)
+        if invoice.get("local_tax_amount"):
+            local_tax_amount = _money(invoice.get("local_tax_amount"), field_name="local_tax_amount")
+            
+        local_tax_total_xml += f"""
+  <cac:TaxTotal>
+    <cbc:TaxAmount currencyID="TRY">{_fmt_money(local_tax_amount)}</cbc:TaxAmount>"""
+        for t_rate, t_amounts in tax_subtotals.items():
+            t_local_taxable = quantize_money(t_amounts["taxable"] * rate_decimal)
+            t_local_tax = quantize_money(t_amounts["tax"] * rate_decimal)
+            if len(tax_subtotals) == 1:
+                if invoice.get("local_subtotal"):
+                    t_local_taxable = _money(invoice.get("local_subtotal"), field_name="local_subtotal")
+                if invoice.get("local_tax_amount"):
+                    t_local_tax = _money(invoice.get("local_tax_amount"), field_name="local_tax_amount")
+                    
+            local_tax_total_xml += f"""
+    <cac:TaxSubtotal>
+      <cbc:TaxableAmount currencyID="TRY">{_fmt_money(t_local_taxable)}</cbc:TaxableAmount>
+      <cbc:TaxAmount currencyID="TRY">{_fmt_money(t_local_tax)}</cbc:TaxAmount>
+      <cbc:Percent>{_fmt_tax_rate(t_rate)}</cbc:Percent>
+      <cac:TaxCategory>
+        <cac:TaxScheme>
+          <cbc:Name>KDV</cbc:Name>
+          <cbc:TaxTypeCode>0015</cbc:TaxTypeCode>
+        </cac:TaxScheme>
+      </cac:TaxCategory>
+    </cac:TaxSubtotal>"""
+        local_tax_total_xml += "\n  </cac:TaxTotal>"
+
 
     return f"""<Invoice xmlns="{UBL_INVOICE_NS}" xmlns:cac="{CAC_NS}" xmlns:cbc="{CBC_NS}">
   <cbc:UBLVersionID>2.1</cbc:UBLVersionID>
@@ -578,7 +1024,7 @@ def build_ubl_invoice(invoice: dict[str, Any]) -> str:
   <cbc:ProfileID>{escape(profile_id)}</cbc:ProfileID>
   <cbc:ID>{escape(invoice_no)}</cbc:ID>
   <cbc:CopyIndicator>false</cbc:CopyIndicator>
-  <cbc:UUID>{invoice_uuid}</cbc:UUID>
+  <cbc:UUID>{uuid.uuid4()}</cbc:UUID>
   <cbc:IssueDate>{issue_date}</cbc:IssueDate>{issue_time_xml}
   <cbc:InvoiceTypeCode>{escape(invoice_type)}</cbc:InvoiceTypeCode>{notes_xml}
   <cbc:DocumentCurrencyCode>{currency}</cbc:DocumentCurrencyCode>
@@ -595,11 +1041,11 @@ def build_ubl_invoice(invoice: dict[str, Any]) -> str:
   </cac:AccountingSupplierParty>
   <cac:AccountingCustomerParty>
     <cac:Party>
-      <cac:PartyIdentification><cbc:ID schemeID="{customer_scheme}">{escape(customer_tax_id)}</cbc:ID></cac:PartyIdentification>
-      {customer_party_name_xml}
+      <cac:PartyIdentification><cbc:ID schemeID="{customer_scheme}">{escape(customer_tax_id)}</cbc:ID></cac:PartyIdentification>{customer_party_name_xml}{customer_address_xml}{customer_person_xml}
     </cac:Party>
   </cac:AccountingCustomerParty>
   {allowance_charge_xml}{pricing_exchange_rate_xml}
+  
   <cac:TaxTotal>
     <cbc:TaxAmount currencyID="{currency}">{_fmt_money(tax_amount)}</cbc:TaxAmount>
     {doc_tax_subtotal_str}
@@ -664,6 +1110,15 @@ class UyumsoftSoapClient:
 
     def send_invoice_data(self, invoice: dict[str, Any]) -> UyumsoftResult:
         return self._send_invoice_info("SendInvoice", invoice)
+
+    def query_invoice_status_data(self, document_id: str) -> UyumsoftResult:
+        safe_id = escape(document_id)
+        operation_body = f"""<GetOutboxInvoiceStatusWithLogs xmlns="http://tempuri.org/">
+  <invoiceIds>
+    <string xmlns="http://schemas.microsoft.com/2003/10/Serialization/Arrays">{safe_id}</string>
+  </invoiceIds>
+</GetOutboxInvoiceStatusWithLogs>"""
+        return self._call("GetOutboxInvoiceStatusWithLogs", operation_body)
 
     def _send_invoice_info(self, operation: str, invoice: dict[str, Any]) -> UyumsoftResult:
         return self._call(operation, build_invoice_info_body(operation, invoice))
@@ -925,6 +1380,8 @@ def build_invoice_info_body(operation: str, invoice: dict[str, Any]) -> str:
     
     target_vkn_raw = str(invoice.get("customer_tax_id") or "").strip()
     target_vkn = "".join(filter(str.isdigit, target_vkn_raw))
+    if len(target_vkn) == 12 and set(target_vkn) == {"1"}:
+        target_vkn = "11111111111"
     if len(target_vkn) not in (10, 11):
         raise ValueError("customer_tax_id must contain 10 or 11 digits")
     target_vkn = _xml_attribute(target_vkn)
@@ -982,18 +1439,19 @@ def send_invoice_to_uyumsoft(
             "response_code": 400,
         }
 
-    # Legacy arguments stay in the signature only for Python call-site
-    # compatibility. Deployment configuration exclusively owns endpoint and
-    # credentials; callers cannot override either value.
-    _ = (environment, prod_username, prod_password)
-    server_environment = normalize_uyumsoft_environment()
-    username, password = _server_credentials(server_environment)
+    # Use provided arguments if available (e.g. from frontend configuration),
+    # otherwise fall back to the server's deployment configuration.
+    server_environment = environment.lower() if environment else normalize_uyumsoft_environment()
+    
+    env_username, env_password = _server_credentials(server_environment)
+    username = prod_username if prod_username else env_username
+    password = prod_password if prod_password else env_password
 
     if not username or not password:
         return {
             "success": False,
-            "message": "UYUMSOFT_USERNAME and UYUMSOFT_PASSWORD must be configured.",
-            "details": "Credentials are required before sending invoice data to Uyumsoft.",
+            "message": "Uyumsoft kimlik bilgileri eksik.",
+            "details": "Lütfen ayarlardan Uyumsoft kullanıcı adı ve şifrenizi girin.",
             "response_code": 401,
         }
 
@@ -1012,6 +1470,13 @@ def send_invoice_to_uyumsoft(
                 "message": "Uyumsoft SOAP request failed.",
                 "details": str(exc),
                 "response_code": 502,
+            }
+        except (TimeoutError, OSError) as exc:
+            return {
+                "success": False,
+                "message": "Uyumsoft sunucusu yanıt vermedi (zaman aşımı). Lütfen birkaç dakika sonra tekrar deneyin.",
+                "details": f"{type(exc).__name__}: {str(exc)}",
+                "response_code": 504,
             }
         except Exception as exc:
             return {
@@ -1144,6 +1609,13 @@ def send_invoice_to_uyumsoft(
             "details": str(exc),
             "response_code": 502,
         }
+    except (TimeoutError, OSError) as exc:
+        return {
+            "success": False,
+            "message": "Uyumsoft sunucusu yanıt vermedi (zaman aşımı). Lütfen birkaç dakika sonra tekrar deneyin.",
+            "details": f"{type(exc).__name__}: {str(exc)}",
+            "response_code": 504,
+        }
     except Exception as exc:
         return {
             "success": False,
@@ -1152,11 +1624,74 @@ def send_invoice_to_uyumsoft(
             "response_code": 500,
         }
 
+    document_id = None
+    if result.success and result.values and isinstance(result.values, list):
+        document_id = result.values[0].get("Id")
+
     return {
         "success": result.success,
         "message": result.message,
         "operation": result.operation,
         "values": result.values,
+        "document_id": document_id,
         "details": result.raw_xml[:2000],
         "response_code": result.status_code,
     }
+
+
+def query_invoice_status(
+    document_id: str,
+    environment: str | None = None,
+    prod_username: str | None = None,
+    prod_password: str | None = None,
+) -> dict[str, Any]:
+    if not document_id:
+        return {
+            "success": False,
+            "message": "Belge ID (Document ID) eksik.",
+            "response_code": 400,
+        }
+
+    server_environment = environment.lower() if environment else normalize_uyumsoft_environment()
+    env_username, env_password = _server_credentials(server_environment)
+    username = prod_username if prod_username else env_username
+    password = prod_password if prod_password else env_password
+
+    if not username or not password:
+        return {
+            "success": False,
+            "message": "Uyumsoft kimlik bilgileri eksik.",
+            "response_code": 401,
+        }
+
+    client = UyumsoftSoapClient(username, password, environment=server_environment)
+    try:
+        result = client.query_invoice_status_data(document_id)
+        
+        status_text = "Bilinmiyor"
+        status_code = None
+        message = result.message
+        
+        if result.success and result.values:
+            status_text = result.values[0].get("Status") or result.values[0].get("Message") or "Bilinmiyor"
+            status_code = result.values[0].get("StatusCode")
+            
+            # If the item has a more specific message, use it
+            if result.values[0].get("Message"):
+                message = result.values[0].get("Message")
+            
+        return {
+            "success": result.success,
+            "message": message,
+            "status": status_text,
+            "status_code": status_code,
+            "values": result.values,
+            "response_code": result.status_code,
+        }
+    except Exception as exc:
+        return {
+            "success": False,
+            "message": "Uyumsoft durum sorgulama hatası.",
+            "details": str(exc),
+            "response_code": 500,
+        }
