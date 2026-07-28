@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="tr">
 <head>
     <meta charset="UTF-8">
@@ -14,15 +14,15 @@
         <div class="modal-content" style="max-width: 400px; padding: 2rem; margin: auto;">
             <h2 style="margin-top: 0; margin-bottom: 1.5rem; text-align: center;">Uyumsoft Kimlik Bilgileri</h2>
             <div style="margin-bottom: 1rem; text-align: left;">
-                <label for="cred-username" style="display: block; margin-bottom: 0.5rem; font-weight: 600;">KullanÄ±cÄ± AdÄ±</label>
-                <input type="text" id="cred-username" placeholder="Uyumsoft KullanÄ±cÄ± AdÄ±" style="width: 100%; padding: 0.75rem; border: 1px solid var(--border-color); border-radius: 8px; background: var(--input-bg); color: var(--text-primary);">
+                <label for="cred-username" style="display: block; margin-bottom: 0.5rem; font-weight: 600;">Kullanıcı Adı</label>
+                <input type="text" id="cred-username" placeholder="Uyumsoft Kullanıcı Adı" style="width: 100%; padding: 0.75rem; border: 1px solid var(--border-color); border-radius: 8px; background: var(--input-bg); color: var(--text-primary);">
             </div>
             <div style="margin-bottom: 1.5rem; text-align: left;">
-                <label for="cred-password" style="display: block; margin-bottom: 0.5rem; font-weight: 600;">Åifre</label>
-                <input type="password" id="cred-password" placeholder="Åifre" style="width: 100%; padding: 0.75rem; border: 1px solid var(--border-color); border-radius: 8px; background: var(--input-bg); color: var(--text-primary);">
+                <label for="cred-password" style="display: block; margin-bottom: 0.5rem; font-weight: 600;">Şifre</label>
+                <input type="password" id="cred-password" placeholder="Şifre" style="width: 100%; padding: 0.75rem; border: 1px solid var(--border-color); border-radius: 8px; background: var(--input-bg); color: var(--text-primary);">
             </div>
             <div class="modal-actions" style="display: flex; justify-content: flex-end; gap: 1rem;">
-                <button id="cred-cancel-btn" class="secondary-btn">Ä°ptal</button>
+                <button id="cred-cancel-btn" class="secondary-btn">İptal</button>
                 <button id="cred-save-btn" class="primary-btn">Kaydet</button>
             </div>
         </div>
@@ -367,7 +367,7 @@
         <header style="position: relative;">
             <div style="display: flex; justify-content: flex-end; align-items: center; gap: 15px; margin-bottom: 0.5rem; flex-wrap: wrap;">
                 <div style="display: flex; align-items: center; gap: 8px; background: var(--panel-bg); padding: 5px 10px; border-radius: 20px; border: 1px solid var(--border-color);">
-                    <button id="palette-toggle" class="palette-toggle" title="TemalarÄ± GÃ¶ster/Gizle" onclick="document.getElementById('color-picker').classList.toggle('expanded'); this.classList.toggle('expanded');" style="z-index: 50;">
+                    <button id="palette-toggle" class="palette-toggle" title="Temaları Göster/Gizle" onclick="document.getElementById('color-picker').classList.toggle('expanded'); this.classList.toggle('expanded');" style="z-index: 50;">
                         <svg class="icon-open" width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="13.5" cy="6.5" r="1.5"/><circle cx="17.5" cy="10.5" r="1.5"/><circle cx="8.5" cy="7.5" r="1.5"/><circle cx="6.5" cy="12.5" r="1.5"/><path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c.926 0 1.648-.746 1.648-1.688 0-.437-.18-.835-.437-1.125-.29-.289-.438-.652-.438-1.125a1.64 1.64 0 0 1 1.668-1.668h1.996c3.051 0 5.555-2.503 5.555-5.554C21.965 6.012 17.461 2 12 2z"/></svg>
                         <svg class="icon-close" width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" /></svg>
                     </button>
@@ -378,51 +378,51 @@
                     <div class="color-dot" data-color="ruby" style="background-color: #f43f5e;" title="Ruby"></div>
                     <div class="color-dot" data-color="amber" style="background-color: #f59e0b;" title="Amber"></div>
                     <div class="color-dot" data-color="sakura" style="background-color: #ec4899;" title="Sakura"></div>
-                    <div class="color-dot active" data-color="cyan" style="background-color: #06b6d4;" title="Cyan (VarsayÄ±lan)"></div>
+                    <div class="color-dot active" data-color="cyan" style="background-color: #06b6d4;" title="Cyan (Varsayılan)"></div>
                     <div class="color-dot" data-color="obsidian" style="background-color: #94a3b8;" title="Obsidyen"></div>
-                    <div class="color-dot" data-color="indigo" style="background-color: #6366f1;" title="Ä°ndigo"></div>
+                    <div class="color-dot" data-color="indigo" style="background-color: #6366f1;" title="İndigo"></div>
                     <div class="color-dot" data-color="topaz" style="background-color: #f97316;" title="Topaz"></div>
-                    <div class="color-dot" data-color="jade" style="background-color: #16a34a;" title="Orman YeÅŸili"></div>
+                    <div class="color-dot" data-color="jade" style="background-color: #16a34a;" title="Orman Yeşili"></div>
                     <div class="color-dot" data-color="lavender" style="background-color: #c084fc;" title="Lavanta"></div>
-                    <div class="color-dot" data-color="gold" style="background-color: #fbbf24;" title="AltÄ±n"></div>
+                    <div class="color-dot" data-color="gold" style="background-color: #fbbf24;" title="Altın"></div>
                     <div class="color-dot" data-color="cherry" style="background-color: #e11d48;" title="Kiraz"></div>
                     <div class="color-dot" data-color="slate" style="background-color: #64748b;" title="Kayrak (Gri)"></div>
-                    <div class="color-dot" data-color="rose" style="background-color: #f43f5e;" title="GÃ¼l"></div>
-                    <div class="color-dot" data-color="fuchsia" style="background-color: #d946ef;" title="FuÅŸya"></div>
-                    <div class="color-dot" data-color="violet" style="background-color: #8b5cf6;" title="MenekÅŸe"></div>
-                    <div class="color-dot" data-color="sky" style="background-color: #0ea5e9;" title="GÃ¶kyÃ¼zÃ¼"></div>
-                    <div class="color-dot" data-color="teal" style="background-color: #14b8a6;" title="Ã‡amurcun (Turkuaz)"></div>
+                    <div class="color-dot" data-color="rose" style="background-color: #f43f5e;" title="Gül"></div>
+                    <div class="color-dot" data-color="fuchsia" style="background-color: #d946ef;" title="Fuşya"></div>
+                    <div class="color-dot" data-color="violet" style="background-color: #8b5cf6;" title="Menekşe"></div>
+                    <div class="color-dot" data-color="sky" style="background-color: #0ea5e9;" title="Gökyüzü"></div>
+                    <div class="color-dot" data-color="teal" style="background-color: #14b8a6;" title="Çamurcun (Turkuaz)"></div>
                     <div class="color-dot" data-color="lime" style="background-color: #84cc16;" title="Misket Limonu"></div>
-                    <div class="color-dot" data-color="zinc" style="background-color: #71717a;" title="Ã‡inko (Koyu Gri)"></div>
-                    <div class="color-dot" data-color="stone" style="background-color: #78716c;" title="TaÅŸ (Toprak Gri)"></div>
-                    <div class="color-dot" data-color="sunset" style="background: linear-gradient(90deg, #f43f5e, #f97316, #fbbf24);" title="GÃ¼nbatÄ±mÄ±"></div>
-                    <div class="color-dot" data-color="aurora" style="background: linear-gradient(90deg, #10b981, #06b6d4, #3b82f6);" title="Kuzey IÅŸÄ±klarÄ±"></div>
+                    <div class="color-dot" data-color="zinc" style="background-color: #71717a;" title="Çinko (Koyu Gri)"></div>
+                    <div class="color-dot" data-color="stone" style="background-color: #78716c;" title="Taş (Toprak Gri)"></div>
+                    <div class="color-dot" data-color="sunset" style="background: linear-gradient(90deg, #f43f5e, #f97316, #fbbf24);" title="Günbatımı"></div>
+                    <div class="color-dot" data-color="aurora" style="background: linear-gradient(90deg, #10b981, #06b6d4, #3b82f6);" title="Kuzey Işıkları"></div>
                     <div class="color-dot" data-color="nebula" style="background: linear-gradient(90deg, #8b5cf6, #d946ef, #f43f5e);" title="Galaksi (Nebula)"></div>
                     <div class="color-dot" data-color="cyberpunk" style="background: linear-gradient(90deg, #eab308, #ec4899, #06b6d4);" title="Siberpunk"></div>
                     <div class="color-dot" data-color="volcano" style="background: linear-gradient(90deg, #7f1d1d, #dc2626, #f59e0b);" title="Volkan"></div>
                     <div class="color-dot" data-color="oceanic" style="background: linear-gradient(90deg, #1e3a8a, #0369a1, #0d9488);" title="Derin Okyanus"></div>
-                    <div class="color-dot" data-color="fire" style="background: linear-gradient(90deg, #ef4444, #f59e0b);" title="AteÅŸ"></div>
+                    <div class="color-dot" data-color="fire" style="background: linear-gradient(90deg, #ef4444, #f59e0b);" title="Ateş"></div>
                     <div class="color-dot" data-color="ice" style="background: linear-gradient(90deg, #38bdf8, #818cf8);" title="Buz"></div>
-                    <div class="color-dot" data-color="midnight" style="background: linear-gradient(90deg, #312e81, #be185d);" title="Gece YarÄ±sÄ±"></div>
-                    <div class="color-dot" data-color="forest_glow" style="background: linear-gradient(90deg, #064e3b, #84cc16);" title="Orman IÅŸÄ±ltÄ±sÄ±"></div>
-                    <div class="color-dot" data-color="cotton_candy" style="background: linear-gradient(90deg, #f472b6, #38bdf8);" title="Pamuk Åeker"></div>
-                    <div class="color-dot" data-color="supernova" style="background: linear-gradient(90deg, #7e22ce, #f97316);" title="SÃ¼pernova"></div>
+                    <div class="color-dot" data-color="midnight" style="background: linear-gradient(90deg, #312e81, #be185d);" title="Gece Yarısı"></div>
+                    <div class="color-dot" data-color="forest_glow" style="background: linear-gradient(90deg, #064e3b, #84cc16);" title="Orman Işıltısı"></div>
+                    <div class="color-dot" data-color="cotton_candy" style="background: linear-gradient(90deg, #f472b6, #38bdf8);" title="Pamuk Şeker"></div>
+                    <div class="color-dot" data-color="supernova" style="background: linear-gradient(90deg, #7e22ce, #f97316);" title="Süpernova"></div>
                 </div>
                 </div>
-                <button id="theme-toggle" class="theme-btn" style="position: relative;" title="TemayÄ± DeÄŸiÅŸtir">
+                <button id="theme-toggle" class="theme-btn" style="position: relative;" title="Temayı Değiştir">
                     <svg id="theme-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24" width="24" height="24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z" />
                     </svg>
                 </button>
-                <button id="history-toggle" class="theme-btn" style="position: relative; margin-left: -5px;" title="GeÃ§miÅŸ ve ArÅŸiv">
+                <button id="history-toggle" class="theme-btn" style="position: relative; margin-left: -5px;" title="Geçmiş ve Arşiv">
                     <svg id="history-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24" width="24" height="24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
                     </svg>
                 </button>
             </div>
             
-            <h1 class="gradient-text">Fatura Ä°ÅŸleme Sistemi</h1>
-            <p>Uyumsoft entegrasyonu iÃ§in faturalarÄ±nÄ±zÄ± (PDF/XML/Excel) yÃ¼kleyin ve doÄŸrulayÄ±n.</p>
+            <h1 class="gradient-text">Fatura İşleme Sistemi</h1>
+            <p>Uyumsoft entegrasyonu için faturalarınızı (PDF/XML/Excel) yükleyin ve doğrulayın.</p>
         </header>
 
         <main>
@@ -433,7 +433,7 @@
                         <svg class="upload-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"></path>
                         </svg>
-                        <p>DosyalarÄ± sÃ¼rÃ¼kleyip bÄ±rakÄ±n veya <span class="browse-link">gÃ¶z atÄ±n</span></p>
+                        <p>Dosyaları sürükleyip bırakın veya <span class="browse-link">göz atın</span></p>
                         <p class="file-hint">Desteklenen formatlar: PDF, XML, XLSX, CSV, JPG, PNG, WEBP</p>
                     </div>
                     <input type="file" id="file-input" accept=".pdf,.xml,.xlsx,.xls,.csv,image/png,image/jpeg,image/webp" hidden multiple>
@@ -441,7 +441,7 @@
                 
                 <div id="loading" class="loading hidden">
                     <div class="spinner"></div>
-                    <p id="loading-text">Fatura iÅŸleniyor...</p>
+                    <p id="loading-text">Fatura işleniyor...</p>
                     <div class="progress-bar-container">
                         <div class="progress-bar-indicator"></div>
                     </div>
@@ -449,7 +449,7 @@
                         <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" style="width: 16px; height: 16px; margin-right: 6px;">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
                         </svg>
-                        Ä°ptal Et
+                        İptal Et
                     </button>
                 </div>
             </section>
@@ -458,34 +458,34 @@
             <section id="batch-section" class="glass-panel hidden" style="padding: 2rem;">
                 <div class="batch-header-container">
                     <div class="batch-header-left">
-                        <h2 style="margin: 0; color: var(--text-primary);">Toplu Fatura Ä°ÅŸlemleri</h2>
+                        <h2 style="margin: 0; color: var(--text-primary);">Toplu Fatura İşlemleri</h2>
                     </div>
                     <div class="batch-header-center">
                         <div class="environment-selector" style="display: flex; justify-content: center; align-items: center; gap: 8px;">
-                            <label for="batch-environment-select" style="font-size: 0.9rem; color: var(--text-secondary);">Uyumsoft OrtamÄ±:</label>
+                            <label for="batch-environment-select" style="font-size: 0.9rem; color: var(--text-secondary);">Uyumsoft Ortamı:</label>
                             <select id="batch-environment-select" class="env-dropdown" style="background: var(--input-bg); border: 1px solid var(--border-color); color: var(--text-primary); padding: 0.5rem 1rem; border-radius: 8px; font-weight: 600; outline: none; cursor: pointer;">
-                                <option value="test" style="background-color: #ffffff; color: #000000;">TEST (Ã–n Kabul)</option>
-                                <option value="prod" style="background-color: #ffffff; color: #000000;">GERÃ‡EK (CANLI)</option>
+                                <option value="test" style="background-color: #ffffff; color: #000000;">TEST (Ön Kabul)</option>
+                                <option value="prod" style="background-color: #ffffff; color: #000000;">GERÇEK (CANLI)</option>
                             </select>
                         </div>
                     </div>
                     <div class="batch-header-right">
                         <button id="batch-back-btn" class="secondary-btn">
                             <svg style="width: 16px; height: 16px; margin-right: 6px;" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path></svg>
-                            Geri DÃ¶n
+                            Geri Dön
                         </button>
                         <button id="batch-uyumsoft-btn" class="secondary-btn">
                             <svg style="width: 16px; height: 16px; margin-right: 6px;" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"></path></svg>
                             Uyumsoft'a Git
                         </button>
-                        <button id="send-all-btn" class="primary-btn" style="display: none;">TÃ¼mÃ¼nÃ¼ Uyumsoft'a GÃ¶nder</button>
+                        <button id="send-all-btn" class="primary-btn" style="display: none;">Tümünü Uyumsoft'a Gönder</button>
                         <span id="send-all-loading-text" style="display: none; font-weight: 600; color: var(--accent-color); padding: 0.5rem 1rem; align-items: center; gap: 0.5rem;">
                             <span class="mini-spinner"></span>
-                            Taslak OluÅŸtur Ã‡alÄ±ÅŸÄ±yor...
+                            Taslak Oluştur Çalışıyor...
                         </span>
                         <span id="send-all-success-text" style="display: none; font-weight: 600; color: var(--accent-color); padding: 0.5rem 1rem; align-items: center; gap: 0.5rem;">
                             <svg style="width: 20px; height: 20px;" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
-                            Hepsi GÃ¶nderildi
+                            Hepsi Gönderildi
                         </span>
                     </div>
                 </div>
@@ -494,11 +494,11 @@
                     <table class="batch-table">
                         <thead>
                             <tr>
-                                <th>Dosya AdÄ±</th>
+                                <th>Dosya Adı</th>
                                 <th>Fatura No</th>
                                 <th>Tarih</th>
                                 <th>VKN</th>
-                                <th>Cari Ä°sim</th>
+                                <th>Cari İsim</th>
                                 <th>Tutar</th>
                                 <th>Durum</th>
                             </tr>
@@ -515,7 +515,7 @@
                 <!-- PDF Viewer Section -->
                 <section id="pdf-viewer-section" class="pdf-viewer-section hidden">
                     <div class="pdf-header">
-                        <h2 style="font-size: 1.1rem; color: var(--text-primary); margin: 0;">Fatura Ã–nizlemesi</h2>
+                        <h2 style="font-size: 1.1rem; color: var(--text-primary); margin: 0;">Fatura Önizlemesi</h2>
                     </div>
                     <div class="pdf-content">
                         <iframe id="pdf-iframe" style="width: 100%; height: 100%; border: none; border-radius: 0 0 8px 8px;"></iframe>
@@ -527,13 +527,13 @@
                 
                 <div class="results-header">
                     <div style="display: flex; align-items: center; gap: 10px; flex: 1;">
-                        <button id="back-to-batch-btn" class="icon-btn hidden" title="Listeye DÃ¶n" style="background: rgba(59, 130, 246, 0.1); color: var(--accent-color); border: 1px solid rgba(59, 130, 246, 0.2); padding: 8px 12px; border-radius: 8px; cursor: pointer; transition: all 0.2s; display: flex; align-items: center; gap: 6px; font-weight: 500;">
+                        <button id="back-to-batch-btn" class="icon-btn hidden" title="Listeye Dön" style="background: rgba(59, 130, 246, 0.1); color: var(--accent-color); border: 1px solid rgba(59, 130, 246, 0.2); padding: 8px 12px; border-radius: 8px; cursor: pointer; transition: all 0.2s; display: flex; align-items: center; gap: 6px; font-weight: 500;">
                             <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" width="20" height="20">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path>
                             </svg>
-                            <span style="font-size: 0.9rem;">Listeye DÃ¶n</span>
+                            <span style="font-size: 0.9rem;">Listeye Dön</span>
                         </button>
-                        <button class="toggle-pdf-btn" id="toggle-pdf-btn" title="PDF Ã–nizlemesini Gizle/GÃ¶ster" style="background: var(--card-bg); border: 1px solid var(--border-color); color: var(--text-secondary); cursor: pointer; border-radius: 8px; padding: 6px; display: flex; align-items: center; justify-content: center; transition: all 0.2s;">
+                        <button class="toggle-pdf-btn" id="toggle-pdf-btn" title="PDF Önizlemesini Gizle/Göster" style="background: var(--card-bg); border: 1px solid var(--border-color); color: var(--text-secondary); cursor: pointer; border-radius: 8px; padding: 6px; display: flex; align-items: center; justify-content: center; transition: all 0.2s;">
                             <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" width="20" height="20">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path>
                             </svg>
@@ -550,49 +550,49 @@
                         <input type="text" id="res-invoice-no" class="edit-input-top" value="" placeholder="-">
                     </div>
                     <div class="card" style="display: flex; flex-direction: column;">
-                        <span class="card-label">TARÄ°H & SAAT</span>
+                        <span class="card-label">TARİH & SAAT</span>
                         <div style="display: flex; flex-direction: column; gap: 4px;">
                             <input type="text" id="res-date" class="edit-input-top" value="" placeholder="Tarih">
                             <input type="text" id="res-time" class="edit-input-top" value="" placeholder="Saat">
                         </div>
                     </div>
                     <div id="customer-tax-card" class="card">
-                        <span class="card-label">MÃœÅTERÄ° VKN/TCKN</span>
+                        <span class="card-label">MÜŞTERİ VKN/TCKN</span>
                         <input type="text" id="res-vkn" class="edit-input-top" value="" placeholder="10 veya 11 hane" inputmode="numeric" autocomplete="off" aria-describedby="res-vkn-help">
                         <small id="res-vkn-help" class="field-hint">VKN 10, TCKN 11 hanelidir.</small>
                     </div>
                     <div id="customer-name-card" class="card wide-card" style="grid-column: 1 / -1;">
-                        <span class="card-label">MÃœÅTERÄ° ADI</span>
-                        <textarea id="res-customer-name" class="edit-input-top" placeholder="-" rows="2" style="resize: vertical; width: 100%;"></textarea>
+                        <span class="card-label">MÜŞTERİ ADI</span>
+                        <input type="text" id="res-customer-name" class="edit-input-top" value="" placeholder="-">
                     </div>
                     <div id="customer-address-card" class="card wide-card" style="grid-column: 1 / -1;">
-                        <span class="card-label">FATURA ADRESÄ°</span>
-                        <textarea id="res-customer-address" class="edit-input-top" placeholder="Tam AÃ§Ä±k Adres" style="margin-top: 10px; width: 100%; min-height: 60px; resize: vertical; padding: 0.75rem; border: 1px solid var(--border-color); border-radius: 6px; background: rgba(0, 0, 0, 0.2); color: var(--text-primary); font-family: 'Inter', sans-serif; font-size: 0.95rem; line-height: 1.5;"></textarea>
+                        <span class="card-label">FATURA ADRESİ</span>
+                        <textarea id="res-customer-address" class="edit-input-top" placeholder="Tam Açık Adres" style="margin-top: 10px; width: 100%; min-height: 60px; resize: vertical; padding: 0.75rem; border: 1px solid var(--border-color); border-radius: 6px; background: rgba(0, 0, 0, 0.2); color: var(--text-primary); font-family: 'Inter', sans-serif; font-size: 0.95rem; line-height: 1.5;"></textarea>
                     </div>
-                    <div class="totals-row" style="grid-column: 1 / -1; display: flex; flex-direction: row; flex-wrap: nowrap; gap: 1rem;">
-                        <div class="card" style="flex: 1;">
+                    <div class="totals-row" style="grid-column: 1 / -1; display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 1rem;">
+                        <div class="card">
                             <span class="card-label">ARA TOPLAM</span>
-                            <h3 id="res-subtotal">â‚º0,00</h3>
+                            <h3 id="res-subtotal">₺0,00</h3>
                         </div>
-                        <div id="discount-card" class="card hidden" style="flex: 1;">
-                            <span class="card-label">Ä°SKONTO</span>
-                            <h3 id="res-discount">â‚º0,00</h3>
+                        <div id="discount-card" class="card hidden">
+                            <span class="card-label">İSKONTO</span>
+                            <h3 id="res-discount">₺0,00</h3>
                         </div>
-                        <div class="card" style="flex: 1; display: flex; flex-direction: column;">
+                        <div class="card" style="display: flex; flex-direction: column;">
                             <span class="card-label">KDV</span>
                             <div id="res-tax-breakdown" style="font-size: 1.1rem; margin-top: 0.5rem; font-weight: 500;">-</div>
                         </div>
-                        <div class="card" style="flex: 1;">
+                        <div class="card">
                             <span class="card-label">GENEL TOPLAM</span>
-                            <h3 id="res-total">â‚º0,00</h3>
+                            <h3 id="res-total">₺0,00</h3>
                         </div>
                     </div>
                     <div id="notes-card" class="card wide-card hidden" style="grid-column: 1 / -1;">
-                        <span class="card-label">AÃ‡IKLAMA / NOT</span>
+                        <span class="card-label">AÇIKLAMA / NOT</span>
                         <div id="res-notes" style="font-size: 0.95rem; font-weight: 400; color: var(--text-primary); line-height: 1.5; white-space: pre-wrap;">-</div>
                     </div>
                     <div id="fx-card" class="card wide-card hidden" style="grid-column: 1 / -1; background: color-mix(in srgb, var(--accent-color) 5%, transparent); border-color: color-mix(in srgb, var(--accent-color) 20%, transparent);">
-                        <span class="card-label" style="color: var(--accent-color);">TL ARA TOPLAM / KDV / YEKÃœN</span>
+                        <span class="card-label" style="color: var(--accent-color);">TL ARA TOPLAM / KDV / YEKÜN</span>
                         <div id="res-fx-info" style="font-size: 1.1rem; font-weight: 600; color: var(--text-primary); line-height: 1.5; display: flex; gap: 2rem;"></div>
                     </div>
                 </div>
@@ -604,13 +604,13 @@
                         <table id="items-table">
                             <thead>
                                 <tr>
-                                    <th>ÃœrÃ¼n Kodu</th>
-                                    <th>ÃœrÃ¼n AÃ§Ä±klamasÄ±</th>
-                                    <th>Seri NumaralarÄ±</th>
+                                    <th>Ürün Kodu</th>
+                                    <th>Ürün Açıklaması</th>
+                                    <th>Seri Numaraları</th>
                                     <th>Miktar</th>
                                     <th>Birim Fiyat</th>
-                                    <th>KDV OranÄ±</th>
-                                    <th>SatÄ±r ToplamÄ±</th>
+                                    <th>KDV Oranı</th>
+                                    <th>Satır Toplamı</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -622,7 +622,7 @@
 
                 <!-- Automated Workflow Progress -->
                 <div id="workflow-progress" class="workflow-panel glass-panel hidden">
-                    <h3>AktarÄ±m SÃ¼reci</h3>
+                    <h3>Aktarım Süreci</h3>
                     <ul id="checklist" class="checklist">
                         <!-- Items injected via JS -->
                     </ul>
@@ -633,7 +633,7 @@
                     <div style="display: flex; flex-wrap: wrap; gap: 1rem; width: 100%; justify-content: center;">
                         <button id="send-draft-btn" class="primary-btn hidden">
                             <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" style="width: 20px; height: 20px;"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
-                            Taslak Olarak GÃ¶nder
+                            Taslak Olarak Gönder
                         </button>
                         <button id="portal-btn" class="primary-btn hidden">
                             <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" style="width: 20px; height: 20px;"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.5 6H18m0 0v4.5M18 6l-7.5 7.5M6 8.25v9.75h9.75"></path></svg>
@@ -641,17 +641,17 @@
                         </button>
                         <button id="csv-btn" class="primary-btn hidden">
                             <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" style="width: 20px; height: 20px;"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
-                            SonuÃ§larÄ± CSV Olarak Ä°ndir
+                            Sonuçları CSV Olarak İndir
                         </button>
                     </div>
                     <div class="environment-selector" style="margin-top: 1rem; text-align: center; display: flex; justify-content: center; align-items: center; gap: 8px;">
-                        <label for="environment-select" style="font-size: 0.9rem; color: var(--text-secondary);">Uyumsoft OrtamÄ±:</label>
+                        <label for="environment-select" style="font-size: 0.9rem; color: var(--text-secondary);">Uyumsoft Ortamı:</label>
                         <select id="environment-select" class="env-dropdown" style="background: var(--input-bg); border: 1px solid var(--border-color); color: var(--text-primary); padding: 0.5rem 1rem; border-radius: 8px; font-weight: 600; outline: none; cursor: pointer;">
-                            <option value="test" style="background-color: #ffffff; color: #000000;">TEST (Ã–n Kabul)</option>
-                            <option value="prod" style="background-color: #ffffff; color: #000000;">GERÃ‡EK (CANLI)</option>
+                            <option value="test" style="background-color: #ffffff; color: #000000;">TEST (Ön Kabul)</option>
+                            <option value="prod" style="background-color: #ffffff; color: #000000;">GERÇEK (CANLI)</option>
                         </select>
                     </div>
-                    <div id="uyumsoft-environment-badge" class="integration-environment unknown" role="status">Uyumsoft ortamÄ±: YÃœKLENÄ°YOR</div>
+                    <div id="uyumsoft-environment-badge" class="integration-environment unknown" role="status">Uyumsoft ortamı: YÜKLENİYOR</div>
                     <div id="api-status-box" class="hidden" style="width: 100%; padding: 1rem; border-radius: 8px; margin-top: 1rem; text-align: left;"></div>
                     <div id="error-box" class="error-box hidden"></div>
                 </div>
@@ -660,7 +660,7 @@
                 <div class="method-footer glass-panel" style="margin-top: 2rem; padding: 1rem; text-align: center; border-radius: 8px; font-size: 0.9rem; color: var(--text-secondary);">
                     <span>Bu fatura </span>
                     <strong id="res-method" style="color: #10b981;">-</strong>
-                    <span> kullanÄ±larak okundu.</span>
+                    <span> kullanılarak okundu.</span>
                 </div>
 
                 </section>
@@ -669,7 +669,7 @@
             <!-- History Section -->
             <section id="history-section" class="glass-panel hidden" style="padding: 2rem;">
                 <div class="history-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">
-                    <h2 style="margin: 0; color: var(--text-primary);">GeÃ§miÅŸ ve ArÅŸiv</h2>
+                    <h2 style="margin: 0; color: var(--text-primary);">Geçmiş ve Arşiv</h2>
                     <button id="close-history-btn" class="secondary-btn" style="color: #ef4444; border: 1px solid rgba(239, 68, 68, 0.3); background: rgba(239, 68, 68, 0.05);">
                         <svg style="width: 16px; height: 16px; margin-right: 6px;" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
                         Kapat
@@ -678,7 +678,7 @@
                 
                 <div class="history-dashboard-grid" style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-top: 1.5rem;">
                     <div class="summary-card glass-panel" style="padding: 1.5rem; text-align: center; border-left: 4px solid var(--accent-color);">
-                        <h3 style="margin-top: 0; color: var(--text-secondary); font-size: 1rem; font-weight: 500;">Toplam Ä°ÅŸlenen Ciro</h3>
+                        <h3 style="margin-top: 0; color: var(--text-secondary); font-size: 1rem; font-weight: 500;">Toplam İşlenen Ciro</h3>
                         <div id="history-total-revenue" style="font-size: 2rem; font-weight: 700; color: var(--accent-color);">0.00 TL</div>
                     </div>
                     <div class="summary-card glass-panel" style="padding: 1.5rem; text-align: center; border-left: 4px solid var(--text-primary);">
@@ -689,13 +689,13 @@
 
                 <div style="display: flex; gap: 1.5rem; flex-wrap: wrap; margin-top: 1.5rem;">
                     <div class="glass-panel" style="padding: 1.5rem; flex: 2; min-width: 400px;">
-                        <h3 style="margin-top: 0; margin-bottom: 1rem; color: var(--text-primary); font-size: 1.1rem;">AylÄ±k Ciro Trendi</h3>
+                        <h3 style="margin-top: 0; margin-bottom: 1rem; color: var(--text-primary); font-size: 1.1rem;">Aylık Ciro Trendi</h3>
                         <div style="position: relative; height: 300px; width: 100%;">
                             <canvas id="historyChart"></canvas>
                         </div>
                     </div>
                     <div class="glass-panel" style="padding: 1.5rem; flex: 1; min-width: 300px;">
-                        <h3 style="margin-top: 0; margin-bottom: 1rem; color: var(--text-primary); font-size: 1.1rem;">Ciro DaÄŸÄ±lÄ±mÄ± (Top 5)</h3>
+                        <h3 style="margin-top: 0; margin-bottom: 1rem; color: var(--text-primary); font-size: 1.1rem;">Ciro Dağılımı (Top 5)</h3>
                         <div style="position: relative; height: 300px; width: 100%;">
                             <canvas id="topCustomersChart"></canvas>
                         </div>
@@ -704,13 +704,13 @@
 
                 <div style="display: flex; gap: 1.5rem; flex-wrap: wrap; margin-top: 1.5rem;">
                     <div class="glass-panel" style="padding: 1.5rem; flex: 1; min-width: 300px;">
-                        <h3 style="margin-top: 0; margin-bottom: 1rem; color: var(--text-primary); font-size: 1.1rem;">Ciro DaÄŸÄ±lÄ±mÄ± (TÃ¼mÃ¼)</h3>
+                        <h3 style="margin-top: 0; margin-bottom: 1rem; color: var(--text-primary); font-size: 1.1rem;">Ciro Dağılımı (Tümü)</h3>
                         <div style="position: relative; height: 300px; width: 100%;">
                             <canvas id="allCustomersChart"></canvas>
                         </div>
                     </div>
                     <div class="glass-panel" style="padding: 1.5rem; flex: 1; min-width: 300px;">
-                        <h3 style="margin-top: 0; margin-bottom: 1rem; color: var(--text-primary); font-size: 1.1rem;">DÃ¶viz Cinsi DaÄŸÄ±lÄ±mÄ±</h3>
+                        <h3 style="margin-top: 0; margin-bottom: 1rem; color: var(--text-primary); font-size: 1.1rem;">Döviz Cinsi Dağılımı</h3>
                         <div style="position: relative; height: 300px; width: 100%;">
                             <canvas id="currencyChart"></canvas>
                         </div>
@@ -719,43 +719,43 @@
 
                 <div class="glass-panel" style="margin-top: 1.5rem; padding: 1.5rem;">
                     <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem; margin-bottom: 1rem;">
-                        <h3 style="margin: 0; color: var(--text-primary); font-size: 1.1rem;">GeÃ§miÅŸte YÃ¼klenen Faturalar</h3>
+                        <h3 style="margin: 0; color: var(--text-primary); font-size: 1.1rem;">Geçmişte Yüklenen Faturalar</h3>
                         <div class="history-filters" style="display: flex; gap: 1rem; align-items: center; flex-wrap: wrap; flex-grow: 1; justify-content: flex-end;">
                             <div style="position: relative; flex-grow: 1; min-width: 250px;">
                                 <svg style="position: absolute; left: 10px; top: 50%; transform: translateY(-50%); color: var(--text-secondary); width: 16px; height: 16px;" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
-                                <input type="text" id="history-search-input" placeholder="MÃ¼ÅŸteri, VKN veya Fatura No yazÄ±nÄ±z." style="background: var(--input-bg); border: 1px solid var(--border-color); color: var(--text-primary); padding: 0.5rem 1rem 0.5rem 2.2rem; border-radius: 8px; font-size: 0.9rem; outline: none; width: 100%;">
+                                <input type="text" id="history-search-input" placeholder="Müşteri, VKN veya Fatura No yazınız." style="background: var(--input-bg); border: 1px solid var(--border-color); color: var(--text-primary); padding: 0.5rem 1rem 0.5rem 2.2rem; border-radius: 8px; font-size: 0.9rem; outline: none; width: 100%;">
                             </div>
                             <select id="history-sort-by" style="background: var(--input-bg); border: 1px solid var(--border-color); color: var(--text-primary); padding: 0.5rem 1rem; border-radius: 8px; font-size: 0.9rem; outline: none; cursor: pointer; max-width: 180px;" onchange="document.getElementById('history-apply-filters-btn').click();">
-                                <option value="" style="background-color: #ffffff; color: #000000;">SÄ±ralama: En Yeni</option>
-                                <option value="date_asc" style="background-color: #ffffff; color: #000000;">SÄ±ralama: En Eski</option>
+                                <option value="" style="background-color: #ffffff; color: #000000;">Sıralama: En Yeni</option>
+                                <option value="date_asc" style="background-color: #ffffff; color: #000000;">Sıralama: En Eski</option>
                                 <option value="amount_desc" style="background-color: #ffffff; color: #000000;">Tutar (Azalan)</option>
                                 <option value="amount_asc" style="background-color: #ffffff; color: #000000;">Tutar (Artan)</option>
-                                <option value="alpha_asc" style="background-color: #ffffff; color: #000000;">Ä°sim (A-Z)</option>
-                                <option value="alpha_desc" style="background-color: #ffffff; color: #000000;">Ä°sim (Z-A)</option>
+                                <option value="alpha_asc" style="background-color: #ffffff; color: #000000;">İsim (A-Z)</option>
+                                <option value="alpha_desc" style="background-color: #ffffff; color: #000000;">İsim (Z-A)</option>
                             </select>
                             <select id="history-date-filter" style="background: var(--input-bg); border: 1px solid var(--border-color); color: var(--text-primary); padding: 0.5rem 1rem; border-radius: 8px; font-size: 0.9rem; outline: none; cursor: pointer;">
-                                <option value="all" style="background-color: #ffffff; color: #000000;">TÃ¼m Zamanlar</option>
+                                <option value="all" style="background-color: #ffffff; color: #000000;">Tüm Zamanlar</option>
                                 <option value="this_month" style="background-color: #ffffff; color: #000000;">Sadece Bu Ay</option>
-                                <option value="last_month" style="background-color: #ffffff; color: #000000;">GeÃ§en Ay</option>
-                                <option value="this_year" style="background-color: #ffffff; color: #000000;">Bu YÄ±l</option>
+                                <option value="last_month" style="background-color: #ffffff; color: #000000;">Geçen Ay</option>
+                                <option value="this_year" style="background-color: #ffffff; color: #000000;">Bu Yıl</option>
                             </select>
                         </div>
                         
                         <!-- Advanced Filters Toggle -->
                         <div style="margin-top: 10px; text-align: right;">
                             <button id="toggle-advanced-filters" style="background: none; border: none; color: var(--accent-color); cursor: pointer; font-size: 0.9rem; padding: 0; outline: none;">
-                                &#9660; GeliÅŸmiÅŸ Filtreleme SeÃ§enekleri
+                                &#9660; Gelişmiş Filtreleme Seçenekleri
                             </button>
                         </div>
                         
                         <!-- Advanced Filters Panel -->
                         <div id="advanced-filters-panel" class="hidden" style="margin-top: 15px; padding: 15px; background: rgba(0,0,0,0.2); border-radius: 8px; border: 1px solid var(--border-color); display: flex; flex-wrap: wrap; gap: 15px; align-items: flex-end;">
                             <div style="flex: 1; min-width: 150px;">
-                                <label style="display: block; font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 5px;">BaÅŸlangÄ±Ã§ Tarihi</label>
+                                <label style="display: block; font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 5px;">Başlangıç Tarihi</label>
                                 <input type="date" id="history-start-date" style="width: 100%; background: var(--input-bg); border: 1px solid var(--border-color); color: var(--text-primary); padding: 0.5rem; border-radius: 6px; outline: none; font-size: 0.9rem;">
                             </div>
                             <div style="flex: 1; min-width: 150px;">
-                                <label style="display: block; font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 5px;">BitiÅŸ Tarihi</label>
+                                <label style="display: block; font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 5px;">Bitiş Tarihi</label>
                                 <input type="date" id="history-end-date" style="width: 100%; background: var(--input-bg); border: 1px solid var(--border-color); color: var(--text-primary); padding: 0.5rem; border-radius: 6px; outline: none; font-size: 0.9rem;">
                             </div>
                             <div style="flex: 1; min-width: 150px;">
@@ -768,7 +768,7 @@
                             </div>
                             <div style="flex: 1; min-width: 150px; display: flex; align-items: flex-end; padding-bottom: 2px;">
                                 <button id="history-apply-filters-btn" class="primary-btn" style="padding: 0.5rem 1rem; font-size: 0.9rem; height: 38px;">Filtrele</button>
-                                <button id="history-clear-filters-btn" class="secondary-btn" style="padding: 0.5rem 1rem; font-size: 0.9rem; margin-left: 0.5rem; height: 38px;">SÄ±fÄ±rla</button>
+                                <button id="history-clear-filters-btn" class="secondary-btn" style="padding: 0.5rem 1rem; font-size: 0.9rem; margin-left: 0.5rem; height: 38px;">Sıfırla</button>
                             </div>
                         </div>
                     </div>
@@ -778,12 +778,12 @@
                                 <tr>
                                     <th>Tarih</th>
                                     <th>Fatura No</th>
-                                    <th>Cari Ä°sim</th>
+                                    <th>Cari İsim</th>
                                     <th style="text-align: right;">Tutar (TL)</th>
                                 </tr>
                             </thead>
                             <tbody id="history-table-body">
-                                <tr><td colspan="4" style="text-align: center; padding: 2rem; color: var(--text-secondary);">YÃ¼kleniyor...</td></tr>
+                                <tr><td colspan="4" style="text-align: center; padding: 2rem; color: var(--text-secondary);">Yükleniyor...</td></tr>
                             </tbody>
                         </table>
                     </div>
