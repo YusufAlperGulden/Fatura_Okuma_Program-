@@ -26,10 +26,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 Toastify({
                     text: "Yetkisiz Erişim! Lütfen Uygulama Şifrenizi girin.",
                     duration: 3000,
-                    style: { background: "var(--fire)" }
+                    style: { background: "linear-gradient(to right, #ef4444, #dc2626)" }
                 }).showToast();
-                // Optionally return a dummy rejected promise to stop execution
-                return Promise.reject("401 Unauthorized");
+                // Return a real Error object so catch blocks can read error.message
+                return Promise.reject(new Error("Uygulama Yetkisi Yok (401)"));
             }
             return response;
         } catch (error) {
@@ -55,7 +55,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     Toastify({
                         text: "Hatalı Kullanıcı Adı veya Şifre!",
                         duration: 3000,
-                        style: { background: "var(--fire)" }
+                        style: { background: "linear-gradient(to right, #ef4444, #dc2626)" }
                     }).showToast();
                 } else if (response.ok) {
                     sessionStorage.setItem('appUsername', user);
@@ -64,7 +64,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     Toastify({
                         text: "Başarıyla Giriş Yapıldı.",
                         duration: 3000,
-                        style: { background: "var(--aurora)" }
+                        style: { background: "linear-gradient(to right, #00b09b, #96c93d)" }
                     }).showToast();
                 }
             } catch (err) {
@@ -74,7 +74,7 @@ document.addEventListener('DOMContentLoaded', () => {
             Toastify({
                 text: "Lütfen Kullanıcı Adı ve Şifre girin.",
                 duration: 3000,
-                style: { background: "var(--fire)" }
+                style: { background: "linear-gradient(to right, #ef4444, #dc2626)" }
             }).showToast();
         }
     });
