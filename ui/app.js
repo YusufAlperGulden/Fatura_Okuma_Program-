@@ -120,6 +120,25 @@ document.addEventListener('DOMContentLoaded', () => {
         handleEdit(-1, 'customer_address', e.target.value);
     });
 
+    const addrMap = {
+        'country': 'country_code',
+        'city': 'city_name',
+        'district': 'city_subdivision_name',
+        'neighborhood': 'district',
+        'street': 'street_name',
+        'building': 'building_name',
+        'building-no': 'building_number',
+        'postal': 'postal_zone'
+    };
+    Object.entries(addrMap).forEach(([domId, jsonKey]) => {
+        const el = document.getElementById(`res-addr-${domId}`);
+        if (el) {
+            el.addEventListener('input', (e) => {
+                handleEdit(-1, `customer_postal_address.${jsonKey}`, e.target.value);
+            });
+        }
+    });
+
     document.querySelectorAll('.edit-input-top').forEach(input => {
         input.addEventListener('blur', () => {
             syncCanonicalInputs(currentInvoiceData);
@@ -360,22 +379,27 @@ document.addEventListener('DOMContentLoaded', () => {
             data.customer_name || data.customer_title || data.customer || '',
         );
 
+        const cp = data.customer_postal_address;
+        if (cp && typeof cp === 'object') {
+            updateInputIfNotFocused('res-addr-country', cp.country_code || cp.country_name || '');
+            updateInputIfNotFocused('res-addr-city', cp.city_name || '');
+            updateInputIfNotFocused('res-addr-district', cp.city_subdivision_name || '');
+            updateInputIfNotFocused('res-addr-neighborhood', cp.district || '');
+            updateInputIfNotFocused('res-addr-street', cp.street_name || '');
+            updateInputIfNotFocused('res-addr-building', cp.building_name || '');
+            updateInputIfNotFocused('res-addr-building-no', cp.building_number || '');
+            updateInputIfNotFocused('res-addr-postal', cp.postal_zone || '');
+        } else {
+            // clear if no postal address
+            const fields = ['country', 'city', 'district', 'neighborhood', 'street', 'building', 'building-no', 'postal'];
+            fields.forEach(f => updateInputIfNotFocused(`res-addr-${f}`, ''));
+        }
+        
         let addressStr = '';
-        if (data.customer_address) {
-            if (typeof data.customer_address === 'object') {
-                const addrParts = [];
-                if (data.customer_address.street) addrParts.push(data.customer_address.street);
-                if (data.customer_address.district) addrParts.push(data.customer_address.district);
-                if (data.customer_address.city) addrParts.push(data.customer_address.city);
-                if (data.customer_address.postal_zone) addrParts.push(data.customer_address.postal_zone);
-                if (data.customer_address.country) addrParts.push(data.customer_address.country);
-                addressStr = addrParts.join(', ');
-            } else {
-                addressStr = data.customer_address;
-            }
+        if (data.customer_address && typeof data.customer_address === 'string') {
+            addressStr = data.customer_address;
         }
         updateInputIfNotFocused('res-customer-address', addressStr);
-
         if (!Array.isArray(data.items)) return;
         const editableFields = [
             'code',
@@ -876,12 +900,20 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!currentInvoiceData || draftSendInProgress) return;
         
         if (itemIndex === -1) {
-            currentInvoiceData[fieldName] = newValue;
-            if (fieldName === 'customer_name') {
-                // customer_name is the editable/canonical field. Keep the
-                // legacy alias in sync so no downstream serializer can revive
-                // the pre-edit value.
-                currentInvoiceData.customer_title = newValue;
+            if (fieldName.startsWith('customer_postal_address.')) {
+                if (!currentInvoiceData.customer_postal_address) {
+                    currentInvoiceData.customer_postal_address = {};
+                }
+                const subField = fieldName.split('.')[1];
+                currentInvoiceData.customer_postal_address[subField] = newValue;
+            } else {
+                currentInvoiceData[fieldName] = newValue;
+                if (fieldName === 'customer_name') {
+                    // customer_name is the editable/canonical field. Keep the
+                    // legacy alias in sync so no downstream serializer can revive
+                    // the pre-edit value.
+                    currentInvoiceData.customer_title = newValue;
+                }
             }
         } else if (
             Array.isArray(currentInvoiceData.items)

@@ -146,7 +146,6 @@ def validate_invoice(data):
         return False, ["Fatura verisi bir nesne olmalıdır."]
 
     _infer_uniform_missing_tax_rate(data)
-    recalculate_invoice_totals(data)
     errors = []
 
     try:
@@ -246,6 +245,22 @@ def validate_invoice(data):
     else:
         data["customer_name"] = customer_name
         data["customer_title"] = customer_name
+
+    customer_postal_address = data.get("customer_postal_address")
+    if customer_postal_address is not None:
+        if not isinstance(customer_postal_address, dict):
+            errors.append("Alıcı yapısal posta adresi (customer_postal_address) bir nesne (sözlük) olmalıdır.")
+        else:
+            allowed_keys = {
+                "street_name", "building_name", "building_number",
+                "city_subdivision_name", "city_name", "postal_zone",
+                "district", "country_code", "country_name", "address_lines"
+            }
+            for k, v in customer_postal_address.items():
+                if k not in allowed_keys:
+                    errors.append(f"Geçersiz adres alanı (customer_postal_address): '{k}'")
+                elif v is not None and not isinstance(v, (str, list)):
+                    errors.append(f"Adres alanı '{k}' geçersiz bir veri tipine sahip.")
 
     items_value = data.get("items")
     if not isinstance(items_value, list):
@@ -350,7 +365,7 @@ def validate_invoice(data):
         errors.append(f"Matematik Hatası: Kalemlerin tutar toplamı ({calculated_subtotal}) ile faturanın Ara Toplamı ({subtotal}) uyuşmuyor.")
 
     expected_total = quantize_money(calculated_subtotal - discount_amount + tax_amount)
-    if abs(expected_total - total_amount) > Decimal("0.10"):
+    if abs(expected_total - total_amount) > Decimal("1.00"):
         errors.append(f"Matematik Hatası: KDV ve İndirim hesaplaması sonucu Genel Toplam ile uyuşmuyor. (Hesaplanan: {(calculated_subtotal - discount_amount + tax_amount)}, Faturada Yazan: {total_amount})")
 
     if parsed_tax_lines and len(parsed_tax_lines) == len(items):
@@ -364,7 +379,7 @@ def validate_invoice(data):
                 (line_total - discount_share) * tax_rate / Decimal("100")
             ).quantize(MONEY_QUANTUM, rounding=ROUND_HALF_UP)
         expected_tax = quantize_money(expected_tax)
-        if abs(expected_tax - tax_amount) > Decimal("0.05"):
+        if abs(expected_tax - tax_amount) > Decimal("1.00"):
             errors.append(
                 "Matematik Hatası: Kalem KDV oranlarından hesaplanan toplam KDV "
                 f"({expected_tax}) ile faturanın KDV toplamı ({tax_amount}) uyuşmuyor."

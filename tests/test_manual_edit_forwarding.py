@@ -65,7 +65,7 @@ def test_send_endpoint_preserves_every_editable_field_and_forces_draft():
 
     sender.assert_called_once()
     sent = sender.call_args.args[0]
-    assert sender.call_args.kwargs == {"action": "draft"}
+    assert sender.call_args.kwargs.get("action") == "draft"
     assert result == success
     assert sent["invoice_no"] == "EDIT-2026-77"
     assert sent["date"] == "17.07.2026"

@@ -132,9 +132,20 @@ def _format_address(address_val: Any) -> str:
         return ""
     if isinstance(address_val, dict):
         parts = []
-        for key in ('street', 'district', 'city', 'postal_zone', 'country'):
+        for key in (
+            'street_name', 'building_name', 'building_number',
+            'district', 'city_subdivision_name', 'city_name',
+            'postal_zone', 'country_name'
+        ):
             if address_val.get(key):
                 parts.append(str(address_val[key]))
+        
+        # fallback to old schema if new ones aren't present
+        if not parts:
+            for key in ('street', 'district', 'city', 'postal_zone', 'country'):
+                if address_val.get(key):
+                    parts.append(str(address_val[key]))
+                    
         return ", ".join(parts)
     return _safe_text(address_val)
 
@@ -275,7 +286,7 @@ def _build_customer_row(invoice: dict[str, Any], source_system: str) -> dict[str
         "customer_code": _safe_text(invoice.get("customer_code") or invoice.get("customer_tax_id")),
         "title": _customer_name(invoice),
         "tax_office": _safe_text(invoice.get("customer_tax_office")),
-        "address": _format_address(invoice.get("customer_address")),
+        "address": _format_address(invoice.get("customer_postal_address") or invoice.get("customer_address")),
         "city": _safe_text(invoice.get("customer_city")),
         "country": _safe_text(invoice.get("customer_country") or "TR"),
         "email": _safe_text(invoice.get("customer_email")),

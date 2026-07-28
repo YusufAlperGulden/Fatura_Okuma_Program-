@@ -46,46 +46,86 @@ def _normalize_text(text):
     return unicodedata.normalize('NFKD', text).encode('ASCII', 'ignore').decode('utf-8').upper()
 
 def parse_turkish_address(address_data):
-    if not address_data:
-        return {'street': '', 'city': '', 'district': '', 'country': '', 'postal_zone': ''}
+    fields = {
+        'street_name': '', 'building_name': '', 'building_number': '',
+        'city_subdivision_name': '', 'city_name': '', 'postal_zone': '',
+        'district': '', 'country_code': '', 'country_name': '', 'address_lines': []
+    }
+    
+    if not address_data or address_data == "-":
+        return fields
     
     if isinstance(address_data, dict):
-        return {
-            'street': address_data.get('street', ''),
-            'city': address_data.get('city', ''),
-            'district': address_data.get('district', ''),
-            'country': address_data.get('country', ''),
-            'postal_zone': address_data.get('postal_zone', '')
-        }
+        for k in fields.keys():
+            if k in address_data:
+                val = address_data[k]
+                if isinstance(val, str):
+                    fields[k] = val.strip()
+                elif isinstance(val, list):
+                    fields[k] = val
+        return fields
         
-    address_text = str(address_data)
-    city = ''
-    district = ''
-    street = address_text
+    address_text = str(address_data).strip()
     norm_address = _normalize_text(address_text)
     
-    found_city = None
+    city_match_name = None
+    city_idx = -1
+    
+    # Right-to-left city search
     for c in TURKISH_CITIES:
         norm_c = _normalize_text(c)
-        if re.search(r'\b' + norm_c + r'\b', norm_address):
-            found_city = norm_c
-            break
-            
-    if found_city:
-        match = re.search(r'\b' + found_city + r'\b', norm_address)
-        if match:
-            start, end = match.span()
-            city = address_text[start:end]
-            
-            pre_city = address_text[:start].strip(' \t\n\r,-/')
-            district_match = re.search(r'([A-Za-zÇŞĞÜÖİçşğüöı]+)\s*$', pre_city)
-            if district_match:
-                district = district_match.group(1)
-                street = re.sub(r'\b' + re.escape(district) + r'\s*[/,-]?\s*' + re.escape(city) + r'\b', '', street, flags=re.IGNORECASE)
-            else:
-                street = re.sub(r'\b' + re.escape(city) + r'\b', '', street, flags=re.IGNORECASE)
+        matches = list(re.finditer(r'\b' + norm_c + r'\b', norm_address))
+        if matches:
+            last_match = matches[-1]
+            if last_match.start() > city_idx:
+                city_idx = last_match.start()
+                city_match_name = c
                 
-    return {'street': street.strip(' \t\n\r,-/'), 'city': city.strip(), 'district': district.strip(), 'country': '', 'postal_zone': ''}
+    if city_match_name:
+        norm_c = _normalize_text(city_match_name)
+        matches = list(re.finditer(r'\b' + norm_c + r'\b', norm_address))
+        last_match = matches[-1]
+        start, end = last_match.span()
+        
+        fields['city_name'] = address_text[start:end].strip()
+        
+        pre_city = address_text[:start].strip(' \t\n\r,-/')
+        
+        district_match = re.search(r'([A-Za-zÇŞĞÜÖİçşğüöı]+)\s*$', pre_city)
+        if district_match:
+            fields['city_subdivision_name'] = district_match.group(1).strip()
+            pre_city = pre_city[:-len(district_match.group(1))].strip(' \t\n\r,-/')
+            
+        address_text = pre_city
+        
+    mahalle_match = re.search(r'((?:\b\w+\b\s*){1,4}(?:MAHALLESİ|MAHALLESI|MAH)\b\.?)', address_text, re.IGNORECASE)
+    if mahalle_match:
+        fields['district'] = mahalle_match.group(1).strip()
+        address_text = address_text.replace(mahalle_match.group(1), '')
+        
+    cadde_match = re.search(r'((?:\b\w+\b\s*){1,4}(?:CADDESİ|CADDESI|CAD|SOKAĞI|SOKAGI|SOKAK|SOK|BULVARI|BULVAR)\b\.?)', address_text, re.IGNORECASE)
+    if cadde_match:
+        fields['street_name'] = cadde_match.group(1).strip()
+        address_text = address_text.replace(cadde_match.group(1), '')
+        
+    no_match = re.search(r'\b(?:NO|NUMARA)\s*[:.]?\s*(\d+(?:\s*[A-Za-z])?)\b', address_text, re.IGNORECASE)
+    if no_match:
+        fields['building_number'] = no_match.group(1).strip()
+        address_text = address_text.replace(no_match.group(0), '')
+        
+    apt_match = re.search(r'((?:\b[A-Za-zÇŞĞÜÖİçşğüöı0-9]+\b\s*){1,4}(?:APARTMANI|APT|SİTESİ|SITESI|PLAZA|BLOK)\b\.?)', address_text, re.IGNORECASE)
+    if apt_match:
+        fields['building_name'] = apt_match.group(1).strip()
+        address_text = address_text.replace(apt_match.group(1), '')
+        
+    leftover = re.sub(r'\s+', ' ', address_text).strip(' \t\n\r,-/')
+    if leftover:
+        if not fields['street_name']:
+            fields['street_name'] = leftover
+        elif len(leftover) > 3:
+            fields['street_name'] = leftover + ' ' + fields['street_name']
+            
+    return fields
 
 def get_tcmb_rate(currency_code, date_str):
     try:
@@ -579,18 +619,41 @@ def build_ubl_invoice(invoice: dict[str, Any]) -> str:
     supplier_scheme = _scheme_id(supplier_tax_id)
     customer_scheme = _scheme_id(customer_tax_id)
     customer_party_name_xml, customer_person_xml = _customer_party_name_xml(customer_name, customer_scheme)
-    customer_address = invoice.get("customer_address") or ""
+    address_data = invoice.get("customer_postal_address") or invoice.get("customer_address")
     customer_address_xml = ""
-    if customer_address:
-        parsed_addr = parse_turkish_address(customer_address)
-        street_xml = f"\n        <cbc:StreetName>{escape(parsed_addr['street'])}</cbc:StreetName>" if parsed_addr['street'] else ""
-        district_xml = f"\n        <cbc:CitySubdivisionName>{escape(parsed_addr['district'])}</cbc:CitySubdivisionName>" if parsed_addr['district'] else ""
-        city_xml = f"\n        <cbc:CityName>{escape(parsed_addr['city'])}</cbc:CityName>" if parsed_addr['city'] else ""
-        postal_xml = f"\n        <cbc:PostalZone>{escape(parsed_addr['postal_zone'])}</cbc:PostalZone>" if parsed_addr['postal_zone'] else ""
-        country_name = parsed_addr['country'] or "Türkiye"
-        country_xml = f"\n        <cac:Country>\n          <cbc:Name>{escape(country_name)}</cbc:Name>\n        </cac:Country>"
+    if address_data:
+        parsed_addr = parse_turkish_address(address_data)
         
-        customer_address_xml = f"""\n      <cac:PostalAddress>{street_xml}{district_xml}{city_xml}{postal_xml}{country_xml}\n      </cac:PostalAddress>"""
+        # UBL 2.1 TR requirements
+        # cbc:District is Mahalle
+        # cbc:StreetName is Cadde/Sokak
+        # cbc:BuildingName is Bina Adı
+        # cbc:BuildingNumber is Kapı No
+        # cbc:CitySubdivisionName is İlçe
+        # cbc:CityName is İl
+        
+        district_xml = f"\n        <cbc:District>{escape(parsed_addr['district'])}</cbc:District>" if parsed_addr['district'] else ""
+        street_xml = f"\n        <cbc:StreetName>{escape(parsed_addr['street_name'])}</cbc:StreetName>" if parsed_addr['street_name'] else ""
+        building_name_xml = f"\n        <cbc:BuildingName>{escape(parsed_addr['building_name'])}</cbc:BuildingName>" if parsed_addr['building_name'] else ""
+        building_num_xml = f"\n        <cbc:BuildingNumber>{escape(parsed_addr['building_number'])}</cbc:BuildingNumber>" if parsed_addr['building_number'] else ""
+        city_sub_xml = f"\n        <cbc:CitySubdivisionName>{escape(parsed_addr['city_subdivision_name'])}</cbc:CitySubdivisionName>" if parsed_addr['city_subdivision_name'] else ""
+        city_xml = f"\n        <cbc:CityName>{escape(parsed_addr['city_name'])}</cbc:CityName>" if parsed_addr['city_name'] else ""
+        postal_xml = f"\n        <cbc:PostalZone>{escape(parsed_addr['postal_zone'])}</cbc:PostalZone>" if parsed_addr['postal_zone'] else ""
+        
+        country_name = parsed_addr['country_name'] or "Türkiye"
+        country_code = parsed_addr['country_code'] or "TR"
+        country_xml = f"\n        <cac:Country>\n          <cbc:IdentificationCode>{escape(country_code)}</cbc:IdentificationCode>\n          <cbc:Name>{escape(country_name)}</cbc:Name>\n        </cac:Country>"
+        
+        address_lines_xml = ""
+        for line in parsed_addr['address_lines']:
+            if line:
+                address_lines_xml += f"\n        <cac:AddressLine><cbc:Line>{escape(line)}</cbc:Line></cac:AddressLine>"
+                
+        # If we have no structured fields but we have a raw address string, put it in AddressLine
+        if not (district_xml or street_xml or building_name_xml or building_num_xml or city_sub_xml or city_xml) and isinstance(address_data, str):
+            address_lines_xml = f"\n        <cac:AddressLine><cbc:Line>{escape(address_data)}</cbc:Line></cac:AddressLine>"
+
+        customer_address_xml = f"""\n      <cac:PostalAddress>{district_xml}{street_xml}{building_name_xml}{building_num_xml}{city_sub_xml}{city_xml}{postal_xml}{address_lines_xml}{country_xml}\n      </cac:PostalAddress>"""
 
 
     allowance_charge_parts = []
