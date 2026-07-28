@@ -61,11 +61,22 @@ def runtime_config():
         if environment == "test"
         else "https://www.uyumsoft.com/kullanici-girisi"
     )
+    
+    accounts_str = os.getenv("UYUMSOFT_ACCOUNTS", "").strip()
+    available_accounts = []
+    if accounts_str:
+        for acc_id in accounts_str.split(","):
+            acc_id = acc_id.strip()
+            if not acc_id: continue
+            name = os.getenv(f"UYUMSOFT_{acc_id.upper()}_NAME", acc_id)
+            available_accounts.append({"id": acc_id, "name": name})
+            
     return {
         "uyumsoft_environment": environment,
         "uyumsoft_portal_url": (
             os.getenv("UYUMSOFT_PORTAL_URL", "").strip() or default_portal_url
         ),
+        "available_accounts": available_accounts,
     }
 
 UPLOAD_DIR = "uploads"
@@ -80,6 +91,7 @@ class ProcessResponse(BaseModel):
 class SendUyumsoftRequest(BaseModel):
     invoice_data: dict
     action: str | None = None
+    account_id: str | None = None
 
 DEFAULT_MAX_UPLOAD_BYTES = 20 * 1024 * 1024
 
@@ -404,6 +416,8 @@ async def send_uyumsoft_api(request: SendUyumsoftRequest):
         invoice_data["customer_name"] = customer_name
         invoice_data["customer_title"] = customer_name
 
+    if request.account_id:
+        invoice_data["account_id"] = request.account_id
 
     result = send_invoice_to_uyumsoft(
 

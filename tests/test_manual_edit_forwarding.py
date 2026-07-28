@@ -253,10 +253,11 @@ def test_runtime_config_and_soap_client_use_the_same_normalized_environment():
         config = runtime_config()
         client = UyumsoftSoapClient("user", "password", environment=" PROD ")
 
-    assert config == {
-        "uyumsoft_environment": "prod",
-        "uyumsoft_portal_url": "https://portal.example.invalid/Taslak",
-    }
+        assert config == {
+            "uyumsoft_environment": "prod",
+            "uyumsoft_portal_url": "https://portal.example.invalid/Taslak",
+            "available_accounts": [],
+        }
     assert client.endpoint == PROD_ENDPOINT
     assert "username" not in config
     assert "password" not in config

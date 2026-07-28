@@ -255,6 +255,22 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (config.uyumsoft_environment) {
                     actualEnv = config.uyumsoft_environment;
                 }
+                if (config.available_accounts && config.available_accounts.length > 0) {
+                    const select = document.getElementById('uyumsoft-account-select');
+                    const container = document.getElementById('account-selection-container');
+                    if (select && container) {
+                        select.innerHTML = '';
+                        config.available_accounts.forEach(acc => {
+                            const option = document.createElement('option');
+                            option.value = acc.id;
+                            option.textContent = acc.name;
+                            select.appendChild(option);
+                        });
+                        if (config.available_accounts.length > 1) {
+                            container.classList.remove('hidden');
+                        }
+                    }
+                }
             }
         } catch (error) {
             console.warn('Uyumsoft config okunamadı.', error);
@@ -1256,6 +1272,9 @@ document.addEventListener('DOMContentLoaded', () => {
         renderApiProgress(statusBox, actionLabel);
         
         try {
+            const accountSelect = document.getElementById('uyumsoft-account-select');
+            const account_id = accountSelect && !accountSelect.closest('.hidden') ? accountSelect.value : null;
+
             const response = await fetch('/send-uyumsoft', {
                 method: 'POST',
                 headers: {
@@ -1263,7 +1282,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 },
                 body: JSON.stringify({
                     invoice_data: invoiceSnapshot,
-                    action: action
+                    action: action,
+                    account_id: account_id
                 }),
                 signal: sendAbortController.signal
             });
@@ -1858,13 +1878,17 @@ document.getElementById('send-all-btn').addEventListener('click', async () => {
             if (!isCurrentBatchGeneration(capturedBatchGeneration)) return;
             const item = batchResults[index];
             setBatchStatus(index, 'pending', 'Gönderiliyor...');
+            const accountSelect = document.getElementById('uyumsoft-account-select');
+            const account_id = accountSelect && !accountSelect.closest('.hidden') ? accountSelect.value : null;
+
             try {
                 const response = await fetch('/send-uyumsoft', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ 
                         invoice_data: item.result.data, 
-                        action: 'draft'
+                        action: 'draft',
+                        account_id: account_id
                     }),
                     signal: batchSendAbortController.signal,
                 });

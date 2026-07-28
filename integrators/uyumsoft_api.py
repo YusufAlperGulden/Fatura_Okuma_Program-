@@ -427,8 +427,30 @@ def normalize_uyumsoft_environment(value: Any = None) -> str:
     return "prod" if str(raw).strip().lower() == "prod" else "test"
 
 
-def _server_credentials(environment: str) -> tuple[str, str]:
+def _server_credentials(environment: str, account_id: str | None = None) -> tuple[str, str]:
     """Resolve credentials exclusively from server-side environment variables."""
+    if account_id:
+        prefix = f"UYUMSOFT_{account_id.upper()}"
+        if environment == "prod":
+            username = os.getenv(f"{prefix}_PROD_USERNAME") or os.getenv(f"{prefix}_USERNAME") or os.getenv("UYUMSOFT_PROD_USERNAME") or os.getenv("UYUMSOFT_USERNAME")
+            password = os.getenv(f"{prefix}_PROD_PASSWORD") or os.getenv(f"{prefix}_PASSWORD") or os.getenv("UYUMSOFT_PROD_PASSWORD") or os.getenv("UYUMSOFT_PASSWORD")
+        else:
+            username = (
+                os.getenv(f"{prefix}_TEST_USERNAME")
+                or os.getenv(f"{prefix}_USERNAME")
+                or os.getenv("UYUMSOFT_TEST_USERNAME")
+                or os.getenv("UYUMSOFT_USERNAME")
+                or "Uyumsoft"
+            )
+            password = (
+                os.getenv(f"{prefix}_TEST_PASSWORD")
+                or os.getenv(f"{prefix}_PASSWORD")
+                or os.getenv("UYUMSOFT_TEST_PASSWORD")
+                or os.getenv("UYUMSOFT_PASSWORD")
+                or "Uyumsoft"
+            )
+        return username or "", password or ""
+
     if environment == "prod":
         username = os.getenv("UYUMSOFT_PROD_USERNAME") or os.getenv("UYUMSOFT_USERNAME")
         password = os.getenv("UYUMSOFT_PROD_PASSWORD") or os.getenv("UYUMSOFT_PASSWORD")
@@ -444,6 +466,20 @@ def _server_credentials(environment: str) -> tuple[str, str]:
             or "Uyumsoft"
         )
     return username or "", password or ""
+
+
+def _get_supplier_info(account_id: str | None, default_vkn: str, default_name: str) -> tuple[str, str, str]:
+    if account_id:
+        prefix = f"UYUMSOFT_{account_id.upper()}"
+        vkn = os.getenv(f"{prefix}_VKN") or os.getenv("UYUMSOFT_SUPPLIER_VKN", default_vkn)
+        name = os.getenv(f"{prefix}_NAME") or os.getenv("UYUMSOFT_SUPPLIER_NAME", default_name)
+        tax_office = os.getenv(f"{prefix}_TAX_OFFICE") or os.getenv("UYUMSOFT_SUPPLIER_TAX_OFFICE", "")
+        return vkn, name, tax_office
+        
+    vkn = os.getenv("UYUMSOFT_SUPPLIER_VKN", default_vkn)
+    name = os.getenv("UYUMSOFT_SUPPLIER_NAME", default_name)
+    tax_office = os.getenv("UYUMSOFT_SUPPLIER_TAX_OFFICE", "")
+    return vkn, name, tax_office
 
 
 class UyumsoftSoapError(RuntimeError):
@@ -690,19 +726,14 @@ def build_ubl_invoice(invoice: dict[str, Any]) -> str:
         if environment == "test"
         else ""
     )
-    supplier_tax_id = "".join(filter(str.isdigit, str(
-        invoice.get("supplier_tax_id")
-        or os.getenv("UYUMSOFT_SUPPLIER_VKN", default_supplier_vkn)
-    )))
+    account_id = invoice.get("account_id")
+    vkn, name, tax_office = _get_supplier_info(account_id, default_supplier_vkn, default_supplier_name)
+    
+    supplier_tax_id = "".join(filter(str.isdigit, str(invoice.get("supplier_tax_id") or vkn)))
     if len(supplier_tax_id) not in (10, 11):
         raise ValueError("supplier_tax_id must contain 10 or 11 digits")
-    supplier_name = str(
-        invoice.get("supplier_name")
-        or os.getenv("UYUMSOFT_SUPPLIER_NAME", default_supplier_name)
-    )
-    supplier_tax_office = str(
-        invoice.get("supplier_tax_office") or os.getenv("UYUMSOFT_SUPPLIER_TAX_OFFICE", "")
-    )
+    supplier_name = str(invoice.get("supplier_name") or name)
+    supplier_tax_office = str(invoice.get("supplier_tax_office") or tax_office)
 
     customer_tax_id_raw = str(invoice.get("customer_tax_id") or "").strip()
     customer_tax_id = "".join(filter(str.isdigit, customer_tax_id_raw))
@@ -1426,7 +1457,8 @@ def enrich_invoice_customer_from_uyumsoft(invoice_data: dict[str, Any]) -> dict[
         return invoice_data
 
     environment = normalize_uyumsoft_environment()
-    username, password = _server_credentials(environment)
+    account_id = invoice_data.get("account_id")
+    username, password = _server_credentials(environment, account_id)
     if not username or not password:
         return invoice_data
 
@@ -1565,7 +1597,8 @@ def send_invoice_to_uyumsoft(
 
     # Only use server environment and credentials
     server_environment = normalize_uyumsoft_environment()
-    username, password = _server_credentials(server_environment)
+    account_id = invoice_data.get("account_id")
+    username, password = _server_credentials(server_environment, account_id)
 
     if not username or not password:
         return {
@@ -1620,18 +1653,10 @@ def send_invoice_to_uyumsoft(
         if server_environment == "test"
         else ""
     )
-    supplier_tax_id = "".join(
-        filter(
-            str.isdigit,
-            str(os.getenv("UYUMSOFT_SUPPLIER_VKN", default_supplier_vkn)),
-        )
-    )
-    supplier_name = str(
-        os.getenv("UYUMSOFT_SUPPLIER_NAME", default_supplier_name)
-    ).strip()
-    supplier_tax_office = str(
-        os.getenv("UYUMSOFT_SUPPLIER_TAX_OFFICE", "")
-    ).strip()
+    vkn, name, tax_office = _get_supplier_info(account_id, default_supplier_vkn, default_supplier_name)
+    supplier_tax_id = "".join(filter(str.isdigit, str(vkn)))
+    supplier_name = str(name).strip()
+    supplier_tax_office = str(tax_office).strip()
     if len(supplier_tax_id) not in (10, 11) or not supplier_name:
         if server_environment == "prod":
             return {
