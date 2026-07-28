@@ -39,7 +39,7 @@ document.addEventListener('DOMContentLoaded', () => {
             localStorage.setItem('appPassword', pass);
             document.getElementById('auth-modal').classList.add('hidden');
             Toastify({
-                text: "Şifre Kaydedildi. Lütfen işleminizi tekrarlayın.",
+                text: "Başarıyla Giriş Yapıldı.",
                 duration: 3000,
                 style: { background: "var(--aurora)" }
             }).showToast();
