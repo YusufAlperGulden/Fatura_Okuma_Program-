@@ -1,7 +1,7 @@
 import os
 import shutil
 import uuid
-from fastapi import FastAPI, UploadFile, File
+from fastapi import FastAPI, UploadFile, File, Header, HTTPException, Depends
 from fastapi.responses import RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
@@ -21,8 +21,14 @@ from utils.serial_numbers import safe_merge_ai_data
 
 app = FastAPI(title="Invoice Pipeline API")
 
+def verify_app_password(x_app_password: str | None = Header(None)):
+    expected_password = os.environ.get("APP_PASSWORD")
+    if expected_password and x_app_password != expected_password:
+        raise HTTPException(status_code=401, detail="Geçersiz Uygulama Şifresi (APP_PASSWORD)")
+
+
 # Ensure database is initialized (especially for ephemeral environments like Render)
-from database import init_db
+from database import init_db, check_invoice_exists
 init_db()
 
 # Serve the static UI files
@@ -66,13 +72,8 @@ class ProcessResponse(BaseModel):
 class SendUyumsoftRequest(BaseModel):
     invoice_data: dict
     action: str | None = None
-    environment: str | None = None
-    username: str | None = None
-    password: str | None = None
-
 
 DEFAULT_MAX_UPLOAD_BYTES = 20 * 1024 * 1024
-
 
 class _UploadTooLargeError(Exception):
     pass
@@ -358,7 +359,7 @@ async def api_validate(invoice_data: dict):
         "data": data_copy
     }
 
-@app.post("/send-uyumsoft")
+@app.post("/send-uyumsoft", dependencies=[Depends(verify_app_password)])
 async def send_uyumsoft_api(request: SendUyumsoftRequest):
     """
     Receives invoice data from the UI and forwards it to the Uyumsoft API.
@@ -395,12 +396,20 @@ async def send_uyumsoft_api(request: SendUyumsoftRequest):
         invoice_data["customer_name"] = customer_name
         invoice_data["customer_title"] = customer_name
 
+
+        invoice_no = invoice_data.get("invoice_no")
+    customer_tax_id = invoice_data.get("customer_tax_id")
+    if invoice_no and customer_tax_id and check_invoice_exists(invoice_no, customer_tax_id):
+        return {
+            "success": False,
+            "message": "Bu fatura daha önce sisteme aktarılmış.",
+            "details": f"Fatura No: {invoice_no} mükerrer gönderim engellendi."
+        }
+
     result = send_invoice_to_uyumsoft(
+
         invoice_data,
         action="draft",
-        environment=request.environment,
-        prod_username=request.username,
-        prod_password=request.password,
     )
     
     if isinstance(result, dict) and not result.get("success", True):
@@ -416,7 +425,7 @@ async def send_uyumsoft_api(request: SendUyumsoftRequest):
             invoice_data, 
             is_valid=True, 
             uyumsoft_document_id=document_id,
-            uyumsoft_environment=request.environment,
+            uyumsoft_environment=normalize_uyumsoft_environment(),
             uyumsoft_status="Draft"
         )
     except Exception as e:

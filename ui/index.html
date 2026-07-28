@@ -5,26 +5,22 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="theme-color" content="#1a1c23">
     <meta name="description" content="Yapay Zeka Destekli Fatura Okuma ve Entegrasyon Sistemi">
-    <title>Fatura Veri Otomasyonu v86</title>
+    <title>Fatura Veri Otomasyonu v87</title>
     <!-- CSS and Fonts -->
     <link rel="stylesheet" href="style.css?v=85">
-    <!-- Credentials Modal -->
-    <div id="credentials-modal" class="modal hidden">
+        <!-- Auth Modal -->
+    <div id="auth-modal" class="modal hidden">
         <div class="modal-content" style="max-width: 400px; padding: 2rem; margin: auto;">
-            <h2 style="margin-top: 0; margin-bottom: 1.5rem; text-align: center;">Uyumsoft Kimlik Bilgileri</h2>
-            <div style="margin-bottom: 1rem; text-align: left;">
-                <label for="cred-username" style="display: block; margin-bottom: 0.5rem; font-weight: 600;">Kullanıcı Adı</label>
-                <input type="text" id="cred-username" placeholder="Uyumsoft Kullanıcı Adı" style="width: 100%; padding: 0.75rem; border: 1px solid var(--border-color); border-radius: 8px; background: var(--input-bg); color: var(--text-primary);">
-            </div>
+            <h2 style="margin-top: 0; margin-bottom: 1.5rem; text-align: center;">Güvenli Giriş</h2>
             <div style="margin-bottom: 1.5rem; text-align: left;">
-                <label for="cred-password" style="display: block; margin-bottom: 0.5rem; font-weight: 600;">Şifre</label>
-                <input type="password" id="cred-password" placeholder="Şifre" style="width: 100%; padding: 0.75rem; border: 1px solid var(--border-color); border-radius: 8px; background: var(--input-bg); color: var(--text-primary);">
+                <label for="app-password" style="display: block; margin-bottom: 0.5rem; font-weight: 600;">Uygulama Şifresi</label>
+                <input type="password" id="app-password" placeholder="Şifreniz" style="width: 100%; padding: 0.75rem; border: 1px solid var(--border-color); border-radius: 8px; background: var(--input-bg); color: var(--text-primary);">
             </div>
             <div class="modal-actions" style="display: flex; justify-content: flex-end; gap: 1rem;">
-                <button id="cred-cancel-btn" class="secondary-btn">İptal</button>
-                <button id="cred-save-btn" class="primary-btn">Kaydet</button>
+                <button id="auth-save-btn" class="primary-btn">Giriş Yap</button>
             </div>
         </div>
+    </div>
     </div>
 
     <!-- Edit Modal -->

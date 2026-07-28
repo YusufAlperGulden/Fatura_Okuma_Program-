@@ -1,4 +1,55 @@
 document.addEventListener('DOMContentLoaded', () => {
+
+    // Intercept fetch to add auth header and handle 401
+    const originalFetch = window.fetch;
+    window.fetch = async function() {
+        let [resource, config] = arguments;
+        if (!config) {
+            config = {};
+        }
+        if (!config.headers) {
+            config.headers = {};
+        }
+        const appPassword = localStorage.getItem('appPassword') || '';
+        if (appPassword) {
+            config.headers['x-app-password'] = appPassword;
+        }
+        
+        try {
+            const response = await originalFetch(resource, config);
+            if (response.status === 401) {
+                document.getElementById('auth-modal').classList.remove('hidden');
+                Toastify({
+                    text: "Yetkisiz Erişim! Lütfen Uygulama Şifrenizi girin.",
+                    duration: 3000,
+                    style: { background: "var(--fire)" }
+                }).showToast();
+                // Optionally return a dummy rejected promise to stop execution
+                return Promise.reject("401 Unauthorized");
+            }
+            return response;
+        } catch (error) {
+            throw error;
+        }
+    };
+    
+    document.getElementById('auth-save-btn').addEventListener('click', () => {
+        const pass = document.getElementById('app-password').value;
+        if (pass) {
+            localStorage.setItem('appPassword', pass);
+            document.getElementById('auth-modal').classList.add('hidden');
+            Toastify({
+                text: "Şifre Kaydedildi. Lütfen işleminizi tekrarlayın.",
+                duration: 3000,
+                style: { background: "var(--aurora)" }
+            }).showToast();
+        }
+    });
+
+    // Check auth on load
+    if (!localStorage.getItem('appPassword')) {
+        document.getElementById('auth-modal').classList.remove('hidden');
+    }
     const {
         calculateTaxBreakdown,
         fetchWithTimeout,
@@ -156,25 +207,7 @@ document.addEventListener('DOMContentLoaded', () => {
         updateEnvironmentBadges(localEnv);
     }
 
-    // Credentials Modal Logic
-    const credModal = document.getElementById('credentials-modal');
-    const credSaveBtn = document.getElementById('cred-save-btn');
-    const credCancelBtn = document.getElementById('cred-cancel-btn');
-    const credUser = document.getElementById('cred-username');
-    const credPass = document.getElementById('cred-password');
-    const envSelects = document.querySelectorAll('.env-dropdown');
-
-    envSelects.forEach(select => {
-        select.addEventListener('change', (e) => {
-            const val = e.target.value;
-            localStorage.setItem('uyumsoft_environment', val);
-            document.documentElement.dataset.uyumsoftEnvironment = val;
-            updateEnvironmentBadges(val);
-            
-            // Sync other dropdowns
-            envSelects.forEach(s => {
-                if (s !== e.target) s.value = val;
-            });
+    );
         });
     });
 
@@ -1215,10 +1248,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 },
                 body: JSON.stringify({
                     invoice_data: invoiceSnapshot,
-                    action: action,
-                    environment: localStorage.getItem('uyumsoft_environment') || 'test',
-                    username: localStorage.getItem('uyumsoft_username') || null,
-                    password: localStorage.getItem('uyumsoft_password') || null
+                    action: action
                 }),
                 signal: sendAbortController.signal
             });
@@ -1819,10 +1849,7 @@ document.getElementById('send-all-btn').addEventListener('click', async () => {
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ 
                         invoice_data: item.result.data, 
-                        action: 'draft',
-                        environment: localStorage.getItem('uyumsoft_environment') || 'test',
-                        username: localStorage.getItem('uyumsoft_username') || null,
-                        password: localStorage.getItem('uyumsoft_password') || null
+                        action: 'draft'
                     }),
                     signal: batchSendAbortController.signal,
                 });

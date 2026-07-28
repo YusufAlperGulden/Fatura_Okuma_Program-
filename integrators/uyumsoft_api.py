@@ -653,12 +653,10 @@ def build_ubl_invoice(invoice: dict[str, Any]) -> str:
     invoice_no = _resolve_invoice_no(invoice.get("invoice_no"))
     issue_date = _parse_date(invoice.get("date"))
     
-    # E-Fatura kuralları gereği geçmiş yıllara ait fatura kesilemez.
-    # Uyumsoft'un "varsayılan seri bilgisi bulunamadı" hatasını önlemek için 
-    # eski yıllara ait faturaların tarihini bugüne eşitliyoruz.
+    # E-Fatura kuralları gereği 7 günden eski veya geçmiş yıllara ait fatura kesilmemelidir.
     current_year = datetime.now().year
     if int(issue_date[:4]) < current_year:
-        issue_date = datetime.now().date().isoformat()
+        raise ValueError("Geçmiş yıla ait bir faturayı canlı ortama gönderemezsiniz. Lütfen tarihi kontrol edin.")
     issue_time = _parse_time(invoice.get("time"))
     issue_time_xml = (
         f"\n  <cbc:IssueTime>{escape(issue_time)}</cbc:IssueTime>"
@@ -1549,9 +1547,6 @@ def build_soap_envelope(username: str, password: str, operation_body: str) -> st
 def send_invoice_to_uyumsoft(
     invoice_data: dict[str, Any],
     action: str | None = None,
-    environment: str | None = None,
-    prod_username: str | None = None,
-    prod_password: str | None = None,
 ) -> dict[str, Any]:
     if not isinstance(invoice_data, dict):
         return {
@@ -1561,13 +1556,9 @@ def send_invoice_to_uyumsoft(
             "response_code": 400,
         }
 
-    # Use provided arguments if available (e.g. from frontend configuration),
-    # otherwise fall back to the server's deployment configuration.
-    server_environment = environment.lower() if environment else normalize_uyumsoft_environment()
-    
-    env_username, env_password = _server_credentials(server_environment)
-    username = prod_username if prod_username else env_username
-    password = prod_password if prod_password else env_password
+    # Only use server environment and credentials
+    server_environment = normalize_uyumsoft_environment()
+    username, password = _server_credentials(server_environment)
 
     if not username or not password:
         return {

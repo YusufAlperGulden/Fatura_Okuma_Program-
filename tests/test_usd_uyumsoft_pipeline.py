@@ -140,6 +140,7 @@ def test_send_endpoint_passes_the_canonical_usd_invoice_to_uyumsoft():
     with (
         patch("api.send_invoice_to_uyumsoft", return_value=result) as sender,
         patch("database.save_invoice"),
+        patch("api.check_invoice_exists", return_value=False)
     ):
         response = asyncio.run(
             send_uyumsoft_api(

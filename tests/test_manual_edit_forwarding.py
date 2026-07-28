@@ -60,7 +60,10 @@ def test_send_endpoint_preserves_every_editable_field_and_forces_draft():
     success = {"success": True, "message": "Taslak oluşturuldu", "response_code": 200}
     request = SendUyumsoftRequest(invoice_data=_invoice(), action="send")
 
-    with patch("api.send_invoice_to_uyumsoft", return_value=success) as sender:
+    with (
+        patch("api.send_invoice_to_uyumsoft", return_value=success) as sender,
+        patch("api.check_invoice_exists", return_value=False)
+    ):
         result = asyncio.run(send_uyumsoft_api(request))
 
     sender.assert_called_once()

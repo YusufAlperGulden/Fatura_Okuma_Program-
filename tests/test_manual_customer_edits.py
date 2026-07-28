@@ -99,8 +99,10 @@ class ManualCustomerEditTests(unittest.TestCase):
                 ),
             ) as enrich,
             patch("api.send_invoice_to_uyumsoft", return_value=success) as send,
+            patch("api.check_invoice_exists", return_value=False)
         ):
             result = asyncio.run(send_uyumsoft_api(request))
+        
 
         enrich.assert_not_called()
         send.assert_called_once()
