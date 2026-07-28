@@ -10,7 +10,11 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!config.headers) {
             config.headers = {};
         }
+        const appUsername = sessionStorage.getItem('appUsername') || '';
         const appPassword = sessionStorage.getItem('appPassword') || '';
+        if (appUsername) {
+            config.headers['x-app-username'] = appUsername;
+        }
         if (appPassword) {
             config.headers['x-app-password'] = appPassword;
         }
@@ -34,8 +38,10 @@ document.addEventListener('DOMContentLoaded', () => {
     };
     
     document.getElementById('auth-save-btn').addEventListener('click', () => {
+        const user = document.getElementById('app-username').value;
         const pass = document.getElementById('app-password').value;
-        if (pass) {
+        if (user && pass) {
+            sessionStorage.setItem('appUsername', user);
             sessionStorage.setItem('appPassword', pass);
             document.getElementById('auth-modal').classList.add('hidden');
             Toastify({
@@ -60,7 +66,7 @@ document.addEventListener('DOMContentLoaded', () => {
     passInput.addEventListener('mousedown', checkCaps);
 
     // Check auth on load
-    if (!sessionStorage.getItem('appPassword')) {
+    if (!sessionStorage.getItem('appUsername') || !sessionStorage.getItem('appPassword')) {
         document.getElementById('auth-modal').classList.remove('hidden');
     }
     const {
