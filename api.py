@@ -21,29 +21,15 @@ from utils.serial_numbers import safe_merge_ai_data
 
 app = FastAPI(title="Invoice Pipeline API")
 
-def verify_app_auth(x_app_username: str | None = Header(None), x_app_password: str | None = Header(None)) -> str | None:
+def verify_app_auth(x_app_username: str | None = Header(None), x_app_password: str | None = Header(None)):
     expected_username = os.environ.get("APP_USERNAME")
     expected_password = os.environ.get("APP_PASSWORD")
     
-    accounts_str = os.environ.get("UYUMSOFT_ACCOUNTS", "").lower()
-    valid_accounts = [acc.strip() for acc in accounts_str.split(",") if acc.strip()]
-    
-    is_valid_username = False
-    
-    if expected_username and x_app_username == expected_username:
-        is_valid_username = True
-    elif valid_accounts and x_app_username and x_app_username.lower() in valid_accounts:
-        is_valid_username = True
-    elif not expected_username and not valid_accounts:
-        is_valid_username = True
-        
-    if not is_valid_username:
-        raise HTTPException(status_code=401, detail="Geçersiz Kullanıcı Adı (APP_USERNAME veya Firma Bulunamadı)")
+    if expected_username and x_app_username != expected_username:
+        raise HTTPException(status_code=401, detail="Geçersiz Kullanıcı Adı (APP_USERNAME)")
         
     if expected_password and x_app_password != expected_password:
         raise HTTPException(status_code=401, detail="Geçersiz Uygulama Şifresi (APP_PASSWORD)")
-        
-    return x_app_username
 
 @app.get("/verify-auth", dependencies=[Depends(verify_app_auth)])
 def verify_auth():
@@ -393,8 +379,8 @@ async def api_validate(invoice_data: dict):
         "data": data_copy
     }
 
-@app.post("/send-uyumsoft")
-async def send_uyumsoft_api(request: SendUyumsoftRequest, auth_username: str | None = Depends(verify_app_auth)):
+@app.post("/send-uyumsoft", dependencies=[Depends(verify_app_auth)])
+async def send_uyumsoft_api(request: SendUyumsoftRequest):
     """
     Receives invoice data from the UI and forwards it to the Uyumsoft API.
     """
@@ -432,12 +418,6 @@ async def send_uyumsoft_api(request: SendUyumsoftRequest, auth_username: str | N
 
     if request.account_id:
         invoice_data["account_id"] = request.account_id
-    elif auth_username:
-        # Check if auth_username is a valid account ID
-        accounts_str = os.environ.get("UYUMSOFT_ACCOUNTS", "").lower()
-        valid_accounts = [acc.strip() for acc in accounts_str.split(",") if acc.strip()]
-        if auth_username.lower() in valid_accounts:
-            invoice_data["account_id"] = auth_username.lower()
 
     result = send_invoice_to_uyumsoft(
 

@@ -62,7 +62,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     sessionStorage.setItem('appPassword', pass);
                     document.getElementById('auth-modal').classList.add('hidden');
                     Toastify({
-                        text: "Başarıyla Giriş Yapıldı. Firma: " + user.toUpperCase(),
+                        text: "Başarıyla Giriş Yapıldı.",
                         duration: 3000,
                         style: { background: "linear-gradient(to right, #00b09b, #96c93d)" }
                     }).showToast();
@@ -255,6 +255,22 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (config.uyumsoft_environment) {
                     actualEnv = config.uyumsoft_environment;
                 }
+                if (config.available_accounts && config.available_accounts.length > 0) {
+                    const select = document.getElementById('uyumsoft-account-select');
+                    const container = document.getElementById('account-selection-container');
+                    if (select && container) {
+                        select.innerHTML = '';
+                        config.available_accounts.forEach(acc => {
+                            const option = document.createElement('option');
+                            option.value = acc.id;
+                            option.textContent = acc.name;
+                            select.appendChild(option);
+                        });
+                        if (config.available_accounts.length > 1) {
+                            container.classList.remove('hidden');
+                        }
+                    }
+                }
             }
         } catch (error) {
             console.warn('Uyumsoft config okunamadı.', error);
@@ -271,17 +287,11 @@ document.addEventListener('DOMContentLoaded', () => {
     function updateEnvironmentBadges(environment) {
         const isProd = environment === 'prod';
         const isTest = environment === 'test';
-        let text = isProd
+        const text = isProd
             ? 'Uyumsoft ortamı: GERÇEK / CANLI'
             : isTest
                 ? 'Uyumsoft ortamı: TEST / ÖN KABUL'
-                : 'Uyumsoft ortamı: BİLİNMİYOR - gönderim kapalı';
-                
-        const username = sessionStorage.getItem('appUsername');
-        if (username) {
-            text += ` | Firma: ${username.toUpperCase()}`;
-        }
-        
+                : 'Uyumsoft ortamı: BİLİNMİYOR — gönderim kapalı';
         document.querySelectorAll(
             '#uyumsoft-environment-badge, #batch-uyumsoft-environment-badge'
         ).forEach(badge => {
@@ -1262,6 +1272,9 @@ document.addEventListener('DOMContentLoaded', () => {
         renderApiProgress(statusBox, actionLabel);
         
         try {
+            const accountSelect = document.getElementById('uyumsoft-account-select');
+            const account_id = accountSelect && !accountSelect.closest('.hidden') ? accountSelect.value : null;
+
             const response = await fetch('/send-uyumsoft', {
                 method: 'POST',
                 headers: {
@@ -1269,7 +1282,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 },
                 body: JSON.stringify({
                     invoice_data: invoiceSnapshot,
-                    action: action
+                    action: action,
+                    account_id: account_id
                 }),
                 signal: sendAbortController.signal
             });
@@ -1864,13 +1878,17 @@ document.getElementById('send-all-btn').addEventListener('click', async () => {
             if (!isCurrentBatchGeneration(capturedBatchGeneration)) return;
             const item = batchResults[index];
             setBatchStatus(index, 'pending', 'Gönderiliyor...');
+            const accountSelect = document.getElementById('uyumsoft-account-select');
+            const account_id = accountSelect && !accountSelect.closest('.hidden') ? accountSelect.value : null;
+
             try {
                 const response = await fetch('/send-uyumsoft', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ 
                         invoice_data: item.result.data, 
-                        action: 'draft'
+                        action: 'draft',
+                        account_id: account_id
                     }),
                     signal: batchSendAbortController.signal,
                 });

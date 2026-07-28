@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="theme-color" content="#1a1c23">
     <meta name="description" content="Yapay Zeka Destekli Fatura Okuma ve Entegrasyon Sistemi">
-    <title>Fatura Veri Otomasyonu v102</title>
+    <title>Fatura Veri Otomasyonu v103</title>
     <!-- CSS and Fonts -->
     <link rel="stylesheet" href="style.css?v=85">
     <!-- Auth Modal -->
@@ -624,6 +624,12 @@
 
                 <!-- Action Buttons -->
                 <div class="actions-panel">
+                    <div id="account-selection-container" class="hidden" style="margin-bottom: 1rem; text-align: left; background: var(--bg-card); padding: 1rem; border-radius: 8px; border: 1px solid var(--border-light);">
+                        <label for="uyumsoft-account-select" style="display: block; margin-bottom: 0.5rem; font-weight: 500; font-size: 0.9rem; color: var(--text-muted);">Gönderici Firma Seçimi</label>
+                        <select id="uyumsoft-account-select" class="form-input" style="width: 100%; cursor: pointer;">
+                            <!-- Populated via JS -->
+                        </select>
+                    </div>
                     <div style="display: flex; flex-wrap: wrap; gap: 1rem; width: 100%; justify-content: center;">
                         <button id="send-draft-btn" class="primary-btn hidden">
                             <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" style="width: 20px; height: 20px;"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
