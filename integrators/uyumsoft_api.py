@@ -28,104 +28,335 @@ from utils.invoice_values import (
 import re
 import unicodedata
 
-TURKISH_CITIES = [
-    "ADANA", "ADIYAMAN", "AFYONKARAHİSAR", "AĞRI", "AMASYA", "ANKARA", "ANTALYA", "ARTVİN", "AYDIN",
-    "BALIKESİR", "BİLECİK", "BİNGÖL", "BİTLİS", "BOLU", "BURDUR", "BURSA", "ÇANAKKALE", "ÇANKIRI",
-    "ÇORUM", "DENİZLİ", "DİYARBAKIR", "EDİRNE", "ELAZIĞ", "ERZİNCAN", "ERZURUM", "ESKİŞEHİR",
-    "GAZİANTEP", "GİRESUN", "GÜMÜŞHANE", "HAKKARİ", "HATAY", "ISPARTA", "MERSİN", "İSTANBUL",
-    "İZMİR", "KARS", "KASTAMONU", "KAYSERİ", "KIRKLARELİ", "KIRŞEHİR", "KOCAELİ", "KONYA", "KÜTAHYA",
-    "MALATYA", "MANİSA", "KAHRAMANMARAŞ", "MARDİN", "MUĞLA", "MUŞ", "NEVŞEHİR", "NİĞDE", "ORDU",
-    "RİZE", "SAKARYA", "SAMSUN", "SİİRT", "SİNOP", "SİVAS", "TEKİRDAĞ", "TOKAT", "TRABZON",
-    "TUNCELİ", "ŞANLIURFA", "UŞAK", "VAN", "YOZGAT", "ZONGULDAK", "AKSARAY", "BAYBURT", "KARAMAN",
-    "KIRIKKALE", "BATMAN", "ŞIRNAK", "BARTIN", "ARDAHAN", "IĞDIR", "YALOVA", "KARABÜK", "KİLİS",
-    "OSMANİYE", "DÜZCE"
-]
+# Address matching is performed on an ASCII-folded representation, while the
+# canonical Turkish spelling is returned to callers.
+_CANONICAL_TURKISH_CITIES = (
+    "ADANA", "ADIYAMAN", "AFYONKARAHİSAR", "AĞRI", "AMASYA", "ANKARA",
+    "ANTALYA", "ARTVİN", "AYDIN", "BALIKESİR", "BİLECİK", "BİNGÖL",
+    "BİTLİS", "BOLU", "BURDUR", "BURSA", "ÇANAKKALE", "ÇANKIRI", "ÇORUM",
+    "DENİZLİ", "DİYARBAKIR", "EDİRNE", "ELAZIĞ", "ERZİNCAN", "ERZURUM",
+    "ESKİŞEHİR", "GAZİANTEP", "GİRESUN", "GÜMÜŞHANE", "HAKKARİ", "HATAY",
+    "ISPARTA", "MERSİN", "İSTANBUL", "İZMİR", "KARS", "KASTAMONU",
+    "KAYSERİ", "KIRKLARELİ", "KIRŞEHİR", "KOCAELİ", "KONYA", "KÜTAHYA",
+    "MALATYA", "MANİSA", "KAHRAMANMARAŞ", "MARDİN", "MUĞLA", "MUŞ",
+    "NEVŞEHİR", "NİĞDE", "ORDU", "RİZE", "SAKARYA", "SAMSUN", "SİİRT",
+    "SİNOP", "SİVAS", "TEKİRDAĞ", "TOKAT", "TRABZON", "TUNCELİ",
+    "ŞANLIURFA", "UŞAK", "VAN", "YOZGAT", "ZONGULDAK", "AKSARAY",
+    "BAYBURT", "KARAMAN", "KIRIKKALE", "BATMAN", "ŞIRNAK", "BARTIN",
+    "ARDAHAN", "IĞDIR", "YALOVA", "KARABÜK", "KİLİS", "OSMANİYE", "DÜZCE",
+)
 
-def _normalize_text(text):
-    text = text.replace('İ', 'I').replace('ı', 'i')
-    return unicodedata.normalize('NFKD', text).encode('ASCII', 'ignore').decode('utf-8').upper()
+_ADDRESS_KEYS = (
+    "street_name",
+    "building_name",
+    "building_number",
+    "city_subdivision_name",
+    "city_name",
+    "postal_zone",
+    "district",
+    "country_code",
+    "country_name",
+    "address_lines",
+)
 
-def parse_turkish_address(address_data):
-    fields = {
-        'street_name': '', 'building_name': '', 'building_number': '',
-        'city_subdivision_name': '', 'city_name': '', 'postal_zone': '',
-        'district': '', 'country_code': '', 'country_name': '', 'address_lines': []
+_TURKISH_CHARACTER_FOLD = str.maketrans(
+    {
+        "ı": "i", "İ": "I", "ş": "s", "Ş": "S", "ğ": "g", "Ğ": "G",
+        "ü": "u", "Ü": "U", "ö": "o", "Ö": "O", "ç": "c", "Ç": "C",
+        # Common Windows-1254 mojibake left in historic extracted data.
+        "ý": "i", "Ý": "I", "þ": "s", "Þ": "S", "ð": "g", "Ð": "G",
     }
-    
-    if not address_data or address_data == "-":
-        return fields
-    
-    if isinstance(address_data, dict):
-        for k in fields.keys():
-            if k in address_data:
-                val = address_data[k]
-                if isinstance(val, str):
-                    fields[k] = val.strip()
-                elif isinstance(val, list):
-                    fields[k] = val
-        return fields
-        
-    address_text = str(address_data).strip()
-    norm_address = _normalize_text(address_text)
-    
-    city_match_name = None
-    city_idx = -1
-    
-    # Right-to-left city search
-    for c in TURKISH_CITIES:
-        norm_c = _normalize_text(c)
-        matches = list(re.finditer(r'\b' + norm_c + r'\b', norm_address))
-        if matches:
-            last_match = matches[-1]
-            if last_match.start() > city_idx:
-                city_idx = last_match.start()
-                city_match_name = c
-                
-    if city_match_name:
-        norm_c = _normalize_text(city_match_name)
-        matches = list(re.finditer(r'\b' + norm_c + r'\b', norm_address))
-        last_match = matches[-1]
-        start, end = last_match.span()
-        
-        fields['city_name'] = address_text[start:end].strip()
-        
-        pre_city = address_text[:start].strip(' \t\n\r,-/')
-        
-        district_match = re.search(r'([A-Za-zÇŞĞÜÖİçşğüöı]+)\s*$', pre_city)
-        if district_match:
-            fields['city_subdivision_name'] = district_match.group(1).strip()
-            pre_city = pre_city[:-len(district_match.group(1))].strip(' \t\n\r,-/')
-            
-        address_text = pre_city
-        
-    mahalle_match = re.search(r'((?:\b\w+\b\s*){1,4}(?:MAHALLESİ|MAHALLESI|MAH)\b\.?)', address_text, re.IGNORECASE)
-    if mahalle_match:
-        fields['district'] = mahalle_match.group(1).strip()
-        address_text = address_text.replace(mahalle_match.group(1), '')
-        
-    cadde_match = re.search(r'((?:\b\w+\b\s*){1,4}(?:CADDESİ|CADDESI|CAD|SOKAĞI|SOKAGI|SOKAK|SOK|BULVARI|BULVAR)\b\.?)', address_text, re.IGNORECASE)
-    if cadde_match:
-        fields['street_name'] = cadde_match.group(1).strip()
-        address_text = address_text.replace(cadde_match.group(1), '')
-        
-    no_match = re.search(r'\b(?:NO|NUMARA)\s*[:.]?\s*(\d+(?:\s*[A-Za-z])?)\b', address_text, re.IGNORECASE)
-    if no_match:
-        fields['building_number'] = no_match.group(1).strip()
-        address_text = address_text.replace(no_match.group(0), '')
-        
-    apt_match = re.search(r'((?:\b[A-Za-zÇŞĞÜÖİçşğüöı0-9]+\b\s*){1,4}(?:APARTMANI|APT|SİTESİ|SITESI|PLAZA|BLOK)\b\.?)', address_text, re.IGNORECASE)
-    if apt_match:
-        fields['building_name'] = apt_match.group(1).strip()
-        address_text = address_text.replace(apt_match.group(1), '')
-        
-    leftover = re.sub(r'\s+', ' ', address_text).strip(' \t\n\r,-/')
-    if leftover:
-        if not fields['street_name']:
-            fields['street_name'] = leftover
-        elif len(leftover) > 3:
-            fields['street_name'] = leftover + ' ' + fields['street_name']
-            
+)
+
+
+def _address_fold(value: Any) -> str:
+    """Return a case-insensitive, Turkish-aware representation for matching."""
+    translated = str(value or "").translate(_TURKISH_CHARACTER_FOLD)
+    decomposed = unicodedata.normalize("NFKD", translated)
+    return "".join(char for char in decomposed if not unicodedata.combining(char)).upper()
+
+
+def _blank_span(value: str, start: int, end: int) -> str:
+    """Remove a matched slice without changing offsets used by folded text."""
+    return value[:start] + (" " * (end - start)) + value[end:]
+
+
+def _clean_address_value(value: Any) -> str:
+    if value is None:
+        return ""
+    if isinstance(value, (list, tuple)):
+        value = " ".join(str(part) for part in value if part not in (None, ""))
+    return " ".join(str(value).split()).strip(" \t\r\n,;/")
+
+
+def _deduplicate_address_lines(lines: list[str]) -> list[str]:
+    result: list[str] = []
+    seen: set[str] = set()
+    for line in lines:
+        cleaned = _clean_address_value(line)
+        folded = _address_fold(cleaned)
+        if cleaned and folded not in seen:
+            seen.add(folded)
+            result.append(cleaned)
+    return result
+
+
+def _empty_postal_address() -> dict[str, Any]:
+    return {
+        "street_name": "",
+        "building_name": "",
+        "building_number": "",
+        "city_subdivision_name": "",
+        "city_name": "",
+        "postal_zone": "",
+        "district": "",
+        "country_code": "",
+        "country_name": "",
+        "address_lines": [],
+    }
+
+
+def _is_turkish_city(value: str) -> bool:
+    folded = _address_fold(value)
+    return any(folded == _address_fold(city) for city in _CANONICAL_TURKISH_CITIES)
+
+
+def _normalize_structured_address(address_data: dict[str, Any]) -> dict[str, Any]:
+    """Normalize canonical dictionaries and tolerate the previous XML aliases."""
+    fields = _empty_postal_address()
+
+    # The previous XML extractor used street/city/country and used district for
+    # CitySubdivisionName. Supporting those aliases here prevents data loss
+    # while all extractors migrate to the canonical schema.
+    legacy_shape = any(
+        key in address_data for key in ("street", "city", "country", "address_line")
+    )
+    aliases = {
+        "street": "street_name",
+        "city": "city_name",
+        "country": "country_name",
+    }
+    for source_key, target_key in aliases.items():
+        if target_key not in address_data and source_key in address_data:
+            fields[target_key] = _clean_address_value(address_data[source_key])
+
+    for key in _ADDRESS_KEYS:
+        if key not in address_data:
+            continue
+        value = address_data[key]
+        if key == "address_lines":
+            if isinstance(value, str):
+                fields[key] = [value]
+            elif isinstance(value, (list, tuple)):
+                fields[key] = [
+                    _clean_address_value(line)
+                    for line in value
+                    if line not in (None, "")
+                ]
+            elif value not in (None, ""):
+                fields[key] = [_clean_address_value(value)]
+        elif legacy_shape and key == "district" and "city_subdivision_name" not in address_data:
+            fields["city_subdivision_name"] = _clean_address_value(value)
+        else:
+            fields[key] = _clean_address_value(value)
+
+    legacy_lines = address_data.get("address_line")
+    if legacy_lines and not fields["address_lines"]:
+        fields["address_lines"] = (
+            [_clean_address_value(legacy_lines)]
+            if isinstance(legacy_lines, str)
+            else [_clean_address_value(line) for line in legacy_lines if line]
+        )
+
+    fields["address_lines"] = _deduplicate_address_lines(fields["address_lines"])
+    fields["country_code"] = fields["country_code"].upper()
+
+    country_folded = _address_fold(fields["country_name"])
+    if fields["country_code"] == "TR" and not fields["country_name"]:
+        fields["country_name"] = "Türkiye"
+    elif country_folded in {"TURKIYE", "TURKEY"} and not fields["country_code"]:
+        fields["country_code"] = "TR"
+        fields["country_name"] = "Türkiye"
+    elif (
+        not fields["country_code"]
+        and not fields["country_name"]
+        and _is_turkish_city(fields["city_name"])
+    ):
+        fields["country_code"] = "TR"
+        fields["country_name"] = "Türkiye"
+
     return fields
+
+
+def _take_address_match(
+    text: str, pattern: str, *, value_group: int = 0
+) -> tuple[str, str]:
+    """Return the original matched value and blank the entire matched slice."""
+    match = re.search(pattern, _address_fold(text), re.IGNORECASE)
+    if not match:
+        return "", text
+    value_start, value_end = match.span(value_group)
+    full_start, full_end = match.span(0)
+    value = _clean_address_value(text[value_start:value_end])
+    return value, _blank_span(text, full_start, full_end)
+
+
+def parse_turkish_address(address_data: Any) -> dict[str, Any]:
+    """Return a loss-aware canonical postal address.
+
+    Turkish free-form addresses are split conservatively. Recognised
+    components are mapped to UBL fields; any non-empty slice that cannot be
+    mapped with confidence remains in ``address_lines`` instead of being
+    silently discarded.
+    """
+    if not address_data or address_data == "-":
+        return _empty_postal_address()
+    if isinstance(address_data, dict):
+        return _normalize_structured_address(address_data)
+
+    raw_address = " ".join(str(address_data).split()).strip()
+    if not raw_address or raw_address == "-":
+        return _empty_postal_address()
+
+    fields = _empty_postal_address()
+    working = raw_address
+
+    # Postal codes may appear before or after the city. Prefer the rightmost
+    # five-digit value, which is the conventional address position.
+    postal_matches = list(re.finditer(r"(?<!\d)(\d{5})(?!\d)", _address_fold(working)))
+    if postal_matches:
+        postal_match = postal_matches[-1]
+        fields["postal_zone"] = working[postal_match.start(1):postal_match.end(1)]
+        working = _blank_span(working, postal_match.start(), postal_match.end())
+
+    # Select the rightmost city occurrence. This distinguishes the destination
+    # city from street names such as "ANKARA CAD." and "İSTANBUL CADDESİ".
+    folded_working = _address_fold(working)
+    city_candidates: list[tuple[int, int, str]] = []
+    for city in _CANONICAL_TURKISH_CITIES:
+        folded_city = _address_fold(city)
+        for match in re.finditer(rf"(?<![A-Z0-9]){re.escape(folded_city)}(?![A-Z0-9])", folded_working):
+            city_candidates.append((match.start(), match.end(), city))
+
+    trailing_text = ""
+    city_separator_present = False
+    if city_candidates:
+        city_start, city_end, city_name = max(
+            city_candidates, key=lambda candidate: (candidate[0], candidate[1] - candidate[0])
+        )
+        fields["city_name"] = city_name
+        fields["country_code"] = "TR"
+        fields["country_name"] = "Türkiye"
+        before_city = working[:city_start]
+        city_separator_present = before_city.rstrip().endswith(("/", ",", ";"))
+        trailing_text = working[city_end:]
+        working = before_city
+
+        folded_trailing = _address_fold(trailing_text).strip(" \t\r\n,;/")
+        if folded_trailing in {"TR", "TURKIYE", "TURKEY"}:
+            trailing_text = ""
+
+    # Unit/door details have no dedicated field in the canonical model. Keep
+    # them as AddressLine values rather than confusing them with the building
+    # number.
+    unit_pattern = (
+        r"\b(?:IC\s*KAPI(?:\s*NO)?|DAIRE(?:\s*NO)?|KAT)"
+        r"\s*[:.]?\s*[A-Z0-9/-]+\b"
+    )
+    unit_lines: list[str] = []
+    while True:
+        match = re.search(unit_pattern, _address_fold(working), re.IGNORECASE)
+        if not match:
+            break
+        unit_lines.append(_clean_address_value(working[match.start():match.end()]))
+        working = _blank_span(working, match.start(), match.end())
+
+    word = r"[A-Z0-9][A-Z0-9.'’/-]*"
+    fields["district"], working = _take_address_match(
+        working,
+        rf"(?:{word}\s+){{0,4}}(?:MAHALLESI|MAHALLE|MAH)(?:\.)?",
+    )
+    fields["street_name"], working = _take_address_match(
+        working,
+        rf"(?:{word}\s+){{0,5}}"
+        r"(?:CADDESI|CADDE|CAD|SOKAGI|SOKAK|SOK|BULVARI|BULVAR|BULV|BLV)(?:\.)?",
+    )
+    fields["building_name"], working = _take_address_match(
+        working,
+        rf"(?:{word}\s+){{0,4}}"
+        r"(?:APARTMANI|APARTMAN|APT|SITESI|SITE|PLAZA|BLOK)(?:\.)?",
+    )
+    fields["building_number"], working = _take_address_match(
+        working,
+        r"\b(?:DIS\s*KAPI\s*NO|BINA\s*NO|KAPI\s*NO|NO|NUMARA)"
+        r"\s*[:.]?\s*([0-9]+(?:\s*[-/]?\s*[A-Z])?)\b",
+        value_group=1,
+    )
+
+    unmatched_lines: list[str] = []
+    remainder = re.sub(r"\s+", " ", working).strip(" \t\r\n,;/")
+    if remainder and fields["city_name"]:
+        segments = [
+            _clean_address_value(segment)
+            for segment in re.split(r"[,;/|]+", remainder)
+            if _clean_address_value(segment)
+        ]
+        subdivision_candidate = segments[-1] if segments else ""
+        subdivision_candidate = re.sub(
+            r"^(?:ILCE|ILCESI)\s*[:.-]?\s*",
+            "",
+            subdivision_candidate,
+            flags=re.IGNORECASE,
+        ).strip()
+        candidate_folded = _address_fold(subdivision_candidate)
+        candidate_words = candidate_folded.split()
+        if (
+            subdivision_candidate
+            and re.fullmatch(r"[A-Z][A-Z .'\-]*", candidate_folded)
+            and len(candidate_words) <= 3
+            and (city_separator_present or len(candidate_words) == 1)
+        ):
+            fields["city_subdivision_name"] = subdivision_candidate
+            unmatched_lines.extend(segments[:-1])
+        else:
+            unmatched_lines.extend(segments)
+    elif remainder:
+        unmatched_lines.append(remainder)
+
+    trailing_clean = re.sub(r"\s+", " ", trailing_text).strip(" \t\r\n,;/")
+    if trailing_clean:
+        unmatched_lines.append(trailing_clean)
+
+    fields["address_lines"] = _deduplicate_address_lines(unit_lines + unmatched_lines)
+    return fields
+
+
+def _merge_postal_address_fallback(
+    primary: dict[str, Any], fallback: dict[str, Any]
+) -> dict[str, Any]:
+    """Fill missing structured components from a legacy flat address.
+
+    A UI may submit only the structured field that the user edited while also
+    retaining the original ``customer_address``. Component-level fallback
+    prevents that partial edit from erasing the rest of the parsed address.
+    An explicit country in the primary object is kept as a unit so a foreign
+    country name can never acquire a fallback ``TR`` code.
+    """
+    merged = _empty_postal_address()
+    primary_has_country = bool(
+        primary.get("country_code") or primary.get("country_name")
+    )
+    for key in _ADDRESS_KEYS:
+        if key == "address_lines":
+            merged[key] = _deduplicate_address_lines(
+                list(primary.get(key) or []) + list(fallback.get(key) or [])
+            )
+        elif key in {"country_code", "country_name"} and primary_has_country:
+            merged[key] = primary.get(key) or ""
+        else:
+            merged[key] = primary.get(key) or fallback.get(key) or ""
+    return merged
+
 
 def get_tcmb_rate(currency_code, date_str):
     try:
@@ -619,10 +850,21 @@ def build_ubl_invoice(invoice: dict[str, Any]) -> str:
     supplier_scheme = _scheme_id(supplier_tax_id)
     customer_scheme = _scheme_id(customer_tax_id)
     customer_party_name_xml, customer_person_xml = _customer_party_name_xml(customer_name, customer_scheme)
-    address_data = invoice.get("customer_postal_address") or invoice.get("customer_address")
+    structured_address = invoice.get("customer_postal_address")
+    legacy_address = invoice.get("customer_address")
+    address_data = structured_address or legacy_address
     customer_address_xml = ""
     if address_data:
         parsed_addr = parse_turkish_address(address_data)
+        if structured_address and legacy_address:
+            parsed_addr = _merge_postal_address_fallback(
+                parsed_addr,
+                parse_turkish_address(legacy_address),
+            )
+        has_address_content = any(
+            parsed_addr.get(key)
+            for key in _ADDRESS_KEYS
+        )
         
         # UBL 2.1 TR requirements
         # cbc:District is Mahalle
@@ -632,28 +874,57 @@ def build_ubl_invoice(invoice: dict[str, Any]) -> str:
         # cbc:CitySubdivisionName is İlçe
         # cbc:CityName is İl
         
-        district_xml = f"\n        <cbc:District>{escape(parsed_addr['district'])}</cbc:District>" if parsed_addr['district'] else ""
         street_xml = f"\n        <cbc:StreetName>{escape(parsed_addr['street_name'])}</cbc:StreetName>" if parsed_addr['street_name'] else ""
         building_name_xml = f"\n        <cbc:BuildingName>{escape(parsed_addr['building_name'])}</cbc:BuildingName>" if parsed_addr['building_name'] else ""
         building_num_xml = f"\n        <cbc:BuildingNumber>{escape(parsed_addr['building_number'])}</cbc:BuildingNumber>" if parsed_addr['building_number'] else ""
         city_sub_xml = f"\n        <cbc:CitySubdivisionName>{escape(parsed_addr['city_subdivision_name'])}</cbc:CitySubdivisionName>" if parsed_addr['city_subdivision_name'] else ""
         city_xml = f"\n        <cbc:CityName>{escape(parsed_addr['city_name'])}</cbc:CityName>" if parsed_addr['city_name'] else ""
         postal_xml = f"\n        <cbc:PostalZone>{escape(parsed_addr['postal_zone'])}</cbc:PostalZone>" if parsed_addr['postal_zone'] else ""
+        district_xml = f"\n        <cbc:District>{escape(parsed_addr['district'])}</cbc:District>" if parsed_addr['district'] else ""
         
-        country_name = parsed_addr['country_name'] or "Türkiye"
-        country_code = parsed_addr['country_code'] or "TR"
-        country_xml = f"\n        <cac:Country>\n          <cbc:IdentificationCode>{escape(country_code)}</cbc:IdentificationCode>\n          <cbc:Name>{escape(country_name)}</cbc:Name>\n        </cac:Country>"
+        # Do not silently turn an explicitly foreign structured address into a
+        # Turkish address. The parser sets TR/Türkiye only when a Turkish city
+        # (or an explicit Turkish country value) supports it.
+        country_code = parsed_addr["country_code"]
+        country_name = parsed_addr["country_name"]
+        country_children = ""
+        if country_code:
+            country_children += (
+                "\n          <cbc:IdentificationCode>"
+                f"{escape(country_code)}</cbc:IdentificationCode>"
+            )
+        if country_name:
+            country_children += f"\n          <cbc:Name>{escape(country_name)}</cbc:Name>"
+        country_xml = (
+            f"\n        <cac:Country>{country_children}\n        </cac:Country>"
+            if country_children
+            else ""
+        )
         
         address_lines_xml = ""
         for line in parsed_addr['address_lines']:
             if line:
                 address_lines_xml += f"\n        <cac:AddressLine><cbc:Line>{escape(line)}</cbc:Line></cac:AddressLine>"
                 
-        # If we have no structured fields but we have a raw address string, put it in AddressLine
-        if not (district_xml or street_xml or building_name_xml or building_num_xml or city_sub_xml or city_xml) and isinstance(address_data, str):
+        # Defensive fallback for historic raw values. The current parser
+        # already preserves an unrecognised raw string in address_lines.
+        if not (
+            district_xml
+            or street_xml
+            or building_name_xml
+            or building_num_xml
+            or city_sub_xml
+            or city_xml
+            or postal_xml
+            or address_lines_xml
+        ) and isinstance(address_data, str):
             address_lines_xml = f"\n        <cac:AddressLine><cbc:Line>{escape(address_data)}</cbc:Line></cac:AddressLine>"
 
-        customer_address_xml = f"""\n      <cac:PostalAddress>{district_xml}{street_xml}{building_name_xml}{building_num_xml}{city_sub_xml}{city_xml}{postal_xml}{address_lines_xml}{country_xml}\n      </cac:PostalAddress>"""
+        # UBL AddressType is sequence-sensitive. Keep this exact order:
+        # StreetName, BuildingName, BuildingNumber, CitySubdivisionName,
+        # CityName, PostalZone, District, AddressLine, Country.
+        if has_address_content:
+            customer_address_xml = f"""\n      <cac:PostalAddress>{street_xml}{building_name_xml}{building_num_xml}{city_sub_xml}{city_xml}{postal_xml}{district_xml}{address_lines_xml}{country_xml}\n      </cac:PostalAddress>"""
 
 
     allowance_charge_parts = []

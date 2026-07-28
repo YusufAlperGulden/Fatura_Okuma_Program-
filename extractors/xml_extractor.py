@@ -1,7 +1,11 @@
 import defusedxml.ElementTree as ET
 from decimal import Decimal, InvalidOperation
 
-from utils.serial_numbers import normalize_serial_numbers
+from utils.serial_numbers import (
+    format_customer_postal_address,
+    normalize_customer_postal_address,
+    normalize_serial_numbers,
+)
 
 def find_text_agnostic(root, tag_name):
     """
@@ -122,6 +126,7 @@ def parse_xml_invoice(file_path: str) -> dict:
         "customer_name": None,
         "customer_title": None,
         "customer_address": None,
+        "customer_postal_address": None,
         "items": [],
         "subtotal": None,
         "tax_amount": None,
@@ -210,17 +215,47 @@ def parse_xml_invoice(file_path: str) -> dict:
             address_dict = {}
             for elem in customer_party.iter():
                 if elem.tag.endswith("}PostalAddress") or elem.tag == "PostalAddress":
-                    address_dict["street"] = child_text_agnostic(elem, "StreetName") or ""
-                    address_dict["district"] = child_text_agnostic(elem, "CitySubdivisionName") or ""
-                    address_dict["city"] = child_text_agnostic(elem, "CityName") or ""
+                    address_dict["street_name"] = child_text_agnostic(elem, "StreetName") or ""
+                    address_dict["building_name"] = child_text_agnostic(elem, "BuildingName") or ""
+                    address_dict["building_number"] = child_text_agnostic(elem, "BuildingNumber") or ""
+                    address_dict["city_subdivision_name"] = child_text_agnostic(elem, "CitySubdivisionName") or ""
+                    address_dict["city_name"] = child_text_agnostic(elem, "CityName") or ""
                     address_dict["postal_zone"] = child_text_agnostic(elem, "PostalZone") or ""
-                    country_elem = next((e for e in elem if e.tag.endswith("}Country") or e.tag == "Country"), None)
-                    address_dict["country"] = child_text_agnostic(country_elem, "Name") if country_elem is not None else ""
+                    address_dict["district"] = child_text_agnostic(elem, "District") or ""
+
+                    address_lines = []
+                    for child in list(elem):
+                        if _local_name(child) != "AddressLine":
+                            continue
+                        line = child_text_agnostic(child, "Line")
+                        if line and line.strip():
+                            address_lines.append(line.strip())
+                    address_dict["address_lines"] = address_lines
+
+                    country_elem = next(
+                        (
+                            child
+                            for child in list(elem)
+                            if _local_name(child) == "Country"
+                        ),
+                        None,
+                    )
+                    if country_elem is not None:
+                        address_dict["country_code"] = (
+                            child_text_agnostic(country_elem, "IdentificationCode")
+                            or ""
+                        )
+                        address_dict["country_name"] = (
+                            child_text_agnostic(country_elem, "Name") or ""
+                        )
                     break
             
-            if any(address_dict.values()):
-                # Only populate fields that have truthy string values
-                data["customer_address"] = {k: v.strip() for k, v in address_dict.items() if v and str(v).strip()}
+            postal_address = normalize_customer_postal_address(address_dict)
+            if postal_address:
+                data["customer_postal_address"] = postal_address
+                data["customer_address"] = format_customer_postal_address(
+                    postal_address
+                )
                 
         # 3. Invoice Lines
         has_line_allowance = False

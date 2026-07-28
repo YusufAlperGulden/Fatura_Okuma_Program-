@@ -268,7 +268,7 @@ def test_invalid_vkn_checksum_is_rejected_before_uyumsoft():
     is_valid, errors = validate_invoice(invoice)
 
     assert is_valid is False
-    assert any("kontrol basamağı" in error for error in errors)
+    assert any("VKN" in error for error in errors)
 
 
 def test_item_name_fallback_is_consistent_in_validator_and_ubl_builder():

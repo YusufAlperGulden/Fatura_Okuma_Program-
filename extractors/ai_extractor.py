@@ -9,7 +9,11 @@ except ImportError:  # Keep non-AI helpers importable in lightweight test instal
     genai = None
     genai_types = None
 
-from utils.serial_numbers import normalize_invoice_serial_numbers
+from utils.serial_numbers import (
+    format_customer_postal_address,
+    normalize_customer_postal_address,
+    normalize_invoice_serial_numbers,
+)
 
 
 DEFAULT_GEMINI_MODEL = "gemini-2.5-flash"
@@ -126,6 +130,21 @@ def _stringify_amount_fields(data: dict) -> dict:
             if key in item and item[key] is not None:
                 item[key] = str(item[key])
 
+    postal_address = normalize_customer_postal_address(
+        data.get("customer_postal_address")
+        or (
+            data.get("customer_address")
+            if isinstance(data.get("customer_address"), dict)
+            else None
+        )
+    )
+    if postal_address:
+        data["customer_postal_address"] = postal_address
+        if not isinstance(data.get("customer_address"), str):
+            data["customer_address"] = format_customer_postal_address(
+                postal_address
+            )
+
     return normalize_invoice_serial_numbers(data)
 
 
@@ -178,7 +197,19 @@ Beklenen JSON alani:
   "time": "HH:MM veya HH:MM:SS",
   "customer_tax_id": "10 veya 11 haneli VKN/TCKN; belgede yoksa bos string",
   "customer_name": "Alicinin (Musterinin) Unvani veya Adi Soyadi (string)",
-  "customer_address": "Alicinin acik adresi (varsa)",
+  "customer_address": "Alicinin belgede yazan acik adresinin ham, tek satir metni (varsa)",
+  "customer_postal_address": {
+    "street_name": "Cadde veya sokak adi; yoksa bos string",
+    "building_name": "Apartman, site, plaza veya bina adi; yoksa bos string",
+    "building_number": "Bina/kapi numarasi; yoksa bos string",
+    "city_subdivision_name": "Ilce adi; yoksa bos string",
+    "city_name": "Il/sehir adi; yoksa bos string",
+    "postal_zone": "Posta kodu; yoksa bos string",
+    "district": "Mahalle adi; yoksa bos string",
+    "country_code": "ISO 3166-1 alpha-2 ulke kodu (TR, DE, US gibi); bilinmiyorsa bos string",
+    "country_name": "Ulke adi; yoksa bos string",
+    "address_lines": ["Yukaridaki alanlara kayipsiz yerlestirilemeyen ek adres satirlari; yoksa bos dizi"]
+  },
   "subtotal": 0.0,
   "discount_amount": 0.0,
   "tax_amount": 0.0,

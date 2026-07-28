@@ -2,6 +2,8 @@ import re
 
 import pdfplumber
 
+from utils.serial_numbers import normalize_customer_postal_address
+
 
 CURRENCY_SYMBOLS = "₺$€£"
 AMOUNT_NUMBER_RE = r"\d{1,3}(?:[.,]\d{3})*[.,]\d{2}|\d+[.,]\d{2}"
@@ -231,6 +233,29 @@ def _extract_customer_address(text, customer_name, customer_tax_id):
         if address_lines:
             return " ".join(address_lines).strip()
     return None
+
+
+def _structure_customer_address(address):
+    """Parse a flat address through the shared Uyumsoft parser without an import cycle."""
+
+    if not address:
+        return None
+    from integrators.uyumsoft_api import parse_turkish_address
+
+    structured = normalize_customer_postal_address(
+        parse_turkish_address(address)
+    )
+    return structured or None
+
+
+def _with_structured_customer_address(data):
+    if not isinstance(data, dict):
+        return data
+    if not data.get("customer_postal_address") and data.get("customer_address"):
+        data["customer_postal_address"] = _structure_customer_address(
+            data["customer_address"]
+        )
+    return data
 
 
 def _extract_customer_name(text):
@@ -807,6 +832,7 @@ def parse_invoice_text(text: str, top_text: str = None) -> dict:
         "customer_name": None,
         "customer_title": None,
         "customer_address": None,
+        "customer_postal_address": None,
         "items": [],
         "discount_amount": 0.0,
         "tax_amount": None,
@@ -884,6 +910,9 @@ def parse_invoice_text(text: str, top_text: str = None) -> dict:
     data["customer_title"] = data["customer_name"]
     data["customer_address"] = _extract_customer_address(
         text, data["customer_name"], data["customer_tax_id"]
+    )
+    data["customer_postal_address"] = _structure_customer_address(
+        data["customer_address"]
     )
     data["exchange_rate"] = _extract_exchange_rate(text)
     data["notes"] = _extract_invoice_notes(text)
@@ -1262,7 +1291,9 @@ def parse_pdf_invoice(file_path: str) -> dict:
                 print("No selectable text found via pdfplumber. Falling back to OCR...")
                 from extractors.ocr_extractor import parse_pdf_invoice_ocr
 
-                return parse_pdf_invoice_ocr(file_path)
+                return _with_structured_customer_address(
+                    parse_pdf_invoice_ocr(file_path)
+                )
 
             candidates = []
             for text in candidate_texts:
@@ -1321,12 +1352,14 @@ def parse_pdf_invoice(file_path: str) -> dict:
             print("PDF text was read, but line items were not matched. Falling back to OCR...")
             from extractors.ocr_extractor import parse_pdf_invoice_ocr
 
-            return parse_pdf_invoice_ocr(file_path)
+            return _with_structured_customer_address(
+                parse_pdf_invoice_ocr(file_path)
+            )
 
         _apply_mode_b_usd_conversion(data)
 
         print("Successfully read PDF file.")
-        return data
+        return _with_structured_customer_address(data)
 
     except Exception as e:
         print(f"Error parsing PDF file {file_path}: {e}")

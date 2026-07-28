@@ -1,4 +1,5 @@
 import datetime
+import re
 from decimal import Decimal, ROUND_HALF_UP
 
 from utils.invoice_values import (
@@ -9,6 +10,24 @@ from utils.invoice_values import (
     parse_localized_decimal,
     quantize_money,
 )
+
+_UNSAFE_ADDRESS_CONTROL_CHARS = re.compile(r"[\x00-\x1F\x7F-\x9F]")
+_POSTAL_ADDRESS_SCALAR_LIMITS = {
+    "street_name": 200,
+    "building_name": 200,
+    "building_number": 50,
+    "city_subdivision_name": 100,
+    "city_name": 100,
+    "postal_zone": 20,
+    "district": 100,
+    "country_code": 2,
+    "country_name": 100,
+}
+_POSTAL_ADDRESS_ALLOWED_KEYS = frozenset(
+    list(_POSTAL_ADDRESS_SCALAR_LIMITS.keys()) + ["address_lines"]
+)
+_POSTAL_ADDRESS_MAX_LINES = 2
+_POSTAL_ADDRESS_MAX_LINE_LENGTH = 100
 
 
 def _parse_decimal(value):
@@ -251,16 +270,77 @@ def validate_invoice(data):
         if not isinstance(customer_postal_address, dict):
             errors.append("Alıcı yapısal posta adresi (customer_postal_address) bir nesne (sözlük) olmalıdır.")
         else:
-            allowed_keys = {
-                "street_name", "building_name", "building_number",
-                "city_subdivision_name", "city_name", "postal_zone",
-                "district", "country_code", "country_name", "address_lines"
-            }
-            for k, v in customer_postal_address.items():
-                if k not in allowed_keys:
-                    errors.append(f"Geçersiz adres alanı (customer_postal_address): '{k}'")
-                elif v is not None and not isinstance(v, (str, list)):
-                    errors.append(f"Adres alanı '{k}' geçersiz bir veri tipine sahip.")
+            unknown_keys = sorted(
+                set(customer_postal_address) - _POSTAL_ADDRESS_ALLOWED_KEYS,
+                key=str,
+            )
+            for key in unknown_keys:
+                errors.append(
+                    f"Geçersiz adres alanı (customer_postal_address): '{key}'"
+                )
+
+            for key, max_length in _POSTAL_ADDRESS_SCALAR_LIMITS.items():
+                if key not in customer_postal_address:
+                    continue
+                value = customer_postal_address[key]
+                if not isinstance(value, str):
+                    errors.append(
+                        f"Adres alanı '{key}' yalnızca metin olmalıdır."
+                    )
+                    continue
+
+                normalized_value = value.strip()
+                if len(normalized_value) > max_length:
+                    errors.append(
+                        f"Adres alanı '{key}' en fazla {max_length} karakter olabilir."
+                    )
+                if _UNSAFE_ADDRESS_CONTROL_CHARS.search(normalized_value):
+                    errors.append(
+                        f"Adres alanı '{key}' geçersiz kontrol karakterleri içeriyor."
+                    )
+                if key == "country_code" and normalized_value:
+                    if not re.fullmatch(r"[A-Za-z]{2}", normalized_value):
+                        errors.append(
+                            "Adres alanı 'country_code' iki harfli ISO ülke kodu olmalıdır."
+                        )
+                    else:
+                        normalized_value = normalized_value.upper()
+                customer_postal_address[key] = normalized_value
+
+            if "address_lines" in customer_postal_address:
+                address_lines = customer_postal_address["address_lines"]
+                if not isinstance(address_lines, list):
+                    errors.append(
+                        "Adres alanı 'address_lines' yalnızca metinlerden oluşan bir liste olmalıdır."
+                    )
+                else:
+                    if len(address_lines) > _POSTAL_ADDRESS_MAX_LINES:
+                        errors.append(
+                            "Adres alanı 'address_lines' en fazla "
+                            f"{_POSTAL_ADDRESS_MAX_LINES} satır içerebilir."
+                        )
+                    normalized_lines = []
+                    for line_index, line in enumerate(address_lines, start=1):
+                        if not isinstance(line, str):
+                            errors.append(
+                                "Adres alanı 'address_lines' içindeki "
+                                f"{line_index}. değer yalnızca metin olmalıdır."
+                            )
+                            continue
+                        normalized_line = line.strip()
+                        if len(normalized_line) > _POSTAL_ADDRESS_MAX_LINE_LENGTH:
+                            errors.append(
+                                "Adres alanı 'address_lines' içindeki "
+                                f"{line_index}. satır en fazla "
+                                f"{_POSTAL_ADDRESS_MAX_LINE_LENGTH} karakter olabilir."
+                            )
+                        if _UNSAFE_ADDRESS_CONTROL_CHARS.search(normalized_line):
+                            errors.append(
+                                "Adres alanı 'address_lines' içindeki "
+                                f"{line_index}. satır geçersiz kontrol karakterleri içeriyor."
+                            )
+                        normalized_lines.append(normalized_line)
+                    customer_postal_address["address_lines"] = normalized_lines
 
     items_value = data.get("items")
     if not isinstance(items_value, list):
@@ -454,4 +534,13 @@ def validate_invoice(data):
         if tax_rate is not None and decimal_places(tax_rate.normalize()) <= 4:
             item["tax_rate"] = format_number(tax_rate, 4)
 
+        serial_numbers = item.get("serial_numbers")
+        if isinstance(serial_numbers, list) and len(serial_numbers) > 0:
+            if quantity is not None:
+                if quantity != quantity.to_integral_value():
+                    errors.append(f"Seri numarası olan kalemlerde miktar tam sayı olmalıdır.")
+                elif len(serial_numbers) != int(quantity):
+                    errors.append(f"Faturada belirtilen seri numarası adedi ({len(serial_numbers)}) ile miktar ({int(quantity)}) uyuşmuyor.")
+
+    is_valid = len(errors) == 0
     return is_valid, errors

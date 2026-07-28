@@ -6,7 +6,11 @@ from numbers import Number
 
 import pandas as pd
 
-from utils.serial_numbers import normalize_serial_numbers
+from utils.serial_numbers import (
+    format_customer_postal_address,
+    normalize_customer_postal_address,
+    normalize_serial_numbers,
+)
 
 
 def _normalize_header(value):
@@ -103,6 +107,43 @@ def _read_table(file_path):
     return pd.read_excel(file_path)
 
 
+def _postal_address_from_row(row, column_sets):
+    structured = {}
+    for field in (
+        "street_name",
+        "building_name",
+        "building_number",
+        "city_subdivision_name",
+        "city_name",
+        "postal_zone",
+        "district",
+        "country_code",
+        "country_name",
+        "address_lines",
+    ):
+        value = _as_text(_first_present(row, column_sets[field]))
+        if value:
+            structured[field] = value
+
+    postal_address = normalize_customer_postal_address(structured)
+    raw_address = _as_text(
+        _first_present(row, column_sets["customer_address"])
+    )
+    if not postal_address and raw_address:
+        # Keep one Turkish splitting implementation. The local import avoids
+        # an extractor/integrator initialization cycle.
+        from integrators.uyumsoft_api import parse_turkish_address
+
+        postal_address = normalize_customer_postal_address(
+            parse_turkish_address(raw_address)
+        )
+
+    if not raw_address and postal_address:
+        raw_address = format_customer_postal_address(postal_address)
+
+    return raw_address, postal_address or None
+
+
 def parse_excel_invoice(file_path: str) -> dict:
     """
     Parses a Uyumsoft-style Excel/CSV invoice table.
@@ -118,6 +159,8 @@ def parse_excel_invoice(file_path: str) -> dict:
         "customer_tax_id": None,
         "customer_name": None,
         "customer_title": None,
+        "customer_address": None,
+        "customer_postal_address": None,
         "items": [],
         "subtotal": None,
         "tax_amount": None,
@@ -153,6 +196,56 @@ def parse_excel_invoice(file_path: str) -> dict:
                 "alici unvan",
                 "customer name",
                 "customer title",
+            ],
+            "customer_address": [
+                "musteri adresi",
+                "alici adresi",
+                "fatura adresi",
+                "adres",
+                "customer address",
+                "address",
+            ],
+            "street_name": [
+                "cadde sokak",
+                "cadde sokak adi",
+                "sokak adi",
+                "cadde adi",
+                "street name",
+                "street",
+            ],
+            "building_name": [
+                "bina adi",
+                "apartman adi",
+                "site adi",
+                "building name",
+            ],
+            "building_number": [
+                "bina no",
+                "bina numarasi",
+                "kapi no",
+                "building number",
+            ],
+            "city_subdivision_name": [
+                "ilce",
+                "ilce adi",
+                "city subdivision name",
+                "city subdivision",
+            ],
+            "city_name": ["il", "sehir", "sehir adi", "city name", "city"],
+            "postal_zone": [
+                "posta kodu",
+                "postal code",
+                "postal zone",
+                "zip code",
+            ],
+            "district": ["mahalle", "mahalle adi", "district"],
+            "country_code": ["ulke kodu", "country code"],
+            "country_name": ["ulke", "ulke adi", "country name", "country"],
+            "address_lines": [
+                "adres satiri",
+                "adres satirlari",
+                "address line",
+                "address lines",
             ],
             "item_code": ["urun kodu", "mal hizmet kodu", "kod", "code"],
             "item_description": [
@@ -210,6 +303,10 @@ def parse_excel_invoice(file_path: str) -> dict:
         )
         data["customer_name"] = _as_text(_first_present(first, column_sets["customer_name"]))
         data["customer_title"] = data["customer_name"]
+        (
+            data["customer_address"],
+            data["customer_postal_address"],
+        ) = _postal_address_from_row(first, column_sets)
         data["subtotal"] = _as_text(_first_present(first, column_sets["subtotal"]))
         data["tax_amount"] = _as_text(_first_present(first, column_sets["tax_amount"]))
         data["total_amount"] = _as_text(_first_present(first, column_sets["total_amount"]))

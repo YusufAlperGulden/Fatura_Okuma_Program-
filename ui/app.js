@@ -120,25 +120,6 @@ document.addEventListener('DOMContentLoaded', () => {
         handleEdit(-1, 'customer_address', e.target.value);
     });
 
-    const addrMap = {
-        'country': 'country_code',
-        'city': 'city_name',
-        'district': 'city_subdivision_name',
-        'neighborhood': 'district',
-        'street': 'street_name',
-        'building': 'building_name',
-        'building-no': 'building_number',
-        'postal': 'postal_zone'
-    };
-    Object.entries(addrMap).forEach(([domId, jsonKey]) => {
-        const el = document.getElementById(`res-addr-${domId}`);
-        if (el) {
-            el.addEventListener('input', (e) => {
-                handleEdit(-1, `customer_postal_address.${jsonKey}`, e.target.value);
-            });
-        }
-    });
-
     document.querySelectorAll('.edit-input-top').forEach(input => {
         input.addEventListener('blur', () => {
             syncCanonicalInputs(currentInvoiceData);
@@ -379,25 +360,11 @@ document.addEventListener('DOMContentLoaded', () => {
             data.customer_name || data.customer_title || data.customer || '',
         );
 
-        const cp = data.customer_postal_address;
-        if (cp && typeof cp === 'object') {
-            updateInputIfNotFocused('res-addr-country', cp.country_code || cp.country_name || '');
-            updateInputIfNotFocused('res-addr-city', cp.city_name || '');
-            updateInputIfNotFocused('res-addr-district', cp.city_subdivision_name || '');
-            updateInputIfNotFocused('res-addr-neighborhood', cp.district || '');
-            updateInputIfNotFocused('res-addr-street', cp.street_name || '');
-            updateInputIfNotFocused('res-addr-building', cp.building_name || '');
-            updateInputIfNotFocused('res-addr-building-no', cp.building_number || '');
-            updateInputIfNotFocused('res-addr-postal', cp.postal_zone || '');
-        } else {
-            // clear if no postal address
-            const fields = ['country', 'city', 'district', 'neighborhood', 'street', 'building', 'building-no', 'postal'];
-            fields.forEach(f => updateInputIfNotFocused(`res-addr-${f}`, ''));
-        }
-        
         let addressStr = '';
         if (data.customer_address && typeof data.customer_address === 'string') {
             addressStr = data.customer_address;
+        } else if (data.customer_postal_address && typeof data.customer_postal_address === 'object') {
+            addressStr = formatPostalAddressOneLine(data.customer_postal_address);
         }
         updateInputIfNotFocused('res-customer-address', addressStr);
         if (!Array.isArray(data.items)) return;

@@ -5,10 +5,10 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="theme-color" content="#1a1c23">
     <meta name="description" content="Yapay Zeka Destekli Fatura Okuma ve Entegrasyon Sistemi">
-    <title>Fatura Veri Otomasyonu v79</title>
+    <title>Fatura Veri Otomasyonu v80</title>
     <!-- CSS and Fonts -->
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="style.css?v=79">
+    <link rel="stylesheet" href="style.css?v=80">
     <!-- Credentials Modal -->
     <div id="credentials-modal" class="modal hidden">
         <div class="modal-content" style="max-width: 400px; padding: 2rem; margin: auto;">
@@ -566,18 +566,8 @@
                         <input type="text" id="res-customer-name" class="edit-input-top" value="" placeholder="-">
                     </div>
                     <div id="customer-address-card" class="card wide-card" style="grid-column: 1 / -1;">
-                        <span class="card-label">ALICI ADRESİ (YAPISAL)</span>
-                        <div class="address-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; margin-top: 8px;">
-                            <input type="text" id="res-addr-country" class="edit-input-top" placeholder="Ülke (TR)" title="Country/IdentificationCode">
-                            <input type="text" id="res-addr-city" class="edit-input-top" placeholder="İl" title="CityName">
-                            <input type="text" id="res-addr-district" class="edit-input-top" placeholder="İlçe" title="CitySubdivisionName">
-                            <input type="text" id="res-addr-neighborhood" class="edit-input-top" placeholder="Mahalle" title="District">
-                            <input type="text" id="res-addr-street" class="edit-input-top" placeholder="Cadde/Sokak" title="StreetName">
-                            <input type="text" id="res-addr-building" class="edit-input-top" placeholder="Bina Adı" title="BuildingName">
-                            <input type="text" id="res-addr-building-no" class="edit-input-top" placeholder="Bina No" title="BuildingNumber">
-                            <input type="text" id="res-addr-postal" class="edit-input-top" placeholder="Posta Kodu" title="PostalZone">
-                        </div>
-                        <input type="text" id="res-customer-address" class="edit-input-top" value="" placeholder="Tam Açık Adres (Yedek)" style="margin-top: 10px;">
+                        <span class="card-label">FATURA ADRESİ</span>
+                        <textarea id="res-customer-address" class="edit-input-top" placeholder="Tam Açık Adres" style="margin-top: 10px; width: 100%; min-height: 60px; resize: vertical; padding: 0.75rem; border: 1px solid var(--border-color); border-radius: 6px; background: rgba(0, 0, 0, 0.2); color: var(--text-primary); font-family: 'Inter', sans-serif; font-size: 0.95rem; line-height: 1.5;"></textarea>
                     </div>
                     <div class="totals-row" style="grid-column: 1 / -1; display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 1rem;">
                         <div class="card">
@@ -801,8 +791,8 @@
             </section>
         </main>
     </div>
-    <script src="helpers.js?v=19"></script>
-    <script src="app.js?v=77"></script>
+    <script src="helpers.js?v=80"></script>
+    <script src="app.js?v=80"></script>
     <!-- <script src="ai-history-search.js?v=1"></script> -->
 </body>
 </html>

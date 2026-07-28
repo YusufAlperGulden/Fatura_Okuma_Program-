@@ -13,6 +13,10 @@ from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
 from pathlib import Path
 from typing import Any, Iterable
 
+from utils.serial_numbers import (
+    format_customer_postal_address,
+    normalize_customer_postal_address,
+)
 from validators.invoice_validator import validate_invoice
 
 
@@ -128,26 +132,7 @@ def _safe_text(value: Any) -> str:
 
 
 def _format_address(address_val: Any) -> str:
-    if not address_val:
-        return ""
-    if isinstance(address_val, dict):
-        parts = []
-        for key in (
-            'street_name', 'building_name', 'building_number',
-            'district', 'city_subdivision_name', 'city_name',
-            'postal_zone', 'country_name'
-        ):
-            if address_val.get(key):
-                parts.append(str(address_val[key]))
-        
-        # fallback to old schema if new ones aren't present
-        if not parts:
-            for key in ('street', 'district', 'city', 'postal_zone', 'country'):
-                if address_val.get(key):
-                    parts.append(str(address_val[key]))
-                    
-        return ", ".join(parts)
-    return _safe_text(address_val)
+    return format_customer_postal_address(address_val)
 
 
 def _normalize_date(value: Any) -> str:
@@ -280,15 +265,28 @@ def _build_header_row(invoice: dict[str, Any], package_id: str, source_system: s
 
 
 def _build_customer_row(invoice: dict[str, Any], source_system: str) -> dict[str, Any]:
+    raw_address = invoice.get("customer_address")
+    postal_address = normalize_customer_postal_address(
+        invoice.get("customer_postal_address")
+        or (raw_address if isinstance(raw_address, dict) else None)
+    )
     return {
         "source_system": source_system,
         "customer_tax_id": _safe_text(invoice.get("customer_tax_id")),
         "customer_code": _safe_text(invoice.get("customer_code") or invoice.get("customer_tax_id")),
         "title": _customer_name(invoice),
         "tax_office": _safe_text(invoice.get("customer_tax_office")),
-        "address": _format_address(invoice.get("customer_postal_address") or invoice.get("customer_address")),
-        "city": _safe_text(invoice.get("customer_city")),
-        "country": _safe_text(invoice.get("customer_country") or "TR"),
+        "address": _format_address(postal_address or raw_address),
+        "city": _safe_text(
+            invoice.get("customer_city")
+            or postal_address.get("city_name")
+        ),
+        "country": _safe_text(
+            invoice.get("customer_country")
+            or postal_address.get("country_code")
+            or postal_address.get("country_name")
+            or "TR"
+        ),
         "email": _safe_text(invoice.get("customer_email")),
     }
 
