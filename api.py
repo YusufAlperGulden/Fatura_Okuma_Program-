@@ -397,15 +397,6 @@ async def send_uyumsoft_api(request: SendUyumsoftRequest):
         invoice_data["customer_title"] = customer_name
 
 
-        invoice_no = invoice_data.get("invoice_no")
-    customer_tax_id = invoice_data.get("customer_tax_id")
-    if invoice_no and customer_tax_id and check_invoice_exists(invoice_no, customer_tax_id):
-        return {
-            "success": False,
-            "message": "Bu fatura daha önce sisteme aktarılmış.",
-            "details": f"Fatura No: {invoice_no} mükerrer gönderim engellendi."
-        }
-
     result = send_invoice_to_uyumsoft(
 
         invoice_data,
