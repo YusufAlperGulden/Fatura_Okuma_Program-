@@ -189,13 +189,23 @@ def _normalize_structured_address(address_data: dict[str, Any]) -> dict[str, Any
 
 
 def _take_address_match(
-    text: str, pattern: str, *, value_group: int = 0
+    text: str, pattern: str, *, value_group: int | list[int] = 0
 ) -> tuple[str, str]:
     """Return the original matched value and blank the entire matched slice."""
     match = re.search(pattern, _address_fold(text), re.IGNORECASE)
     if not match:
         return "", text
-    value_start, value_end = match.span(value_group)
+        
+    group_idx = value_group
+    if isinstance(group_idx, list):
+        for idx in group_idx:
+            if match.group(idx) is not None:
+                group_idx = idx
+                break
+        else:
+            group_idx = 0
+
+    value_start, value_end = match.span(group_idx)
     full_start, full_end = match.span(0)
     value = _clean_address_value(text[value_start:value_end])
     return value, _blank_span(text, full_start, full_end)
@@ -260,8 +270,8 @@ def parse_turkish_address(address_data: Any) -> dict[str, Any]:
     # them as AddressLine values rather than confusing them with the building
     # number.
     unit_pattern = (
-        r"\b(?:IC\s*KAPI(?:\s*NO)?|DAIRE(?:\s*NO)?|KAT)"
-        r"\s*[:.]?\s*[A-Z0-9/-]+\b"
+        r"\b(?:(?:IC\s*KAPI|DAIRE)(?:\s*NO)?|KAT)\s*[:.]?\s*[A-Z0-9/-]+\b|"
+        r"\b[0-9]+\s*[:.]?\s*(?:KAT|DAIRE)\b"
     )
     unit_lines: list[str] = []
     while True:
@@ -289,8 +299,9 @@ def parse_turkish_address(address_data: Any) -> dict[str, Any]:
     fields["building_number"], working = _take_address_match(
         working,
         r"\b(?:DIS\s*KAPI\s*NO|BINA\s*NO|KAPI\s*NO|NO|NUMARA)"
-        r"\s*[:.]?\s*([0-9]+(?:\s*[-/]?\s*[A-Z])?)\b",
-        value_group=1,
+        r"\s*[:.]?\s*([0-9]+(?:\s*[-/]?\s*[A-Z])?)\b|"
+        r"\b([0-9]+(?:\s*[-/]?\s*[A-Z])?)\s*(?:NUMARA|NO)\b",
+        value_group=[1, 2],
     )
 
     unmatched_lines: list[str] = []

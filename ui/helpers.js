@@ -222,3 +222,19 @@
         parseLocaleNumber,
     };
 }));
+
+function formatPostalAddressOneLine(cp) {
+    if (!cp || typeof cp !== 'object') return '';
+    const parts = [];
+    if (cp.street_name) parts.push(cp.street_name);
+    if (cp.building_name) parts.push(cp.building_name);
+    if (cp.building_number) parts.push("No: " + cp.building_number);
+    if (Array.isArray(cp.address_lines)) parts.push(...cp.address_lines);
+    if (cp.district) parts.push(cp.district);
+    if (cp.city_subdivision_name) parts.push(cp.city_subdivision_name);
+    if (cp.city_name) parts.push(cp.city_name);
+    if (cp.postal_zone) parts.push(cp.postal_zone);
+    if (cp.country_name || cp.country_code) parts.push(cp.country_name || cp.country_code);
+    return parts.filter(p => typeof p === 'string' && p.trim() !== '').join(', ');
+}
+

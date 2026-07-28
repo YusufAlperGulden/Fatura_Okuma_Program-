@@ -117,6 +117,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     document.getElementById('res-customer-address').addEventListener('input', (e) => {
+        handleEdit(-1, 'customer_postal_address', null);
         handleEdit(-1, 'customer_address', e.target.value);
     });
 
