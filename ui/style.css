@@ -100,7 +100,7 @@
 }
 
 body {
-    font-family: inherit;
+    font-family: system-ui, -apple-system, sans-serif;
     background-color: var(--bg-color);
     color: var(--text-primary);
     line-height: 1.6;
@@ -310,7 +310,7 @@ header p {
 }
 
 body {
-    font-family: inherit;
+    font-family: system-ui, -apple-system, sans-serif;
     background-color: var(--bg-color);
     color: var(--text-primary);
     line-height: 1.6;
@@ -477,7 +477,7 @@ header p {
     padding: 2px 4px;
     margin-left: -4px;
     transition: all 0.2s;
-    font-family: inherit;
+    font-family: system-ui, -apple-system, sans-serif;
 }
 
 .edit-input-top:hover, .edit-input-top:focus {
@@ -937,7 +937,7 @@ tr:hover {
     border: 1px solid var(--border-color);
     border-radius: 6px;
     color: var(--text-primary);
-    font-family: inherit;
+    font-family: system-ui, -apple-system, sans-serif;
     font-size: 1rem;
 }
 
@@ -1133,7 +1133,7 @@ tr:hover {
     border: 1px solid var(--border-color);
     border-radius: 6px;
     color: var(--text-primary);
-    font-family: inherit;
+    font-family: system-ui, -apple-system, sans-serif;
     font-size: 1rem;
 }
 
