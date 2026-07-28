@@ -575,21 +575,23 @@
                         </div>
                         <input type="text" id="res-customer-address" class="edit-input-top" value="" placeholder="Tam Açık Adres (Yedek)" style="margin-top: 10px;">
                     </div>
-                    <div class="card">
-                        <span class="card-label">ARA TOPLAM</span>
-                        <h3 id="res-subtotal">₺0,00</h3>
-                    </div>
-                    <div id="discount-card" class="card hidden">
-                        <span class="card-label">İSKONTO</span>
-                        <h3 id="res-discount">₺0,00</h3>
-                    </div>
-                    <div class="card" style="display: flex; flex-direction: column;">
-                        <span class="card-label">KDV</span>
-                        <div id="res-tax-breakdown" style="font-size: 1.1rem; margin-top: 0.5rem; font-weight: 500;">-</div>
-                    </div>
-                    <div class="card">
-                        <span class="card-label">GENEL TOPLAM</span>
-                        <h3 id="res-total">₺0,00</h3>
+                    <div class="totals-row" style="grid-column: 1 / -1; display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 1rem;">
+                        <div class="card">
+                            <span class="card-label">ARA TOPLAM</span>
+                            <h3 id="res-subtotal">₺0,00</h3>
+                        </div>
+                        <div id="discount-card" class="card hidden">
+                            <span class="card-label">İSKONTO</span>
+                            <h3 id="res-discount">₺0,00</h3>
+                        </div>
+                        <div class="card" style="display: flex; flex-direction: column;">
+                            <span class="card-label">KDV</span>
+                            <div id="res-tax-breakdown" style="font-size: 1.1rem; margin-top: 0.5rem; font-weight: 500;">-</div>
+                        </div>
+                        <div class="card">
+                            <span class="card-label">GENEL TOPLAM</span>
+                            <h3 id="res-total">₺0,00</h3>
+                        </div>
                     </div>
                     <div id="notes-card" class="card wide-card hidden" style="grid-column: 1 / -1;">
                         <span class="card-label">AÇIKLAMA / NOT</span>
