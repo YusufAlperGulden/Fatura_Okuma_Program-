@@ -10,7 +10,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!config.headers) {
             config.headers = {};
         }
-        const appPassword = localStorage.getItem('appPassword') || '';
+        const appPassword = sessionStorage.getItem('appPassword') || '';
         if (appPassword) {
             config.headers['x-app-password'] = appPassword;
         }
@@ -36,7 +36,7 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('auth-save-btn').addEventListener('click', () => {
         const pass = document.getElementById('app-password').value;
         if (pass) {
-            localStorage.setItem('appPassword', pass);
+            sessionStorage.setItem('appPassword', pass);
             document.getElementById('auth-modal').classList.add('hidden');
             Toastify({
                 text: "Başarıyla Giriş Yapıldı.",
@@ -47,7 +47,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     // Check auth on load
-    if (!localStorage.getItem('appPassword')) {
+    if (!sessionStorage.getItem('appPassword')) {
         document.getElementById('auth-modal').classList.remove('hidden');
     }
     const {
