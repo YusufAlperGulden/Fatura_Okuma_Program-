@@ -46,6 +46,19 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
+    const passInput = document.getElementById('app-password');
+    const capsWarning = document.getElementById('capslock-warning');
+    const checkCaps = (e) => {
+        if (e.getModifierState && e.getModifierState('CapsLock')) {
+            capsWarning.style.display = 'flex';
+        } else {
+            capsWarning.style.display = 'none';
+        }
+    };
+    passInput.addEventListener('keyup', checkCaps);
+    passInput.addEventListener('keydown', checkCaps);
+    passInput.addEventListener('mousedown', checkCaps);
+
     // Check auth on load
     if (!sessionStorage.getItem('appPassword')) {
         document.getElementById('auth-modal').classList.remove('hidden');

@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="theme-color" content="#1a1c23">
     <meta name="description" content="Yapay Zeka Destekli Fatura Okuma ve Entegrasyon Sistemi">
-    <title>Fatura Veri Otomasyonu v90</title>
+    <title>Fatura Veri Otomasyonu v91</title>
     <!-- CSS and Fonts -->
     <link rel="stylesheet" href="style.css?v=85">
     <!-- Auth Modal -->
@@ -15,6 +15,10 @@
             <div style="margin-bottom: 1.5rem; text-align: left;">
                 <label for="app-password" style="display: block; margin-bottom: 0.5rem; font-weight: 600;">Uygulama Şifresi</label>
                 <input type="password" id="app-password" placeholder="Şifreniz" style="width: 100%; padding: 0.75rem; border: 1px solid var(--border-color); border-radius: 8px; background: var(--input-bg); color: var(--text-primary);">
+                <div id="capslock-warning" style="display: none; color: var(--fire); font-size: 0.85rem; font-weight: 600; margin-top: 0.5rem; display: flex; align-items: center; gap: 0.25rem;">
+                    <svg style="width: 16px; height: 16px;" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>
+                    CAPSLOCK: AÇIK
+                </div>
             </div>
             <div class="modal-actions" style="display: flex; justify-content: flex-end; gap: 1rem;">
                 <button id="auth-save-btn" class="primary-btn">Giriş Yap</button>
