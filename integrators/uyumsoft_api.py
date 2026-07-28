@@ -495,10 +495,18 @@ def _xml_attribute(value: Any) -> str:
     return escape(str(value), {'"': "&quot;", "'": "&apos;"})
 
 
-def _resolve_invoice_no(value: Any) -> str:
+def _resolve_invoice_no(invoice: dict[str, Any]) -> str:
     # An empty number is intentional: Uyumsoft may assign it while creating
     # the draft.  The wrapper and embedded UBL must carry the same value.
-    return str(value or "").strip()
+    val = str(invoice.get("invoice_no") or "").strip()
+    if not val and normalize_uyumsoft_environment() == "test":
+        import random
+        from datetime import datetime
+        issue_date = str(invoice.get("date") or "").strip()
+        year = issue_date[:4] if len(issue_date) >= 4 and issue_date[:4].isdigit() else str(datetime.now().year)
+        random_suffix = str(random.randint(1, 999999999)).zfill(9)
+        return f"TST{year}{random_suffix}"
+    return val
 
 
 def _parse_date(value: Any) -> str:
@@ -650,7 +658,7 @@ def build_ubl_invoice(invoice: dict[str, Any]) -> str:
             "USD conversion is incomplete; a valid exchange rate is required"
         )
 
-    invoice_no = _resolve_invoice_no(invoice.get("invoice_no"))
+    invoice_no = _resolve_invoice_no(invoice)
     issue_date = _parse_date(invoice.get("date"))
     
     # E-Fatura kuralları gereği 7 günden eski veya geçmiş yıllara ait fatura kesilmemelidir.
@@ -1492,7 +1500,7 @@ def build_invoice_info_body(operation: str, invoice: dict[str, Any]) -> str:
         raise ValueError("operation must be SaveAsDraft or SendInvoice")
 
     invoice_for_build = dict(invoice)
-    resolved_invoice_no = _resolve_invoice_no(invoice.get("invoice_no"))
+    resolved_invoice_no = _resolve_invoice_no(invoice)
     invoice_for_build["invoice_no"] = resolved_invoice_no
     ubl = build_uyumsoft_invoice_element(invoice_for_build, "Invoice")
     local_document_id = _xml_attribute(resolved_invoice_no)
