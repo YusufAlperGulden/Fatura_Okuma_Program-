@@ -1544,6 +1544,7 @@ def parse_pdf_invoice(file_path: str) -> dict:
                 parsed["_raw_text"] = text
                 candidates.append(parsed)
             data = max(candidates, key=_score_data)
+            data["_score"] = _score_data(data)
 
             if table_items and len(table_items) >= len(data.get("items", [])):
                 data["items"] = _merge_table_items_with_text_items(
@@ -1588,11 +1589,11 @@ def parse_pdf_invoice(file_path: str) -> dict:
             desc_clean = _description_without_serials(desc)
             if desc_clean:
                 item["description"] = desc_clean
-            if re.match(r"(?i)^kargo\s+ücreti\b", item.get("description", "")):
+            if re.match(r"(?i)^kargo\\s+[uUüÜ]creti\\b", item.get("description", "")):
                 item["description"] = "Kargo Ücreti"
 
-        if not data["items"]:
-            print("PDF text was read, but line items were not matched. Falling back to OCR...")
+        if not data["items"] or data.get("_score", 0) < 500:
+            print("PDF text was read, but items are missing or subtotal mismatched. Falling back to OCR...")
             from extractors.ocr_extractor import parse_pdf_invoice_ocr
 
             ocr_data = parse_pdf_invoice_ocr(file_path)
