@@ -244,6 +244,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let UYUMSOFT_PORTAL_URL = 'https://www.uyumsoft.com/kullanici-girisi';
 
     async function loadRuntimeConfig() {
+        let actualEnv = 'test';
         try {
             const response = await fetch('/runtime-config');
             if (response.ok) {
@@ -251,16 +252,16 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (config.uyumsoft_portal_url) {
                     UYUMSOFT_PORTAL_URL = config.uyumsoft_portal_url;
                 }
+                if (config.uyumsoft_environment) {
+                    actualEnv = config.uyumsoft_environment;
+                }
             }
         } catch (error) {
-            console.warn('Uyumsoft portal URL okunamadı.', error);
+            console.warn('Uyumsoft config okunamadı.', error);
         }
 
-        const localEnv = localStorage.getItem('uyumsoft_environment') || 'test';
-        document.documentElement.dataset.uyumsoftEnvironment = localEnv;
-        const selects = document.querySelectorAll('.env-dropdown');
-        selects.forEach(s => s.value = localEnv);
-        updateEnvironmentBadges(localEnv);
+        document.documentElement.dataset.uyumsoftEnvironment = actualEnv;
+        updateEnvironmentBadges(actualEnv);
     }
 
     function ensureUyumsoftCredentials() {
