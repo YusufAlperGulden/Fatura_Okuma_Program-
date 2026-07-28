@@ -38,17 +38,43 @@ document.addEventListener('DOMContentLoaded', () => {
     };
     
     const authSaveBtn = document.getElementById('auth-save-btn');
-    authSaveBtn.addEventListener('click', () => {
+    authSaveBtn.addEventListener('click', async () => {
         const user = document.getElementById('app-username').value;
         const pass = document.getElementById('app-password').value;
         if (user && pass) {
-            sessionStorage.setItem('appUsername', user);
-            sessionStorage.setItem('appPassword', pass);
-            document.getElementById('auth-modal').classList.add('hidden');
+            try {
+                // Send directly using originalFetch to avoid the interceptor loop
+                const response = await originalFetch('/verify-auth', {
+                    headers: {
+                        'x-app-username': user,
+                        'x-app-password': pass
+                    }
+                });
+                
+                if (response.status === 401) {
+                    Toastify({
+                        text: "Hatalı Kullanıcı Adı veya Şifre!",
+                        duration: 3000,
+                        style: { background: "var(--fire)" }
+                    }).showToast();
+                } else if (response.ok) {
+                    sessionStorage.setItem('appUsername', user);
+                    sessionStorage.setItem('appPassword', pass);
+                    document.getElementById('auth-modal').classList.add('hidden');
+                    Toastify({
+                        text: "Başarıyla Giriş Yapıldı.",
+                        duration: 3000,
+                        style: { background: "var(--aurora)" }
+                    }).showToast();
+                }
+            } catch (err) {
+                console.error("Auth verify error:", err);
+            }
+        } else {
             Toastify({
-                text: "Başarıyla Giriş Yapıldı.",
+                text: "Lütfen Kullanıcı Adı ve Şifre girin.",
                 duration: 3000,
-                style: { background: "var(--aurora)" }
+                style: { background: "var(--fire)" }
             }).showToast();
         }
     });

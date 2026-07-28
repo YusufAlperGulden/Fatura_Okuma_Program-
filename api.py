@@ -31,6 +31,10 @@ def verify_app_auth(x_app_username: str | None = Header(None), x_app_password: s
     if expected_password and x_app_password != expected_password:
         raise HTTPException(status_code=401, detail="Geçersiz Uygulama Şifresi (APP_PASSWORD)")
 
+@app.get("/verify-auth", dependencies=[Depends(verify_app_auth)])
+def verify_auth():
+    return {"success": True}
+
 # Ensure database is initialized (especially for ephemeral environments like Render)
 from database import init_db, check_invoice_exists
 init_db()
