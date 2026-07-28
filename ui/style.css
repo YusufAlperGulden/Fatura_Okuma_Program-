@@ -100,7 +100,7 @@
 }
 
 body {
-    font-family: 'Inter', sans-serif;
+    font-family: inherit;
     background-color: var(--bg-color);
     color: var(--text-primary);
     line-height: 1.6;
@@ -310,7 +310,7 @@ header p {
 }
 
 body {
-    font-family: 'Inter', sans-serif;
+    font-family: inherit;
     background-color: var(--bg-color);
     color: var(--text-primary);
     line-height: 1.6;
@@ -937,7 +937,7 @@ tr:hover {
     border: 1px solid var(--border-color);
     border-radius: 6px;
     color: var(--text-primary);
-    font-family: 'Inter', sans-serif;
+    font-family: inherit;
     font-size: 1rem;
 }
 
@@ -1133,7 +1133,7 @@ tr:hover {
     border: 1px solid var(--border-color);
     border-radius: 6px;
     color: var(--text-primary);
-    font-family: 'Inter', sans-serif;
+    font-family: inherit;
     font-size: 1rem;
 }
 
