@@ -207,50 +207,8 @@ document.addEventListener('DOMContentLoaded', () => {
         updateEnvironmentBadges(localEnv);
     }
 
-    );
-        });
-    });
-
     function ensureUyumsoftCredentials() {
-        return new Promise((resolve) => {
-            const env = localStorage.getItem('uyumsoft_environment') || 'test';
-            if (env !== 'prod') {
-                resolve(true);
-                return;
-            }
-            const savedUser = localStorage.getItem('uyumsoft_username');
-            const savedPass = localStorage.getItem('uyumsoft_password');
-            if (savedUser && savedPass) {
-                resolve(true);
-                return;
-            }
-            
-            // Show modal and wait for user
-            credUser.value = savedUser || '';
-            credPass.value = savedPass || '';
-            credModal.classList.remove('hidden');
-
-            const onSave = () => {
-                localStorage.setItem('uyumsoft_username', credUser.value.trim());
-                localStorage.setItem('uyumsoft_password', credPass.value.trim());
-                cleanup();
-                resolve(true);
-            };
-
-            const onCancel = () => {
-                cleanup();
-                resolve(false);
-            };
-
-            const cleanup = () => {
-                credModal.classList.add('hidden');
-                credSaveBtn.removeEventListener('click', onSave);
-                credCancelBtn.removeEventListener('click', onCancel);
-            };
-
-            credSaveBtn.addEventListener('click', onSave);
-            credCancelBtn.addEventListener('click', onCancel);
-        });
+        return Promise.resolve(true);
     }
 
     function updateEnvironmentBadges(environment) {
