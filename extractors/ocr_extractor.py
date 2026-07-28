@@ -1,7 +1,10 @@
 import pytesseract
 from pdf2image import convert_from_path
 import os
-from extractors.pdf_extractor import parse_invoice_text
+from extractors.pdf_extractor import (
+    _apply_mode_b_usd_conversion,
+    parse_invoice_text,
+)
 
 # Set these if Tesseract/Poppler are not in PATH.
 # Example for Windows:
@@ -52,6 +55,7 @@ def parse_pdf_invoice_ocr(file_path: str) -> dict:
         return data
 
     data = parse_invoice_text(text)
+    _apply_mode_b_usd_conversion(data)
     data["_extraction_method"] = "ocr_pdf"
     data["_pdf_text_found"] = False
     return data
@@ -97,5 +101,6 @@ def parse_image_invoice_ocr(file_path: str) -> dict:
         return data
 
     data = parse_invoice_text(text)
+    _apply_mode_b_usd_conversion(data)
     data["_extraction_method"] = "ocr_image"
     return data

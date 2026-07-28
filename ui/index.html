@@ -563,26 +563,26 @@
                     </div>
                     <div id="customer-name-card" class="card wide-card" style="grid-column: 1 / -1;">
                         <span class="card-label">MÜŞTERİ ADI</span>
-                        <input type="text" id="res-customer-name" class="edit-input-top" value="" placeholder="-">
+                        <textarea id="res-customer-name" class="edit-input-top" placeholder="-" rows="2" style="resize: vertical; width: 100%;"></textarea>
                     </div>
                     <div id="customer-address-card" class="card wide-card" style="grid-column: 1 / -1;">
                         <span class="card-label">FATURA ADRESİ</span>
                         <textarea id="res-customer-address" class="edit-input-top" placeholder="Tam Açık Adres" style="margin-top: 10px; width: 100%; min-height: 60px; resize: vertical; padding: 0.75rem; border: 1px solid var(--border-color); border-radius: 6px; background: rgba(0, 0, 0, 0.2); color: var(--text-primary); font-family: 'Inter', sans-serif; font-size: 0.95rem; line-height: 1.5;"></textarea>
                     </div>
-                    <div class="totals-row" style="grid-column: 1 / -1; display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 1rem;">
-                        <div class="card">
+                    <div class="totals-row" style="grid-column: 1 / -1; display: flex; flex-direction: row; flex-wrap: nowrap; gap: 1rem;">
+                        <div class="card" style="flex: 1;">
                             <span class="card-label">ARA TOPLAM</span>
                             <h3 id="res-subtotal">₺0,00</h3>
                         </div>
-                        <div id="discount-card" class="card hidden">
+                        <div id="discount-card" class="card hidden" style="flex: 1;">
                             <span class="card-label">İSKONTO</span>
                             <h3 id="res-discount">₺0,00</h3>
                         </div>
-                        <div class="card" style="display: flex; flex-direction: column;">
+                        <div class="card" style="flex: 1; display: flex; flex-direction: column;">
                             <span class="card-label">KDV</span>
                             <div id="res-tax-breakdown" style="font-size: 1.1rem; margin-top: 0.5rem; font-weight: 500;">-</div>
                         </div>
-                        <div class="card">
+                        <div class="card" style="flex: 1;">
                             <span class="card-label">GENEL TOPLAM</span>
                             <h3 id="res-total">₺0,00</h3>
                         </div>

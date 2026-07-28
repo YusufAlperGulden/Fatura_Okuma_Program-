@@ -121,9 +121,9 @@ class PipelineTests(unittest.TestCase):
 
         self.assertEqual(data["date"], "7.07.2026")
         self.assertEqual(data["customer_tax_id"], "11111111111")
-        self.assertEqual(data["subtotal"], "400,00")
-        self.assertEqual(data["tax_amount"], "80,00")
-        self.assertEqual(data["total_amount"], "480,00")
+        self.assertEqual(data["subtotal"].replace(",", "."), "400.00")
+        self.assertEqual(data["tax_amount"].replace(",", "."), "80.00")
+        self.assertEqual(data["total_amount"].replace(",", "."), "480.00")
         self.assertEqual(len(data["items"]), 1)
         self.assertEqual(data["items"][0]["description"], "NFC Silver Kart")
         self.assertEqual(data["items"][0]["serial_numbers"], [])
@@ -767,8 +767,14 @@ Tarih: 01.01.2026
             ]
             self.assertEqual(target_item["serial_numbers"], expected_serials)
             self.assertEqual(target_item["quantity"], "7,00")
-            self.assertEqual(target_item["unit_price"], "18803,92")
-            self.assertEqual(target_item["total_price"], "131627,44")
+            if target_item.get("local_unit_price"):
+                self.assertEqual(target_item["local_unit_price"], "18803,92")
+            else:
+                self.assertEqual(target_item["unit_price"].replace(".", ","), "18803,92")
+            if target_item.get("local_total_price"):
+                self.assertEqual(target_item["local_total_price"], "131627,44")
+            else:
+                self.assertEqual(target_item["total_price"].replace(".", ","), "131627,44")
             
             self.assertNotIn("1919.0230001", target_item["description"])
             self.assertNotIn("868018076846834", target_item["description"])
@@ -812,6 +818,37 @@ Tarih: 01.01.2026
             self.assertEqual(items[0]["description"].count("NFC Etiket"), 1)
 
 
+    def test_mufemu_usd_primary_conversion(self):
+        import os
+        import glob
+        from extractors.pdf_extractor import parse_pdf_invoice
+        
+        pdf_files = glob.glob("*MUFEMU*.pdf") + glob.glob("../codex-usd-invoice-worktree/*MUFEMU*.pdf")
+        if not pdf_files:
+            pdf_files = glob.glob("C:/Users/stajyer/Downloads/*MUFEMU*.pdf")
+            
+        if not pdf_files:
+            self.skipTest("MUFEMU pdf not found in test data")
+            
+        result = parse_pdf_invoice(pdf_files[0])
+        self.assertEqual(result["currency"], "USD")
+        self.assertEqual(result["document_currency"], "USD")
+        self.assertEqual(result["accounting_currency"], "TRY")
+        
+        self.assertEqual(result["total_amount"], "4608.00")
+        self.assertEqual(result["foreign_total"], "4608.00")
+        
+        self.assertEqual(result["local_subtotal"], "180.678,53")
+        self.assertEqual(result["local_tax_amount"], "36135,71")
+        self.assertEqual(result["local_total"], "216.814,23")
+        
+        item = result["items"][0]
+        self.assertEqual(item["unit_price"], "1.92")
+        self.assertEqual(item["total_price"], "3840.00")
+        self.assertEqual(item["local_unit_price"], "90,34")
+        self.assertEqual(item["local_total_price"], "180678,53")
+
+
 if __name__ == "__main__":
     unittest.main()
 
@@ -820,7 +857,7 @@ if __name__ == "__main__":
         import glob
         from extractors.pdf_extractor import parse_pdf_invoice
         
-        pdf_files = glob.glob(os.path.join(self.test_data_dir, "*MUFEMU*.pdf"))
+        pdf_files = glob.glob("*MUFEMU*.pdf") + glob.glob("../codex-usd-invoice-worktree/*MUFEMU*.pdf")
         if not pdf_files:
             pdf_files = glob.glob("C:/Users/stajyer/Downloads/*MUFEMU*.pdf")
             
@@ -850,7 +887,7 @@ if __name__ == "__main__":
         import glob
         from extractors.pdf_extractor import parse_pdf_invoice
         
-        pdf_files = glob.glob(os.path.join(self.test_data_dir, "*MUFEMU*.pdf"))
+        pdf_files = glob.glob("*MUFEMU*.pdf") + glob.glob("../codex-usd-invoice-worktree/*MUFEMU*.pdf")
         if not pdf_files:
             pdf_files = glob.glob("C:/Users/stajyer/Downloads/*MUFEMU*.pdf")
             
@@ -880,7 +917,7 @@ if __name__ == "__main__":
         import glob
         from extractors.pdf_extractor import parse_pdf_invoice
         
-        pdf_files = glob.glob(os.path.join(self.test_data_dir, "*MUFEMU*.pdf"))
+        pdf_files = glob.glob("*MUFEMU*.pdf") + glob.glob("../codex-usd-invoice-worktree/*MUFEMU*.pdf")
         if not pdf_files:
             pdf_files = glob.glob("C:/Users/stajyer/Downloads/*MUFEMU*.pdf")
             

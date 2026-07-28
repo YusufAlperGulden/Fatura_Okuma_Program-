@@ -209,7 +209,7 @@ def safe_merge_ai_data(
 
     if isinstance(source, dict):
         # Preserve high-confidence fields from local extraction
-        for field in ["customer_tax_id", "invoice_no", "date", "time", "currency"]:
+        for field in ["customer_tax_id", "invoice_no", "date", "time"]:
             val = source.get(field)
             if not val:
                 continue
@@ -219,6 +219,64 @@ def safe_merge_ai_data(
                 if not (val_str.isdigit() and len(val_str) in (10, 11)):
                     continue
             target[field] = val
+
+        # A local PDF pass can correctly read identifiers while still labelling
+        # TL-looking line amounts as TRY.  Do not let that partial result erase
+        # Gemini's explicit USD settlement/document-currency decision.
+        target_currency = str(target.get("currency") or "").strip().upper()
+        target_document_currency = str(
+            target.get("document_currency") or ""
+        ).strip().upper()
+        target_settlement_currency = str(
+            target.get("settlement_currency") or ""
+        ).strip().upper()
+        ai_selected_usd = "USD" in {
+            target_currency,
+            target_document_currency,
+            target_settlement_currency,
+        } or target.get("has_usd_mention") is True
+
+        source_currency_values = {
+            str(source.get(field) or "").strip().upper()
+            for field in ("currency", "document_currency", "settlement_currency")
+        }
+        source_selected_usd = (
+            "USD" in source_currency_values
+            or source.get("has_usd_mention") is True
+        )
+        selected_usd = ai_selected_usd or source_selected_usd
+
+        source_currency = source.get("currency")
+        if source_currency and not selected_usd:
+            target["currency"] = source_currency
+        elif selected_usd:
+            target["currency"] = "USD"
+            target["document_currency"] = "USD"
+            target["settlement_currency"] = "USD"
+            target["has_usd_mention"] = True
+
+            # Prefer an explicit AI rate, but retain a rate found by the local
+            # reader when Gemini omitted the same invoice field.
+            if not target.get("exchange_rate") and source.get("exchange_rate"):
+                target["exchange_rate"] = source["exchange_rate"]
+
+            # If only the deterministic local pass saw USD, retain its
+            # accounting/local evidence. The caller re-runs AI normalization
+            # after this merge so AI-provided TRY-looking values are converted
+            # exactly once with this evidence.
+            if source_selected_usd:
+                for field in (
+                    "accounting_currency",
+                    "foreign_total",
+                    "local_subtotal",
+                    "local_discount_amount",
+                    "local_tax_amount",
+                    "local_total",
+                    "fx_conversion_required",
+                    "fx_math_is_valid",
+                ):
+                    if source.get(field) not in (None, ""):
+                        target[field] = source[field]
 
         target_postal_address = normalize_customer_postal_address(
             target.get("customer_postal_address")
@@ -308,5 +366,13 @@ def safe_merge_ai_data(
                 *normalize_serial_numbers(source_item.get("serial_numbers")),
             ]
         )
+        if source_selected_usd:
+            for field in (
+                "local_unit_price",
+                "local_total_price",
+                "local_amount_currency",
+            ):
+                if source_item.get(field) not in (None, ""):
+                    target_item[field] = source_item[field]
 
     return target

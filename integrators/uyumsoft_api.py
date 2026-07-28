@@ -21,6 +21,7 @@ from utils.invoice_values import (
     MONEY_QUANTUM,
     format_decimal,
     normalize_currency as normalize_invoice_currency,
+    normalize_invoice_currency_fields,
     parse_localized_decimal,
     quantize_money,
 )
@@ -281,27 +282,30 @@ def parse_turkish_address(address_data: Any) -> dict[str, Any]:
         unit_lines.append(_clean_address_value(working[match.start():match.end()]))
         working = _blank_span(working, match.start(), match.end())
 
-    word = r"[A-Z0-9][A-Z0-9.'’/-]*"
-    fields["district"], working = _take_address_match(
-        working,
-        rf"(?:{word}\s+){{0,4}}(?:MAHALLESI|MAHALLE|MAH)(?:\.)?",
-    )
-    fields["street_name"], working = _take_address_match(
-        working,
-        rf"(?:{word}\s+){{0,5}}"
-        r"(?:CADDESI|CADDE|CAD|SOKAGI|SOKAK|SOK|BULVARI|BULVAR|BULV|BLV)(?:\.)?",
-    )
-    fields["building_name"], working = _take_address_match(
-        working,
-        rf"(?:{word}\s+){{0,4}}"
-        r"(?:APARTMANI|APARTMAN|APT|SITESI|SITE|PLAZA|BLOK)(?:\.)?",
-    )
+    word = r"\b(?!(?:CADDE|CAD|SOKAK|SOK|CADDESI|SOKAGI|APARTMANI|APARTMAN|APT|SITESI|SITE|PLAZA|BLOK)\b)[A-Z0-9][A-Z0-9.'’/-]*"
+    loose_word = r"\b[A-Z0-9][A-Z0-9.'’/-]*"
+
     fields["building_number"], working = _take_address_match(
         working,
         r"\b(?:DIS\s*KAPI\s*NO|BINA\s*NO|KAPI\s*NO|NO|NUMARA)"
         r"\s*[:.]?\s*([0-9]+(?:\s*[-/]?\s*[A-Z])?)\b|"
         r"\b([0-9]+(?:\s*[-/]?\s*[A-Z])?)\s*(?:NUMARA|NO)\b",
         value_group=[1, 2],
+    )
+
+    fields["district"], working = _take_address_match(
+        working,
+        rf"(?:{word}\s+){{0,4}}(?:MAHALLESI|MAHALLE|MAH)(?:\.)?",
+    )
+    fields["street_name"], working = _take_address_match(
+        working,
+        rf"(?:{loose_word}\s+){{0,5}}"
+        r"(?:CADDESI|CADDE|CAD|SOKAGI|SOKAK|SOK|BULVARI|BULVAR|BULV|BLV)(?:\.)?",
+    )
+    fields["building_name"], working = _take_address_match(
+        working,
+        rf"(?:{loose_word}\s+){{0,4}}"
+        r"(?:APARTMANI|APARTMAN|APT|SITESI|SITE|PLAZA|BLOK)(?:\.)?",
     )
 
     unmatched_lines: list[str] = []
@@ -641,6 +645,10 @@ def _allocate_discount_shares(
 def build_ubl_invoice(invoice: dict[str, Any]) -> str:
     if not isinstance(invoice, dict):
         raise ValueError("invoice must be an object")
+    if invoice.get("fx_conversion_required") is True:
+        raise ValueError(
+            "USD conversion is incomplete; a valid exchange rate is required"
+        )
 
     invoice_no = _resolve_invoice_no(invoice.get("invoice_no"))
     issue_date = _parse_date(invoice.get("date"))
@@ -658,9 +666,12 @@ def build_ubl_invoice(invoice: dict[str, Any]) -> str:
         else ""
     )
         
-    currency = normalize_currency(
-        invoice.get("currency") or os.getenv("UYUMSOFT_CURRENCY", "TRY")
-    )
+    if not any(
+        invoice.get(field) not in (None, "")
+        for field in ("currency", "document_currency", "settlement_currency")
+    ):
+        invoice["currency"] = os.getenv("UYUMSOFT_CURRENCY", "TRY")
+    currency = normalize_invoice_currency_fields(invoice)
     profile_id = str(invoice.get("profile_id") or os.getenv("UYUMSOFT_PROFILE_ID", "TICARIFATURA"))
     invoice_type = str(invoice.get("invoice_type") or os.getenv("UYUMSOFT_INVOICE_TYPE", "SATIS"))
     
@@ -986,6 +997,41 @@ def build_ubl_invoice(invoice: dict[str, Any]) -> str:
             rate_decimal = _money(looked_up_rate, field_name="exchange rate")
         if rate_decimal <= Decimal("0"):
             raise ValueError(f"exchange rate must be positive for {currency}")
+
+        foreign_total_value = invoice.get("foreign_total")
+        if foreign_total_value not in (None, ""):
+            foreign_total = quantize_money(
+                _money(foreign_total_value, field_name="foreign_total")
+            )
+            if abs(foreign_total - total_amount) > DOCUMENT_AMOUNT_TOLERANCE:
+                raise ValueError(
+                    "foreign_total does not match the document-currency total"
+                )
+
+        for local_field, document_value in (
+            ("local_subtotal", calculated_subtotal),
+            ("local_discount_amount", discount_amount),
+            ("local_tax_amount", tax_amount),
+            ("local_total", total_amount),
+        ):
+            local_value = invoice.get(local_field)
+            if local_value in (None, ""):
+                continue
+            parsed_local_value = quantize_money(
+                _money(local_value, field_name=local_field)
+            )
+            expected_local_value = quantize_money(
+                document_value * rate_decimal
+            )
+            if (
+                abs(parsed_local_value - expected_local_value)
+                > DOCUMENT_AMOUNT_TOLERANCE
+            ):
+                raise ValueError(
+                    f"{local_field} does not match its document-currency "
+                    "amount multiplied by exchange_rate"
+                )
+
         rate_val_fmt = format_decimal(rate_decimal, max_places=8, min_places=4)
             
         pricing_exchange_rate_xml = f'''
@@ -999,26 +1045,91 @@ def build_ubl_invoice(invoice: dict[str, Any]) -> str:
     local_tax_total_xml = ""
     if currency != "TRY" and rate_decimal > Decimal("0"):
         local_tax_amount = quantize_money(tax_amount * rate_decimal)
-        if invoice.get("local_tax_amount"):
-            local_tax_amount = _money(invoice.get("local_tax_amount"), field_name="local_tax_amount")
-            
+        if invoice.get("local_tax_amount") not in (None, ""):
+            local_tax_amount = quantize_money(
+                _money(
+                    invoice.get("local_tax_amount"),
+                    field_name="local_tax_amount",
+                )
+            )
+
+        local_tax_subtotals = []
+        for t_rate, t_amounts in tax_subtotals.items():
+            t_local_taxable = quantize_money(
+                t_amounts["taxable"] * rate_decimal
+            )
+            t_local_tax = quantize_money(t_amounts["tax"] * rate_decimal)
+            if len(tax_subtotals) == 1:
+                if (
+                    invoice.get("local_subtotal") not in (None, "")
+                    or invoice.get("local_discount_amount") not in (None, "")
+                ):
+                    local_gross = (
+                        _money(
+                            invoice.get("local_subtotal"),
+                            field_name="local_subtotal",
+                        )
+                        if invoice.get("local_subtotal") not in (None, "")
+                        else quantize_money(
+                            calculated_subtotal * rate_decimal
+                        )
+                    )
+                    local_discount = (
+                        _money(
+                            invoice.get("local_discount_amount"),
+                            field_name="local_discount_amount",
+                        )
+                        if invoice.get("local_discount_amount") not in (None, "")
+                        else quantize_money(discount_amount * rate_decimal)
+                    )
+                    t_local_taxable = quantize_money(
+                        local_gross - local_discount
+                    )
+                if invoice.get("local_tax_amount") not in (None, ""):
+                    t_local_tax = local_tax_amount
+            local_tax_subtotals.append(
+                {
+                    "rate": t_rate,
+                    "taxable": t_local_taxable,
+                    "tax": t_local_tax,
+                }
+            )
+
+        if local_tax_subtotals:
+            subtotal_tax_sum = quantize_money(
+                sum(
+                    (entry["tax"] for entry in local_tax_subtotals),
+                    Decimal("0.00"),
+                )
+            )
+            rounding_delta = quantize_money(
+                local_tax_amount - subtotal_tax_sum
+            )
+            if rounding_delta:
+                adjustment_index = max(
+                    range(len(local_tax_subtotals)),
+                    key=lambda index: local_tax_subtotals[index]["tax"],
+                )
+                adjusted_tax = quantize_money(
+                    local_tax_subtotals[adjustment_index]["tax"]
+                    + rounding_delta
+                )
+                if adjusted_tax < Decimal("0.00"):
+                    raise ValueError(
+                        "local tax rounding reconciliation produced a "
+                        "negative subtotal"
+                    )
+                local_tax_subtotals[adjustment_index]["tax"] = adjusted_tax
+
         local_tax_total_xml += f"""
   <cac:TaxTotal>
     <cbc:TaxAmount currencyID="TRY">{_fmt_money(local_tax_amount)}</cbc:TaxAmount>"""
-        for t_rate, t_amounts in tax_subtotals.items():
-            t_local_taxable = quantize_money(t_amounts["taxable"] * rate_decimal)
-            t_local_tax = quantize_money(t_amounts["tax"] * rate_decimal)
-            if len(tax_subtotals) == 1:
-                if invoice.get("local_subtotal"):
-                    t_local_taxable = _money(invoice.get("local_subtotal"), field_name="local_subtotal")
-                if invoice.get("local_tax_amount"):
-                    t_local_tax = _money(invoice.get("local_tax_amount"), field_name="local_tax_amount")
-                    
+        for local_subtotal in local_tax_subtotals:
             local_tax_total_xml += f"""
     <cac:TaxSubtotal>
-      <cbc:TaxableAmount currencyID="TRY">{_fmt_money(t_local_taxable)}</cbc:TaxableAmount>
-      <cbc:TaxAmount currencyID="TRY">{_fmt_money(t_local_tax)}</cbc:TaxAmount>
-      <cbc:Percent>{_fmt_tax_rate(t_rate)}</cbc:Percent>
+      <cbc:TaxableAmount currencyID="TRY">{_fmt_money(local_subtotal["taxable"])}</cbc:TaxableAmount>
+      <cbc:TaxAmount currencyID="TRY">{_fmt_money(local_subtotal["tax"])}</cbc:TaxAmount>
+      <cbc:Percent>{_fmt_tax_rate(local_subtotal["rate"])}</cbc:Percent>
       <cac:TaxCategory>
         <cac:TaxScheme>
           <cbc:Name>KDV</cbc:Name>
@@ -1060,7 +1171,7 @@ def build_ubl_invoice(invoice: dict[str, Any]) -> str:
   <cac:TaxTotal>
     <cbc:TaxAmount currencyID="{currency}">{_fmt_money(tax_amount)}</cbc:TaxAmount>
     {doc_tax_subtotal_str}
-  </cac:TaxTotal>
+  </cac:TaxTotal>{local_tax_total_xml}
   <cac:LegalMonetaryTotal>
     <cbc:LineExtensionAmount currencyID="{currency}">{_fmt_money(line_extension_amount)}</cbc:LineExtensionAmount>
     <cbc:TaxExclusiveAmount currencyID="{currency}">{_fmt_money(taxable_amount)}</cbc:TaxExclusiveAmount>

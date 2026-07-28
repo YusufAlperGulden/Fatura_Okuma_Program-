@@ -257,7 +257,10 @@ def _process_upload(file: UploadFile):
         # STAGE 2: FALLBACK TO AI (Only if local extraction failed)
         if local_error and os.getenv("GEMINI_API_KEY") and (ext == ".pdf" or _is_image_extension(ext)):
             try:
-                from extractors.ai_extractor import extract_invoice_with_ai
+                from extractors.ai_extractor import (
+                    _stringify_amount_fields,
+                    extract_invoice_with_ai,
+                )
                 with open(file_path, "rb") as f:
                     file_bytes = f.read()
                 mime_type = "application/pdf"
@@ -267,6 +270,10 @@ def _process_upload(file: UploadFile):
                 
                 ai_data = extract_invoice_with_ai(file_bytes, mime_type)
                 data = safe_merge_ai_data(ai_data, local_data_for_serials)
+                # The merge can add a locally extracted USD marker or exchange
+                # rate that Gemini did not return. Normalize once more so those
+                # deterministic fields are applied before validation/sending.
+                data = _stringify_amount_fields(data)
                 data["_extraction_method"] = "Google Gemini Yapay Zeka"
             except Exception as e:
                 if _is_gemini_quota_error(e):

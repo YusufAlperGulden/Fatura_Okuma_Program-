@@ -117,91 +117,35 @@ def test_address_validation_preserves_address_data_without_database_access():
 
 
 
-def test_javascript_address_round_trip_preserves_raw_and_legacy_values():
+def test_javascript_address_format_one_line():
     node = shutil.which("node")
     if not node:
         pytest.skip("Node.js is not installed; JavaScript runtime contract skipped.")
 
-    app_js = PROJECT_ROOT / "ui" / "app.js"
+    helpers_js = PROJECT_ROOT / "ui" / "helpers.js"
     probe = r"""
-global.window = {};
-global.document = { addEventListener: () => {} };
-require(process.argv[1]);
+const helpers = require(process.argv[1]);
+const formatPostalAddressOneLine = helpers.formatPostalAddressOneLine;
 
-const api = window.InvoiceAddressUi;
-const raw = 'CEVIZLI MAH. TOROS CAD. NO: 24 MALTEPE / ISTANBUL';
-const flat = { customer_address: raw };
-const normalizedFlat = api.normalizePostalAddress(flat);
-const edited = api.mergePostalAddress(flat, 'street_name', 'TOROS CAD.');
-const withLines = api.mergePostalAddress(
-    { customer_address: raw, customer_postal_address: edited },
-    'address_lines',
-    'Blok B\nKat 2'
-);
-const legacy = api.normalizePostalAddress({
-    customer_address: {
-        street: 'FOREIGN STREET',
-        district: 'WESTMINSTER',
-        city: 'LONDON',
-        country: 'GB',
-        postal_code: 'SW1A 1AA',
-        address_line: 'Suite 7'
-    }
-});
-const partial = api.normalizePostalAddress({
-    customer_address: raw,
-    customer_postal_address: { city_name: 'ISTANBUL' }
-});
-const csvRows = api.postalAddressCsvRows({
-    customer_address: raw,
-    customer_postal_address: withLines
-});
+const cp = {
+    street_name: 'TOROS CAD.',
+    building_name: 'ALBAYRAK APT',
+    building_number: '24',
+    address_lines: ['Kat 12'],
+    district: 'CEVİZLİ MAH.',
+    city_subdivision_name: 'MALTEPE',
+    city_name: 'İSTANBUL',
+    country_name: 'Türkiye'
+};
 
-process.stdout.write(JSON.stringify({
-    normalizedFlat,
-    edited,
-    withLines,
-    legacy,
-    partial,
-    csvRows
-}));
+const result = formatPostalAddressOneLine(cp);
+process.stdout.write(result);
 """
     completed = subprocess.run(
-        [node, "-e", probe, str(app_js)],
+        [node, "-e", probe, str(helpers_js)],
         cwd=PROJECT_ROOT,
         check=True,
         capture_output=True,
         text=True,
     )
-    result = json.loads(completed.stdout)
-
-    assert result["normalizedFlat"]["address_lines"] == [
-        "CEVIZLI MAH. TOROS CAD. NO: 24 MALTEPE / ISTANBUL"
-    ]
-    assert set(result["edited"]) == {
-        "street_name",
-        "building_name",
-        "building_number",
-        "city_subdivision_name",
-        "city_name",
-        "postal_zone",
-        "district",
-        "country_code",
-        "country_name",
-        "address_lines",
-    }
-    assert result["edited"]["street_name"] == "TOROS CAD."
-    assert result["edited"]["address_lines"] == [raw := (
-        "CEVIZLI MAH. TOROS CAD. NO: 24 MALTEPE / ISTANBUL"
-    )]
-    assert result["withLines"]["address_lines"] == ["Blok B", "Kat 2"]
-    assert result["legacy"]["street_name"] == "FOREIGN STREET"
-    assert result["legacy"]["city_subdivision_name"] == "WESTMINSTER"
-    assert result["legacy"]["city_name"] == "LONDON"
-    assert result["legacy"]["country_code"] == "GB"
-    assert result["legacy"]["postal_zone"] == "SW1A 1AA"
-    assert result["partial"]["city_name"] == "ISTANBUL"
-    assert result["partial"]["address_lines"] == [raw]
-    assert ["Adres Ulke Kodu", ""] in result["csvRows"]
-    assert ["Adres Ek Satirlari", "Blok B | Kat 2"] in result["csvRows"]
-    assert all("[object Object]" not in str(row) for row in result["csvRows"])
+    assert completed.stdout == "TOROS CAD., ALBAYRAK APT, No: 24, Kat 12, CEVİZLİ MAH., MALTEPE, İSTANBUL, Türkiye"

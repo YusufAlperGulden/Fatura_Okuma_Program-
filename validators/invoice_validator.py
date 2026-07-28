@@ -3,10 +3,11 @@ import re
 from decimal import Decimal, ROUND_HALF_UP
 
 from utils.invoice_values import (
+    DOCUMENT_AMOUNT_TOLERANCE,
     MONEY_QUANTUM,
     decimal_places,
     format_decimal,
-    normalize_currency,
+    normalize_invoice_currency_fields,
     parse_localized_decimal,
     quantize_money,
 )
@@ -167,9 +168,16 @@ def validate_invoice(data):
     _infer_uniform_missing_tax_rate(data)
     errors = []
 
+    if data.get("fx_conversion_required") is True:
+        errors.append(
+            "USD was detected, but a valid exchange rate is required before "
+            "the TRY amounts can be converted to USD."
+        )
+
     try:
-        data["currency"] = normalize_currency(data.get("currency"))
+        document_currency = normalize_invoice_currency_fields(data)
     except ValueError:
+        document_currency = None
         errors.append(
             f"Fatura para birimi desteklenmiyor. (Okunan: '{data.get('currency')}')"
         )
@@ -409,6 +417,11 @@ def validate_invoice(data):
     discount_raw = _parse_decimal(data.get("discount_amount"))
     tax_raw = _parse_decimal(data.get("tax_amount"))
     total_raw = _parse_decimal(data.get("total_amount"))
+    foreign_total_raw = _parse_decimal(data.get("foreign_total"))
+    local_subtotal_raw = _parse_decimal(data.get("local_subtotal"))
+    local_discount_raw = _parse_decimal(data.get("local_discount_amount"))
+    local_tax_raw = _parse_decimal(data.get("local_tax_amount"))
+    local_total_raw = _parse_decimal(data.get("local_total"))
 
     subtotal = quantize_money(subtotal_raw) if subtotal_raw is not None else Decimal("0.00")
     discount_amount = quantize_money(discount_raw) if discount_raw is not None else Decimal("0.00")
@@ -437,6 +450,91 @@ def validate_invoice(data):
     
     if total_amount <= Decimal("0.00"):
         errors.append(f"Fatura Genel Toplamı sıfır veya geçersiz. (Okunan: {total_amount})")
+
+    if document_currency and document_currency != "TRY":
+        if data.get("foreign_total") not in (None, ""):
+            if foreign_total_raw is None:
+                errors.append(
+                    "Döviz toplamı (foreign_total) geçerli bir sayısal değer olmalıdır."
+                )
+            elif (
+                total_raw is not None
+                and abs(quantize_money(foreign_total_raw) - total_amount)
+                > DOCUMENT_AMOUNT_TOLERANCE
+            ):
+                errors.append(
+                    "Döviz toplamı (foreign_total), faturanın döviz genel "
+                    "toplamı (total_amount) ile uyuşmuyor."
+                )
+
+        for (
+            local_field,
+            local_value,
+            document_value,
+            document_value_is_available,
+        ) in (
+            (
+                "local_subtotal",
+                local_subtotal_raw,
+                subtotal,
+                subtotal_raw is not None,
+            ),
+            (
+                "local_discount_amount",
+                local_discount_raw,
+                discount_amount,
+                True,
+            ),
+            (
+                "local_tax_amount",
+                local_tax_raw,
+                tax_amount,
+                tax_raw is not None,
+            ),
+        ):
+            if data.get(local_field) in (None, ""):
+                continue
+            if local_value is None:
+                errors.append(f"{local_field} must be a valid numeric amount.")
+                continue
+            if exchange_rate is None or exchange_rate <= Decimal("0"):
+                errors.append(
+                    f"A positive exchange rate is required to validate {local_field}."
+                )
+                continue
+            if not document_value_is_available:
+                continue
+            expected_local_value = quantize_money(
+                document_value * exchange_rate
+            )
+            if (
+                abs(expected_local_value - quantize_money(local_value))
+                > DOCUMENT_AMOUNT_TOLERANCE
+            ):
+                errors.append(
+                    f"{local_field} does not match its document-currency "
+                    "amount multiplied by the exchange rate."
+                )
+
+        if data.get("local_total") not in (None, ""):
+            if local_total_raw is None:
+                errors.append(
+                    "Yerel para toplamı (local_total) geçerli bir sayısal değer olmalıdır."
+                )
+            elif exchange_rate is None or exchange_rate <= Decimal("0"):
+                errors.append(
+                    "Yerel para toplamını doğrulamak için pozitif döviz kuru gereklidir."
+                )
+            elif total_raw is not None:
+                expected_local_total = quantize_money(total_amount * exchange_rate)
+                if (
+                    abs(expected_local_total - quantize_money(local_total_raw))
+                    > DOCUMENT_AMOUNT_TOLERANCE
+                ):
+                    errors.append(
+                        "Döviz dönüşüm hatası: döviz genel toplamı ile "
+                        "TL/yerel genel toplamı kur üzerinden uyuşmuyor."
+                    )
 
     if (
         calculated_subtotal != subtotal

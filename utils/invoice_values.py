@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
-from typing import Any
+from typing import Any, MutableMapping
 
 
 MONEY_QUANTUM = Decimal("0.01")
@@ -61,6 +61,48 @@ def normalize_currency(value: Any, *, strict: bool = True) -> str:
     if strict:
         raise ValueError(f"unsupported currency: {text or value!r}")
     return text
+
+
+def normalize_invoice_currency_fields(invoice: MutableMapping[str, Any]) -> str:
+    """Canonicalize legacy and dual-currency invoice fields.
+
+    ``accounting_currency`` is deliberately excluded from document-currency
+    selection: a USD invoice can still carry TRY accounting/local amounts.
+    A non-TRY value in any document-facing field wins over a stale TRY default.
+    Conflicting foreign currencies are rejected rather than guessed.
+    """
+    candidate_fields = ("settlement_currency", "document_currency", "currency")
+    normalized_candidates: list[str] = []
+    for field in candidate_fields:
+        raw_value = invoice.get(field)
+        if raw_value in (None, ""):
+            continue
+        normalized_candidates.append(normalize_currency(raw_value))
+
+    foreign_currencies = {
+        currency for currency in normalized_candidates if currency != "TRY"
+    }
+    if len(foreign_currencies) > 1:
+        currencies = ", ".join(sorted(foreign_currencies))
+        raise ValueError(f"conflicting foreign invoice currencies: {currencies}")
+
+    if foreign_currencies:
+        document_currency = next(iter(foreign_currencies))
+    elif normalized_candidates:
+        document_currency = normalized_candidates[0]
+    else:
+        document_currency = "TRY"
+
+    accounting_raw = invoice.get("accounting_currency")
+    accounting_currency = normalize_currency(
+        accounting_raw if accounting_raw not in (None, "") else "TRY"
+    )
+
+    invoice["currency"] = document_currency
+    invoice["document_currency"] = document_currency
+    invoice["settlement_currency"] = document_currency
+    invoice["accounting_currency"] = accounting_currency
+    return document_currency
 
 
 def parse_localized_decimal(value: Any) -> Decimal | None:

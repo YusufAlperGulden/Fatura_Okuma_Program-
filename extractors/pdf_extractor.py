@@ -1,4 +1,5 @@
 import re
+from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
 
 import pdfplumber
 
@@ -347,6 +348,120 @@ def _extract_exchange_rate(text):
     if rate <= 0:
         return None
     return f"{rate:.6f}".rstrip("0").rstrip(".")
+
+
+USD_MARKER_RE = re.compile(
+    r"(?<![A-Z0-9])USD(?![A-Z0-9])|\b(?:ABD\s+DOLARI|DOLAR)\b|\$",
+    re.IGNORECASE,
+)
+USD_SETTLEMENT_RE = re.compile(
+    r"\bBEDEL[İI]\s+USD\s+OLARAK\s+TAHS[İI]L"
+    r"|\bUSD\s+OLARAK\s+TAHS[İI]L"
+    r"|\bFATURA\s+BEDEL[İI]\b[^\r\n]{0,80}\bUSD\s+OLUP\b",
+    re.IGNORECASE,
+)
+USD_DOCUMENT_CURRENCY_RE = re.compile(
+    r"\b(?:FATURA\s+)?PARA\s+B[İI]R[İI]M[İI]\s*[:=-]?\s*(?:USD|DOLAR|\$)"
+    r"|\bD[ÖO]V[İI]Z\s+C[İI]NS[İI]\s*[:=-]?\s*(?:USD|DOLAR|\$)",
+    re.IGNORECASE,
+)
+TRY_EQUIVALENT_RE = re.compile(
+    rf"\b(?:TL|TRY)\s+KAR(?:Åž|Ş|S)ILI(?:Äž|Ğ|G)I"
+    rf"[^\r\n\d]{{0,30}}(?:{AMOUNT_NUMBER_RE})\s*(?:TL|TRY|₺|â‚º)?",
+    re.IGNORECASE,
+)
+
+
+def _has_usd_marker(text):
+    """Return True whenever the invoice text explicitly mentions USD."""
+    return bool(USD_MARKER_RE.search(str(text or "")))
+
+
+def _currency_amount_match_count(text, currency_pattern):
+    """Count amounts explicitly labelled with a currency on either side."""
+    amount = rf"(?:{AMOUNT_NUMBER_RE})"
+    marker = rf"(?:{currency_pattern})"
+    return len(
+        re.findall(
+            rf"(?:{marker}\s*{amount}|{amount}\s*{marker})",
+            str(text or ""),
+            re.IGNORECASE,
+        )
+    )
+
+
+def _money_decimal(value):
+    """Parse the invoice's Turkish/international money formats without float math."""
+    if value is None or value == "":
+        return None
+
+    raw = _fix_mojibake_currency(str(value)).strip().upper()
+    if not re.search(r"\d", raw):
+        return None
+
+    for token in ("₺", "TL", "TRY", "$", "USD", "DOLAR", "€", "EUR", "EURO", "£", "GBP", "%"):
+        raw = raw.replace(token, "")
+    raw = re.sub(r"\s+", "", raw)
+
+    if "," in raw and "." in raw:
+        if raw.rfind(",") > raw.rfind("."):
+            raw = raw.replace(".", "").replace(",", ".")
+        else:
+            raw = raw.replace(",", "")
+    elif "," in raw:
+        raw = raw.replace(",", ".")
+    elif "." in raw:
+        parts = raw.split(".")
+        if len(parts) > 1 and all(len(part) == 3 for part in parts[1:]):
+            raw = raw.replace(".", "")
+
+    try:
+        return Decimal(raw)
+    except InvalidOperation:
+        return None
+
+
+def _format_decimal_amount(value):
+    return format(value.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP), ".2f")
+
+
+def _format_unit_price(value):
+    text = format(
+        value.quantize(Decimal("0.00000001"), rounding=ROUND_HALF_UP), "f"
+    ).rstrip("0").rstrip(".")
+    if not text:
+        return "0.00"
+    if "." not in text:
+        return f"{text}.00"
+    if len(text.rsplit(".", 1)[1]) == 1:
+        return f"{text}0"
+    return text
+
+
+def _format_exchange_rate(value):
+    return format(
+        value.quantize(Decimal("0.000001"), rounding=ROUND_HALF_UP),
+        "f",
+    ).rstrip("0").rstrip(".")
+
+
+def _extract_explicit_usd_total(text):
+    """Read the authoritative USD total from a foreign-total row or settlement note."""
+    amount = rf"({AMOUNT_NUMBER_RE})"
+    patterns = [
+        rf"D[ÖO]V[İI]Z\s+TOPLAM\s*[:=-]?\s*\$\s*{amount}",
+        rf"D[ÖO]V[İI]Z\s+TOPLAM\s*[:=-]?\s*{amount}\s*(?:USD|DOLAR)\b",
+        rf"(?:İŞ|IS|IŞ)\s+BU\s+FATURA\s+BEDEL[İI]\s+{amount}\s*USD\s+OLUP\b",
+        rf"\bFATURA\s+BEDEL[İI]\s+{amount}\s*USD\s+OLUP\b",
+    ]
+    for pattern in patterns:
+        match = re.search(pattern, str(text or ""), re.IGNORECASE)
+        if not match:
+            continue
+        value = _money_decimal(match.group(1))
+        if value is not None and value > 0:
+            return value
+    return None
 
 
 def _extract_invoice_notes(text):
@@ -844,13 +959,18 @@ def parse_invoice_text(text: str, top_text: str = None) -> dict:
         "_extraction_method": "Yerel Okuyucu (PDF)",
     }
 
-    usd_matches = len(re.findall(r"\$[ \t]*\d|\d+(?:[.,]\d+)?[ \t]*(?:USD|DOLAR)", text, re.IGNORECASE))
-    eur_matches = len(re.findall(r"€[ \t]*\d|\d+(?:[.,]\d+)?[ \t]*(?:EUR|EURO)", text, re.IGNORECASE))
-    gbp_matches = len(re.findall(r"£[ \t]*\d|\d+(?:[.,]\d+)?[ \t]*GBP", text, re.IGNORECASE))
-    try_matches = len(re.findall(r"₺[ \t]*\d|\d+(?:[.,]\d+)?[ \t]*(?:TL|TRY)", text, re.IGNORECASE))
+    usd_matches = _currency_amount_match_count(text, r"USD|DOLAR|\$")
+    eur_matches = _currency_amount_match_count(text, r"EUR|EURO|€")
+    gbp_matches = _currency_amount_match_count(text, r"GBP|£")
+    try_matches = _currency_amount_match_count(text, r"TL|TRY|₺")
 
-    if usd_matches > try_matches and usd_matches > eur_matches and usd_matches > gbp_matches:
+    # Product requirement: an explicit USD marker anywhere on the invoice is
+    # authoritative, even when the visible accounting rows are mostly in TRY.
+    if _has_usd_marker(text):
         data["currency"] = "USD"
+        data["document_currency"] = "USD"
+        data["settlement_currency"] = "USD"
+        data["accounting_currency"] = "TRY" if try_matches > usd_matches else "USD"
     elif eur_matches > try_matches and eur_matches > usd_matches and eur_matches > gbp_matches:
         data["currency"] = "EUR"
     elif gbp_matches > try_matches and gbp_matches > usd_matches and gbp_matches > eur_matches:
@@ -943,6 +1063,9 @@ def parse_invoice_text(text: str, top_text: str = None) -> dict:
         re.IGNORECASE,
     )
 
+    # Retain the normalized source for the final PDF currency pass. The API
+    # removes this private diagnostic field before returning the invoice.
+    data["_raw_text"] = text
     return data
 
 
@@ -1174,63 +1297,183 @@ def extract_items_via_item_blocks(pages):
     return unique_items
 
 def _apply_mode_b_usd_conversion(data: dict):
-    from decimal import Decimal
-    
-    text = data.get("_raw_text", "")
-    text_upper = text.replace('\n', ' ').upper()
-    has_usd_statement = "BEDELİ USD OLARAK" in text_upper or "USD OLARAK TAHSİL" in text_upper
-    has_foreign_total = "DÖVİZ TOPLAM" in text_upper and "$" in text_upper
-    has_exchange_rate = bool(data.get("exchange_rate"))
-    
-    import re
-    foreign_total_match = re.search(r'(?i)Döviz Toplam\s*:\s*\$([\d\.,]+)', text)
-    foreign_total = foreign_total_match.group(1).replace(".", "").replace(",", ".") if foreign_total_match else None
-    
-    if has_usd_statement and has_exchange_rate and (has_foreign_total or foreign_total):
-        try:
-            ex_rate = Decimal(data["exchange_rate"].replace(",", "."))
-            if ex_rate <= 0:
-                return
-            
-            data["local_subtotal"] = data.get("subtotal")
-            data["local_tax_amount"] = data.get("tax_amount")
-            data["local_total"] = data.get("total_amount")
-            
-            def _convert(val_str):
-                if not val_str: return None
-                val = Decimal(str(val_str).replace(".", "").replace(",", "."))
-                converted = (val / ex_rate).quantize(Decimal('0.01'))
-                return f"{converted:.2f}"
+    """Normalize a PDF that mentions USD into document-currency USD.
 
-            if data.get("local_subtotal"):
-                data["subtotal"] = _convert(data["local_subtotal"])
-            if data.get("local_tax_amount"):
-                data["tax_amount"] = _convert(data["local_tax_amount"])
-            
-            if foreign_total:
-                data["foreign_total"] = foreign_total
-                data["total_amount"] = foreign_total
-            elif data.get("local_total"):
-                data["total_amount"] = _convert(data["local_total"])
-                
-            data["currency"] = "USD"
-            data["document_currency"] = "USD"
-            data["settlement_currency"] = "USD"
-            data["accounting_currency"] = "TRY"
-            
-            for item in data.get("items", []):
-                item["local_unit_price"] = item.get("unit_price")
-                item["local_total_price"] = item.get("total_price")
-                item["local_amount_currency"] = "TRY"
-                
-                if item.get("local_unit_price"):
-                    item["unit_price"] = _convert(item["local_unit_price"])
-                if item.get("local_total_price"):
-                    item["total_price"] = _convert(item["local_total_price"])
-                item["amount_currency"] = "USD"
-                
-        except Exception as e:
-            print(f"Error applying Mode B USD conversion: {e}")
+    The visible rows of Turkish dual-currency invoices are commonly TRY while a
+    footer declares that the invoice will be collected in USD.  This routine
+    preserves those TRY values in ``local_*`` fields, converts document values
+    with the printed rate, and treats an explicitly printed USD invoice total
+    as authoritative.  Re-running it is safe because conversions always use the
+    preserved local values instead of already-converted document values.
+    """
+    if not isinstance(data, dict):
+        return data
+
+    text = str(data.get("_raw_text") or "")
+    has_usd_mention = _has_usd_marker(text)
+    data["has_usd_mention"] = has_usd_mention
+    if not has_usd_mention:
+        return data
+
+    usd_amount_count = _currency_amount_match_count(text, r"USD|DOLAR|\$")
+    try_evidence_text = TRY_EQUIVALENT_RE.sub("", text)
+    try_amount_count = _currency_amount_match_count(
+        try_evidence_text, r"TL|TRY|₺"
+    )
+    has_settlement_statement = bool(USD_SETTLEMENT_RE.search(text))
+    has_usd_document_header = bool(USD_DOCUMENT_CURRENCY_RE.search(text))
+    explicit_foreign_total = _extract_explicit_usd_total(text)
+
+    rate = _money_decimal(data.get("exchange_rate"))
+    source_total = _money_decimal(
+        data.get("local_total")
+        if data.get("local_total") not in (None, "")
+        else data.get("total_amount")
+    )
+
+    # The strongest proof is an explicit TRY-labelled amount.  For invoices
+    # whose rows omit symbols, a settlement sentence plus a lone USD total is
+    # also a dual-currency signal.  Conversely, a normal invoice with several
+    # USD-labelled rows must not be divided by the rate a second time.
+    local_values_are_primary = (
+        (
+            try_amount_count > 0
+            and try_amount_count >= usd_amount_count
+        )
+        or (has_settlement_statement and try_amount_count > 0)
+        or (
+            has_settlement_statement
+            and usd_amount_count <= 1
+            and source_total is not None
+            and (
+                explicit_foreign_total is None
+                or source_total > explicit_foreign_total * Decimal("1.5")
+            )
+        )
+        or (
+            explicit_foreign_total is not None
+            and source_total is not None
+            and source_total > explicit_foreign_total * Decimal("1.5")
+        )
+    )
+    if (
+        has_usd_document_header
+        and not has_settlement_statement
+        and explicit_foreign_total is None
+        and try_amount_count == 0
+    ):
+        # A native USD document often prints one informational "TL
+        # equivalent" line. That single local line must not cause every USD
+        # row to be divided by the exchange rate a second time.
+        local_values_are_primary = False
+
+    data["currency"] = "USD"
+    data["document_currency"] = "USD"
+    data["settlement_currency"] = "USD"
+    data["accounting_currency"] = "TRY" if local_values_are_primary else "USD"
+
+    if explicit_foreign_total is not None:
+        data["foreign_total"] = _format_decimal_amount(explicit_foreign_total)
+
+    if not local_values_are_primary:
+        data["fx_conversion_required"] = False
+        if explicit_foreign_total is not None:
+            data["total_amount"] = data["foreign_total"]
+        return data
+
+    local_mappings = (
+        ("subtotal", "local_subtotal"),
+        ("discount_amount", "local_discount_amount"),
+        ("tax_amount", "local_tax_amount"),
+        ("total_amount", "local_total"),
+    )
+    for document_field, local_field in local_mappings:
+        if data.get(local_field) in (None, "") and data.get(document_field) not in (
+            None,
+            "",
+        ):
+            data[local_field] = data[document_field]
+
+    source_total = _money_decimal(data.get("local_total"))
+    if (
+        (rate is None or rate <= 0)
+        and explicit_foreign_total is not None
+        and explicit_foreign_total > 0
+        and source_total is not None
+        and source_total > 0
+    ):
+        # Both totals are printed on the invoice, so this is a deterministic
+        # derivation rather than an external-rate guess.
+        rate = source_total / explicit_foreign_total
+        data["exchange_rate"] = _format_exchange_rate(rate)
+
+    if rate is None or rate <= 0:
+        data["fx_conversion_required"] = True
+        return data
+
+    data["exchange_rate"] = _format_exchange_rate(rate)
+    data["fx_conversion_required"] = False
+
+    def _convert(local_value):
+        value = _money_decimal(local_value)
+        if value is None:
+            return None
+        return _format_decimal_amount(value / rate)
+
+    for document_field, local_field in local_mappings:
+        converted = _convert(data.get(local_field))
+        if converted is not None:
+            data[document_field] = converted
+
+    for item in data.get("items") or []:
+        if not isinstance(item, dict):
+            continue
+        if item.get("local_unit_price") in (None, "") and item.get(
+            "unit_price"
+        ) not in (None, ""):
+            item["local_unit_price"] = item["unit_price"]
+        if item.get("local_total_price") in (None, "") and item.get(
+            "total_price"
+        ) not in (None, ""):
+            item["local_total_price"] = item["total_price"]
+        item["local_amount_currency"] = "TRY"
+
+        converted_unit = _convert(item.get("local_unit_price"))
+        converted_total = _convert(item.get("local_total_price"))
+        if converted_unit is not None:
+            local_unit = _money_decimal(item.get("local_unit_price"))
+            converted_unit_value = local_unit / rate
+            quantity = _money_decimal(item.get("quantity"))
+            converted_total_value = _money_decimal(converted_total)
+            if (
+                quantity is not None
+                and quantity > 0
+                and converted_total_value is not None
+            ):
+                line_based_unit_price = converted_total_value / quantity
+                if (
+                    abs(line_based_unit_price - converted_unit_value)
+                    <= Decimal("0.01")
+                ):
+                    converted_unit_value = line_based_unit_price
+            item["unit_price"] = _format_unit_price(converted_unit_value)
+        if converted_total is not None:
+            item["total_price"] = converted_total
+        item["amount_currency"] = "USD"
+
+    if explicit_foreign_total is not None:
+        data["total_amount"] = data["foreign_total"]
+    elif data.get("total_amount") not in (None, ""):
+        data["foreign_total"] = data["total_amount"]
+
+    local_total = _money_decimal(data.get("local_total"))
+    foreign_total = _money_decimal(data.get("foreign_total"))
+    if local_total is not None and foreign_total is not None:
+        data["fx_math_is_valid"] = (
+            abs((foreign_total * rate) - local_total) <= Decimal("1.00")
+        )
+
+    return data
 
 
 def parse_pdf_invoice(file_path: str) -> dict:
@@ -1291,9 +1534,9 @@ def parse_pdf_invoice(file_path: str) -> dict:
                 print("No selectable text found via pdfplumber. Falling back to OCR...")
                 from extractors.ocr_extractor import parse_pdf_invoice_ocr
 
-                return _with_structured_customer_address(
-                    parse_pdf_invoice_ocr(file_path)
-                )
+                ocr_data = parse_pdf_invoice_ocr(file_path)
+                _apply_mode_b_usd_conversion(ocr_data)
+                return _with_structured_customer_address(ocr_data)
 
             candidates = []
             for text in candidate_texts:
@@ -1352,9 +1595,9 @@ def parse_pdf_invoice(file_path: str) -> dict:
             print("PDF text was read, but line items were not matched. Falling back to OCR...")
             from extractors.ocr_extractor import parse_pdf_invoice_ocr
 
-            return _with_structured_customer_address(
-                parse_pdf_invoice_ocr(file_path)
-            )
+            ocr_data = parse_pdf_invoice_ocr(file_path)
+            _apply_mode_b_usd_conversion(ocr_data)
+            return _with_structured_customer_address(ocr_data)
 
         _apply_mode_b_usd_conversion(data)
 
