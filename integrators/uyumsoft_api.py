@@ -654,9 +654,8 @@ def build_ubl_invoice(invoice: dict[str, Any]) -> str:
     issue_date = _parse_date(invoice.get("date"))
     
     # E-Fatura kuralları gereği 7 günden eski veya geçmiş yıllara ait fatura kesilmemelidir.
-    current_year = datetime.now().year
-    if int(issue_date[:4]) < current_year:
-        raise ValueError("Geçmiş yıla ait bir faturayı canlı ortama gönderemezsiniz. Lütfen tarihi kontrol edin.")
+    # Kullanıcı isteği üzerine bu kural kaldırıldı.
+    
     issue_time = _parse_time(invoice.get("time"))
     issue_time_xml = (
         f"\n  <cbc:IssueTime>{escape(issue_time)}</cbc:IssueTime>"
@@ -1565,7 +1564,7 @@ def send_invoice_to_uyumsoft(
             "success": False,
             "message": "Uyumsoft kimlik bilgileri eksik.",
             "details": "Lütfen ayarlardan Uyumsoft kullanıcı adı ve şifrenizi girin.",
-            "response_code": 401,
+            "response_code": 422,
         }
 
     selected_action = (action or os.getenv("UYUMSOFT_ACTION", "test_connection")).lower()
