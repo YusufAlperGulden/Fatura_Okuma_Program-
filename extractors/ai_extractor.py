@@ -17,6 +17,7 @@ from utils.serial_numbers import (
     normalize_invoice_serial_numbers,
 )
 from utils.invoice_values import parse_localized_decimal, quantize_money
+from extractors.pdf_extractor import TRY_SETTLEMENT_RE
 
 
 DEFAULT_GEMINI_MODEL = "gemini-2.5-flash"
@@ -28,29 +29,18 @@ FALLBACK_GEMINI_MODELS = (
 )
 
 USD_EXTRACTION_INSTRUCTIONS = """
-KRITIK USD KURALI:
-- Belgenin HERHANGI BIR YERINDE bagimsiz para birimi kodu olarak "USD" geciyorsa
-  bu belgeyi USD tahsilatli fatura kabul et. USD ifadesi notlarda, dipnotta,
-  satir aciklamasinda veya toplamlar bolumunde olsa da bu kural gecerlidir.
-- Ozellikle "IS BU FATURA BEDELI ... USD OLUP, BEDELI USD OLARAK TAHSIL
-  EDILECEKTIR", "BEDELI USD OLARAK TAHSIL EDILECEKTIR" veya ayni anlama gelen
-  bir cumle kesin USD kanitidir.
-- Bu durumda has_usd_mention=true, currency="USD",
-  document_currency="USD" ve settlement_currency="USD" dondur.
-- Belgede kalemler ve toplamlar TL olarak yazilmis, ancak tahsilat USD ise
-  accounting_currency="TRY" dondur. TL degerlerin orijinallerini local_subtotal,
-  local_discount_amount, local_tax_amount, local_total ve kalemlerde
-  local_unit_price/local_total_price alanlarinda koru.
-- Faturada acikca yazan doviz kurunu exchange_rate alanina koy. Kur yaziyorsa TL
-  tutarlari bu kura bolerek USD subtotal, discount_amount, tax_amount,
-  total_amount ve kalem fiyatlarini hesapla. Yuvarlamayi iki ondalikla yap.
-- Cumlede acikca yazan USD fatura bedelini foreign_total alanina koy ve
-  total_amount ile ayni USD degeri kullan. foreign_total * exchange_rate ile
-  local_total tutarliligini kontrol et.
-- Kur belgede yoksa ASLA kur tahmin etme. exchange_rate=null dondur; TL
-  orijinalleri local_* alanlarinda koru ve fx_conversion_required=true yap.
-- USD hic gecmiyorsa has_usd_mention=false dondur ve belgedeki gercek para
-  birimini normal sekilde kullan.
+  KRITIK PARA BİRİMİ VE USD KURALI (KESİN ÖNCELİK):
+  - DİKKAT: Belgede "BEDELİ TL OLARAK TAHSİL EDİLECEKTİR", "TL OLUP" gibi bir cümle varsa 
+    (başka yerlerde, alt notlarda veya dipnotlarda USD yazsa bile), para birimi kesinlikle 'TRY' olmalıdır.
+    Bu durumda has_usd_mention=false, currency="TRY", document_currency="TRY" ve settlement_currency="TRY" döndür.
+  - Eğer yukarıdaki "TL OLARAK TAHSİL" kuralı YOKSA ve belgenin HERHANGI BIR YERINDE bağımsız para birimi kodu olarak "USD" geçiyorsa (notlarda, dipnotta, satır açıklamasında veya toplamlar bölümünde):
+    bu belgeyi USD tahsilatlı fatura kabul et. 
+  - Özellikle "İŞ BU FATURA BEDELİ ... USD OLUP, BEDELİ USD OLARAK TAHSİL EDİLECEKTİR", "BEDELİ USD OLARAK TAHSİL EDİLECEKTİR" cümlesi kesin USD kanıtıdır.
+  - Bu durumda has_usd_mention=true, currency="USD", document_currency="USD" ve settlement_currency="USD" döndür.
+  - Belgede kalemler ve toplamlar TL olarak yazılmış, ancak tahsilat USD ise accounting_currency="TRY" döndür. TL değerlerin orijinallerini local_subtotal, local_discount_amount, local_tax_amount, local_total ve kalemlerde local_unit_price/local_total_price alanlarında koru.
+  - Faturada açıkça yazan döviz kurunu exchange_rate alanına koy. Kur yazıyorsa TL tutarları bu kura bölerek USD subtotal, discount_amount, tax_amount, total_amount ve kalem fiyatlarını hesapla. Yuvarlamayı iki ondalıkla yap.
+  - Cümlede açıkça yazan USD fatura bedelini foreign_total alanına koy ve total_amount ile aynı USD değeri kullan.
+  - Kur belgede yoksa ASLA kur tahmin etme. exchange_rate=null döndür.
 """.strip()
 
 
@@ -94,8 +84,19 @@ def _normalize_ai_usd_currency(data: dict) -> dict:
 
     if not isinstance(data, dict):
         return data
+        
+    text = str(data.get("_raw_text") or "")
+    if TRY_SETTLEMENT_RE.search(text):
+        data["has_usd_mention"] = False
+        data["currency"] = "TRY"
+        data["document_currency"] = "TRY"
+        data["settlement_currency"] = "TRY"
+        if data.get("accounting_currency") == "USD":
+            data["accounting_currency"] = "TRY"
+        return data
 
     has_usd_mention = _is_truthy_flag(data.get("has_usd_mention")) or _contains_usd_token(
+
         data
     )
     data["has_usd_mention"] = has_usd_mention

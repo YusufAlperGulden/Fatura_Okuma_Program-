@@ -360,6 +360,12 @@ USD_SETTLEMENT_RE = re.compile(
     r"|\bFATURA\s+BEDEL[İI]\b[^\r\n]{0,80}\bUSD\s+OLUP\b",
     re.IGNORECASE,
 )
+TRY_SETTLEMENT_RE = re.compile(
+    r"\bBEDEL[İI]\s+(?:TL|TRY|TÜRK\s+LİRASI)\s+OLARAK\s+TAHS[İI]L"
+    r"|\b(?:TL|TRY|TÜRK\s+LİRASI)\s+OLARAK\s+TAHS[İI]L"
+    r"|\bFATURA\s+BEDEL[İI]\b[^\r\n]{0,80}\b(?:TL|TRY)\s+OLUP\b",
+    re.IGNORECASE,
+)
 USD_DOCUMENT_CURRENCY_RE = re.compile(
     r"\b(?:FATURA\s+)?PARA\s+B[İI]R[İI]M[İI]\s*[:=-]?\s*(?:USD|DOLAR|\$)"
     r"|\bD[ÖO]V[İI]Z\s+C[İI]NS[İI]\s*[:=-]?\s*(?:USD|DOLAR|\$)",
@@ -964,9 +970,20 @@ def parse_invoice_text(text: str, top_text: str = None) -> dict:
     gbp_matches = _currency_amount_match_count(text, r"GBP|£")
     try_matches = _currency_amount_match_count(text, r"TL|TRY|₺")
 
-    # Product requirement: an explicit USD marker anywhere on the invoice is
-    # authoritative, even when the visible accounting rows are mostly in TRY.
-    if _has_usd_marker(text):
+    has_try_settlement = bool(TRY_SETTLEMENT_RE.search(text))
+    has_usd_settlement = bool(USD_SETTLEMENT_RE.search(text))
+
+    if has_try_settlement:
+        data["currency"] = "TRY"
+        data["document_currency"] = "TRY"
+        data["settlement_currency"] = "TRY"
+        data["accounting_currency"] = "TRY"
+    elif has_usd_settlement:
+        data["currency"] = "USD"
+        data["document_currency"] = "USD"
+        data["settlement_currency"] = "USD"
+        data["accounting_currency"] = "TRY" if try_matches > usd_matches else "USD"
+    elif _has_usd_marker(text):
         data["currency"] = "USD"
         data["document_currency"] = "USD"
         data["settlement_currency"] = "USD"
@@ -1310,6 +1327,12 @@ def _apply_mode_b_usd_conversion(data: dict):
         return data
 
     text = str(data.get("_raw_text") or "")
+    
+    has_try_settlement = bool(TRY_SETTLEMENT_RE.search(text))
+    if has_try_settlement:
+        data["has_usd_mention"] = False
+        return data
+
     has_usd_mention = _has_usd_marker(text)
     data["has_usd_mention"] = has_usd_mention
     if not has_usd_mention:

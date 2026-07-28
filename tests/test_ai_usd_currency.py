@@ -274,7 +274,7 @@ def test_actual_gemini_request_contains_usd_rules_and_extended_schema_without_ne
     assert client.closed is True
     prompt = captured["prompt"]
     assert "HERHANGI BIR YERINDE" in prompt
-    assert "BEDELI USD OLARAK TAHSIL" in prompt
+    assert "BEDELİ USD OLARAK TAHSİL" in prompt
     assert '"has_usd_mention"' in prompt
     assert '"document_currency"' in prompt
     assert '"settlement_currency"' in prompt
@@ -368,3 +368,26 @@ def test_local_usd_evidence_recovers_ai_try_result_during_fallback():
     assert normalized["total_amount"] == "4608.00"
     assert normalized["items"][0]["unit_price"] == "1.92"
     assert normalized["items"][0]["total_price"] == "3840.00"
+
+def test_normalize_ai_usd_with_explicit_try_settlement():
+    from extractors.ai_extractor import _normalize_ai_usd_currency
+    
+    # Scenario: Gemini mistakenly flags the document as USD due to a footnote,
+    # but the document contains a TRY settlement sentence.
+    data = {
+        "_raw_text": "İŞ BU FATURA BEDELİ 2.842,00 TL OLUP, BEDELİ TL OLARAK TAHSİL EDİLECEKTİR. VADESİ:Peşin ... ilgili mevzuat doğrultusunda USD olarak veya USD ye endeksli ...",
+        "has_usd_mention": True,
+        "currency": "USD",
+        "document_currency": "USD",
+        "settlement_currency": "USD",
+        "accounting_currency": "USD",
+        "total_amount": "2842.00"
+    }
+    
+    result = _normalize_ai_usd_currency(data)
+    
+    assert result["has_usd_mention"] is False
+    assert result["currency"] == "TRY"
+    assert result["document_currency"] == "TRY"
+    assert result["settlement_currency"] == "TRY"
+    assert result["accounting_currency"] == "TRY"
