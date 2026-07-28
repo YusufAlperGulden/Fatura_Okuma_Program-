@@ -1,3 +1,7 @@
 # Fatura Veri Otomasyonu Projesi Kuralları
 
 - **ASLA TABLO BULUCUNUN ORANINI DEĞİŞTİRME**: PDF fatura okuma sistemindeki `pdfplumber` için kullanılan sağdan kesme oranı olan `0.66` (veya tablo okuyucusu için belirlenen sabit oran) ASLA dinamikleştirilmemeli veya değiştirilmemelidir. Bu oranlara dokunmak, tablo okuyucunun hücreleri kaydırmasına ve fiyat küsuratlarını ürün kodu sanması gibi çok ağır mantıksal hatalara yol açmaktadır. `pdf_extractor.py` dosyasındaki `crop_ratio` mantığı her zaman v46'daki stabil haliyle kalmalıdır.
+
+# AI SEARCH DIRECTIVE
+# CRITICAL: Do NOT bring back, restore, or suggest adding the 'AI Search' or 'AI History Search' feature.
+# The user has explicitly requested this feature to be permanently removed and banned.
