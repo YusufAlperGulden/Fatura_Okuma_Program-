@@ -37,7 +37,8 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     };
     
-    document.getElementById('auth-save-btn').addEventListener('click', () => {
+    const authSaveBtn = document.getElementById('auth-save-btn');
+    authSaveBtn.addEventListener('click', () => {
         const user = document.getElementById('app-username').value;
         const pass = document.getElementById('app-password').value;
         if (user && pass) {
@@ -52,8 +53,18 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
+    const userInput = document.getElementById('app-username');
     const passInput = document.getElementById('app-password');
     const capsWarning = document.getElementById('capslock-warning');
+    
+    const checkEnter = (e) => {
+        if (e.key === 'Enter') {
+            authSaveBtn.click();
+        }
+    };
+    userInput.addEventListener('keyup', checkEnter);
+    passInput.addEventListener('keyup', checkEnter);
+    
     const checkCaps = (e) => {
         if (e.getModifierState && e.getModifierState('CapsLock')) {
             capsWarning.style.display = 'flex';
